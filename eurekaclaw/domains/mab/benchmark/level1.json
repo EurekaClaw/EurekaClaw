@@ -1,0 +1,33 @@
+[
+  {
+    "title": "UCB1 instance-dependent regret bound",
+    "setting": "Derive the instance-dependent regret bound for UCB1: R_T <= sum_{i: Delta_i > 0} (8 log T / Delta_i) + (1 + pi^2/3) * sum_i Delta_i",
+    "domain": "stochastic_mab",
+    "known_results": [
+      "UCB1 uses confidence bound sqrt(2 log t / n_i)",
+      "Regret decomposition: R_T = sum_i Delta_i * E[N_i(T)]"
+    ],
+    "difficulty": "level1"
+  },
+  {
+    "title": "UCB1 instance-independent (minimax) regret bound",
+    "setting": "Derive the minimax regret bound: R_T <= sqrt(2KT log T) + K/2",
+    "domain": "stochastic_mab",
+    "known_results": [
+      "Cauchy-Schwarz inequality on regret decomposition",
+      "AM-GM bound on gap-dependent terms"
+    ],
+    "difficulty": "level1"
+  },
+  {
+    "title": "Lai-Robbins asymptotic lower bound",
+    "setting": "Show that any consistent policy satisfies lim inf R_T / log T >= sum_{i: Delta_i > 0} Delta_i / KL(mu_i, mu*)",
+    "domain": "stochastic_mab",
+    "known_results": [
+      "Fano's inequality",
+      "Change of measure / KL divergence argument",
+      "Bretagnolle-Huber inequality"
+    ],
+    "difficulty": "level1"
+  }
+]

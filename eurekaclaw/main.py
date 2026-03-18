@@ -7,6 +7,7 @@ import logging
 import uuid
 
 from eurekaclaw.config import settings
+from eurekaclaw.domains import resolve_domain
 from eurekaclaw.knowledge_bus.bus import KnowledgeBus
 from eurekaclaw.orchestrator.meta_orchestrator import MetaOrchestrator
 from eurekaclaw.types.tasks import InputSpec, ResearchOutput
@@ -28,22 +29,32 @@ class EurekaSession:
         self.bus = KnowledgeBus(self.session_id)
         self._orchestrator: MetaOrchestrator | None = None
 
+    def _make_orchestrator(self, domain: str = "") -> MetaOrchestrator:
+        domain_plugin = resolve_domain(domain) if domain else None
+        if domain_plugin:
+            logger.info("Auto-detected domain plugin: %s", domain_plugin.name)
+        return MetaOrchestrator(bus=self.bus, domain_plugin=domain_plugin)
+
     @property
     def orchestrator(self) -> MetaOrchestrator:
         if not self._orchestrator:
-            self._orchestrator = MetaOrchestrator(bus=self.bus)
+            self._orchestrator = self._make_orchestrator()
         return self._orchestrator
 
     async def run(self, input_spec: InputSpec) -> ResearchOutput:
         """Run a complete research session from an InputSpec."""
-        return await self.orchestrator.run(input_spec)
+        # Build orchestrator with domain plugin resolved from the spec's domain
+        if not self._orchestrator:
+            self._orchestrator = self._make_orchestrator(input_spec.domain or "")
+        return await self._orchestrator.run(input_spec)
 
     async def run_detailed(self, conjecture: str, domain: str = "") -> ResearchOutput:
         """Level 1 mode: user provides a specific conjecture."""
+        resolved_domain = domain or _infer_domain(conjecture)
         spec = InputSpec(
             mode="detailed",
             conjecture=conjecture,
-            domain=domain or _infer_domain(conjecture),
+            domain=resolved_domain,
             query=conjecture,
         )
         return await self.run(spec)
@@ -78,6 +89,15 @@ def _infer_domain(query: str) -> str:
     """Heuristically infer the research domain from a query string."""
     query_lower = query.lower()
     domain_keywords = {
+        # MAB / bandit theory
+        "bandit": "mab",
+        "multi-armed": "mab",
+        "UCB": "mab",
+        "ucb1": "mab",
+        "thompson sampling": "mab",
+        "regret bound": "mab",
+        "exploration-exploitation": "mab",
+        # ML theory
         "sample complexity": "machine learning theory",
         "generalization": "machine learning theory",
         "VC dimension": "machine learning theory",
