@@ -80,9 +80,9 @@ eurekaclaw from-papers 1706.03762 2005.14165 --domain "attention mechanisms"
 
 ---
 
-## The 6-Stage Proof Loop
+## Theory Agent — The 6-Stage Proof Loop
 
-EurekaClaw's core innovation is the **Theory Agent inner loop**:
+The **Theory Agent** is EurekaClaw's built-in agent for formal mathematical research. At its core is an iterative inner loop that takes an informal conjecture all the way to a verified proof (or a principled refutation):
 
 ```
 Informal Conjecture
@@ -147,11 +147,11 @@ The loop runs until all lemmas are proven, a maximum iteration limit is reached,
 
 | Stage | Agent | Description |
 |---|---|---|
-| `survey` | SurveyAgent | Literature search via arXiv, Semantic Scholar, web |
-| `ideation` | IdeationAgent | Generate research directions |
-| `theory` | TheoryAgent | 6-stage proof loop |
-| `experiment` | ExperimentAgent | Empirical validation of theoretical bounds |
-| `writer` | WriterAgent | Full paper assembly (LaTeX or Markdown) |
+| `survey` | `SurveyAgent` | Literature search via arXiv, Semantic Scholar, web |
+| `ideation` | `IdeationAgent` | Generate and rank research directions |
+| `theory` | `TheoryAgent` | Formal math: 6-stage proof loop (see above) |
+| `experiment` | `ExperimentAgent` | Empirical validation of theoretical bounds |
+| `writer` | `WriterAgent` | Full paper assembly (LaTeX or Markdown) |
 
 ---
 
