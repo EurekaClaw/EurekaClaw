@@ -319,7 +319,7 @@ def _run_session(
 ) -> None:
     """Common session runner."""
     import os
-    from eurekaclaw.main import EurekaSession
+    from eurekaclaw.main import EurekaSession, save_artifacts
     from eurekaclaw.types.tasks import InputSpec
 
     # Override the settings singleton in-place so all already-imported modules
@@ -355,17 +355,7 @@ def _run_session(
     result = asyncio.run(session.run(spec))
 
     if output_dir:
-        out = Path(output_dir)
-        out.mkdir(parents=True, exist_ok=True)
-        if result.latex_paper:
-            if settings.output_format == "markdown":
-                (out / "paper.md").write_text(result.latex_paper)
-            else:
-                tex_path = out / "paper.tex"
-                tex_path.write_text(result.latex_paper)
-                _compile_pdf(tex_path)
-        if result.theory_state_json:
-            (out / "theory_state.json").write_text(result.theory_state_json)
+        out = save_artifacts(result, output_dir)
         console.print(f"[green]Artifacts saved to {out}[/green]")
 
 

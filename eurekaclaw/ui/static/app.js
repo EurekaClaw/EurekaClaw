@@ -878,6 +878,9 @@ async function loadConfig() {
       const field = configFormEl.elements.namedItem(key);
       if (field) {
         field.value = value ?? "";
+        // Sync slider display label if present
+        const label = document.getElementById(`${key}-val`);
+        if (label) label.textContent = value ?? "";
       }
     });
     updateConfigVisibility();

@@ -70,7 +70,7 @@ class ResourceAnalyst:
         try:
             response = await self.client.messages.create(
                 model=settings.fast_model,
-                max_tokens=2048,
+                max_tokens=settings.max_tokens_formalizer,
                 system=ANALYST_SYSTEM,
                 messages=[{
                     "role": "user",
@@ -80,11 +80,13 @@ class ResourceAnalyst:
                     ),
                 }],
             )
+            if not response.content:
+                raise ValueError("LLM returned empty content list")
             text = response.content[0].text
             return self._parse_analysis(text)
 
         except Exception as e:
-            logger.exception("Resource analysis failed: %s", e)
+            logger.warning("Resource analysis failed: %s", e)
             return ResourceAnalysis()
 
     def _parse_analysis(self, text: str) -> ResourceAnalysis:

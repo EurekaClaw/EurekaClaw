@@ -1160,3 +1160,49 @@ textarea {
     flex-direction: column;
   }
 }
+
+/* Token-limit sliders */
+.token-limits-group {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 16px 18px;
+  margin: 0;
+}
+
+.token-limits-group legend {
+  padding: 0 6px;
+  font-size: 0.9rem;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.slider-label {
+  display: block;
+  margin-bottom: 10px;
+}
+
+.slider-label span {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 4px;
+  font-size: 0.88rem;
+  color: var(--muted);
+}
+
+.slider-label span em {
+  font-style: normal;
+  font-weight: 600;
+  color: var(--text);
+  min-width: 3.5ch;
+  text-align: right;
+}
+
+.slider-label input[type="range"] {
+  width: 100%;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  accent-color: var(--accent, #7c6af7);
+  cursor: pointer;
+}

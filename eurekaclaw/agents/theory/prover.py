@@ -80,7 +80,7 @@ class Prover:
         try:
             response = await self.client.messages.create(
                 model=settings.eurekaclaw_model,
-                max_tokens=4096,
+                max_tokens=settings.max_tokens_prover,
                 system=PROVE_SYSTEM,
                 messages=[{
                     "role": "user",
@@ -93,11 +93,13 @@ class Prover:
                     ),
                 }],
             )
+            if not response.content:
+                raise ValueError("LLM returned empty content list")
             text = response.content[0].text
             return self._parse_proof_attempt(lemma_id, text)
 
         except Exception as e:
-            logger.exception("Proof attempt failed for %s: %s", lemma_id, e)
+            logger.warning("Proof attempt failed for %s: %s", lemma_id, e)
             return ProofAttempt(
                 lemma_id=lemma_id,
                 proof_text=f"Proof attempt failed: {e}",

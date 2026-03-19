@@ -318,6 +318,37 @@
                   <span>Theory iterations</span>
                   <input type="number" name="theory_max_iterations" min="1" />
                 </label>
+                <fieldset class="token-limits-group full-width" data-config-show="always">
+                  <legend>Token limits per call type</legend>
+                  <label class="slider-label">
+                    <span>Agent loop <em id="max_tokens_agent-val"></em></span>
+                    <input type="range" name="max_tokens_agent" min="1024" max="32768" step="512" oninput="document.getElementById('max_tokens_agent-val').textContent=this.value" />
+                  </label>
+                  <label class="slider-label">
+                    <span>Prover <em id="max_tokens_prover-val"></em></span>
+                    <input type="range" name="max_tokens_prover" min="512" max="16384" step="256" oninput="document.getElementById('max_tokens_prover-val').textContent=this.value" />
+                  </label>
+                  <label class="slider-label">
+                    <span>Planner <em id="max_tokens_planner-val"></em></span>
+                    <input type="range" name="max_tokens_planner" min="512" max="16384" step="256" oninput="document.getElementById('max_tokens_planner-val').textContent=this.value" />
+                  </label>
+                  <label class="slider-label">
+                    <span>Decomposer <em id="max_tokens_decomposer-val"></em></span>
+                    <input type="range" name="max_tokens_decomposer" min="256" max="8192" step="256" oninput="document.getElementById('max_tokens_decomposer-val').textContent=this.value" />
+                  </label>
+                  <label class="slider-label">
+                    <span>Formalizer / Refiner <em id="max_tokens_formalizer-val"></em></span>
+                    <input type="range" name="max_tokens_formalizer" min="256" max="8192" step="256" oninput="document.getElementById('max_tokens_formalizer-val').textContent=this.value" />
+                  </label>
+                  <label class="slider-label">
+                    <span>Verifier <em id="max_tokens_verifier-val"></em></span>
+                    <input type="range" name="max_tokens_verifier" min="128" max="4096" step="128" oninput="document.getElementById('max_tokens_verifier-val').textContent=this.value" />
+                  </label>
+                  <label class="slider-label">
+                    <span>Context compress <em id="max_tokens_compress-val"></em></span>
+                    <input type="range" name="max_tokens_compress" min="128" max="2048" step="128" oninput="document.getElementById('max_tokens_compress-val').textContent=this.value" />
+                  </label>
+                </fieldset>
                 <label data-config-show="always">
                   <span>Output format</span>
                   <select name="output_format">
