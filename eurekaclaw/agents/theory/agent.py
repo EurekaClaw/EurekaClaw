@@ -6,7 +6,7 @@ import logging
 import uuid
 
 from eurekaclaw.agents.base import BaseAgent
-from eurekaclaw.agents.theory.inner_loop import TheoryInnerLoop
+from eurekaclaw.agents.theory.inner_loop_yaml import TheoryInnerLoopYaml
 from eurekaclaw.types.agents import AgentResult, AgentRole
 from eurekaclaw.types.artifacts import TheoryState
 from eurekaclaw.types.tasks import Task
@@ -34,15 +34,7 @@ class TheoryAgent(BaseAgent):
 You are the Theory Agent of EurekaClaw. You specialize in rigorous mathematical reasoning \
 for theoretical computer science, machine learning theory, and pure mathematics.
 
-Your inner loop:
-1. Formalize: translate informal conjectures into precise LaTeX/Lean4 notation
-2. Decompose: break the theorem into a minimal DAG of lemmas
-3. Prove: attempt a rigorous proof of each lemma using chain-of-thought reasoning
-4. Verify: check the proof formally (Lean4) or via structured peer review
-5. Counterexample: when proofs fail, search for falsifying instances
-6. Refine: update conjectures and retry
-
-Always be explicit about proof strategies, cite lemmas you use, and flag any gaps.
+The proof pipeline is specified by the YAML file loaded by TheoryInnerLoopYaml.
 """
 
     async def execute(self, task: Task) -> AgentResult:
@@ -77,7 +69,10 @@ Always be explicit about proof strategies, cite lemmas you use, and flag any gap
         self.bus.put_theory_state(state)
 
         # Run the inner loop
-        inner_loop = TheoryInnerLoop(bus=self.bus)
+        inner_loop = TheoryInnerLoopYaml(
+            bus=self.bus,
+            skill_injector=self.skill_injector,
+        )
 
         try:
             final_state = await inner_loop.run(

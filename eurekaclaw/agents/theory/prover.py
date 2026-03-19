@@ -65,8 +65,20 @@ class Prover:
     def __init__(self, client: LLMClient | None = None) -> None:
         self.client: LLMClient = client or create_client()
 
-    async def attempt(self, state: TheoryState, lemma_id: str) -> ProofAttempt:
-        """Attempt to prove lemma_id given the current state."""
+    async def attempt(
+        self,
+        state: TheoryState,
+        lemma_id: str,
+        skill_context: str = "",
+    ) -> ProofAttempt:
+        """Attempt to prove lemma_id given the current state.
+
+        Args:
+            state: current TheoryState
+            lemma_id: which lemma to prove
+            skill_context: optional XML skill block (from SkillInjector) appended
+                           to the system prompt to guide proof technique selection
+        """
         node = state.lemma_dag.get(lemma_id)
         if not node:
             return ProofAttempt(
@@ -76,12 +88,13 @@ class Prover:
 
         proven_summary = self._format_proven(state)
         deps_summary = self._format_dependencies(state, node)
+        system = PROVE_SYSTEM + ("\n\n" + skill_context if skill_context else "")
 
         try:
             response = await self.client.messages.create(
                 model=settings.eurekaclaw_model,
                 max_tokens=settings.max_tokens_prover,
-                system=PROVE_SYSTEM,
+                system=system,
                 messages=[{
                     "role": "user",
                     "content": PROVE_USER.format(
