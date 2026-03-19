@@ -1,4 +1,4 @@
-"""Cross-session persistent memory — JSON file store under ~/.metaclaw/memory/."""
+"""Cross-session persistent memory — JSON file store under ~/.eurekaclaw/memory/."""
 
 from __future__ import annotations
 

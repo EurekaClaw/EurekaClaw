@@ -1,4 +1,4 @@
-"""Continual learning loop — MetaClaw + AutoResearchClaw pattern."""
+"""Continual learning loop"""
 
 from eurekaclaw.learning.loop import ContinualLearningLoop
 
