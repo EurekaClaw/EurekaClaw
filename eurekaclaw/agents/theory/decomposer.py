@@ -174,7 +174,9 @@ class LemmaDecomposer:
                 candidate = text[arr_start:arr_end]
                 data = json.loads(candidate)
                 if isinstance(data, list) and data:
-                    return self._normalize_list(data)
+                    normalized = self._normalize_list(data)
+                    if normalized:
+                        return normalized
             except (json.JSONDecodeError, ValueError):
                 pass
 
