@@ -103,19 +103,21 @@ class MetaOrchestrator:
                 task.status = TaskStatus.SKIPPED
                 continue
 
-            # Gate check
+            # Direction selection always runs for orchestrator tasks, regardless
+            # of whether a human gate is configured.
+            if task.name == "direction_selection_gate":
+                await self._handle_direction_gate(brief)
+
+            # Gate check (human / auto approval)
             if task.gate_required:
                 task.status = TaskStatus.AWAITING_GATE
-                # Special handling for direction selection gate
-                if task.name == "direction_selection_gate":
-                    await self._handle_direction_gate(brief)
                 approved = await self.gate.request_approval(task)
                 if not approved:
                     task.status = TaskStatus.SKIPPED
                     console.print(f"[yellow]Skipped: {task.name}[/yellow]")
                     continue
 
-            # Execute non-gate tasks
+            # Execute orchestrator tasks (no agent needed)
             if task.agent_role == "orchestrator":
                 task.mark_completed()
                 continue
