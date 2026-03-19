@@ -145,24 +145,63 @@ class ProofArchitect:
             )
         return "\n\n".join(lines)
 
+    # Keys the LLM may use for the lemma list in its JSON response
+    _LEMMA_KEYS = ("lemmas", "plan", "proof_plan", "steps", "lemma_list",
+                   "subgoals", "components", "parts")
+
     def _parse_lemmas(self, text: str) -> list[dict]:
-        for start_delim, end_delim in [("```json", "```"), ("{", None)]:
+        """4-pass extraction — mirrors LemmaDecomposer._parse_lemmas for robustness."""
+        import re
+
+        # Pass 1: JSON inside a ```json ... ``` or ``` ... ``` code fence
+        m = re.search(r"```(?:json)?\s*(\{[\s\S]*?\}|\[[\s\S]*?\])\s*```", text)
+        if m:
+            result = self._try_parse_json(m.group(1))
+            if result is not None:
+                return result
+
+        # Pass 2: first JSON object {...} in the text — check known key names
+        m = re.search(r"\{[\s\S]*\}", text)
+        if m:
+            result = self._try_parse_json(m.group(0))
+            if result is not None:
+                return result
+
+        # Pass 3: first JSON array [...] in the text
+        m = re.search(r"\[[\s\S]*\]", text)
+        if m:
             try:
-                if start_delim in text:
-                    start = text.index(start_delim) + len(start_delim)
-                    if end_delim:
-                        end = text.index(end_delim, start)
-                        data = json.loads(text[start:end].strip())
-                    else:
-                        end = text.rindex("}") + 1
-                        data = json.loads(text[text.index("{"):end])
-                    if isinstance(data, dict) and "lemmas" in data:
-                        return data["lemmas"]
-                    if isinstance(data, list):
-                        return data
+                data = json.loads(m.group(0))
+                if isinstance(data, list) and data:
+                    return data
             except (json.JSONDecodeError, ValueError):
-                continue
+                pass
+
+        # Pass 4: plain-text numbered / bulleted list heuristic
+        items = re.findall(
+            r"(?m)^(?:\d+[\.\)]\s*|\*\s*|-\s*)(.+)", text
+        )
+        if items:
+            return [{"id": f"lemma_{i+1}", "statement": item.strip(),
+                     "informal": item.strip(), "provenance": "new",
+                     "dependencies": []}
+                    for i, item in enumerate(items)]
+
         return []
+
+    def _try_parse_json(self, candidate: str) -> list[dict] | None:
+        """Parse a JSON string and extract the lemma list if present."""
+        try:
+            data = json.loads(candidate)
+        except (json.JSONDecodeError, ValueError):
+            return None
+        if isinstance(data, list) and data:
+            return data
+        if isinstance(data, dict):
+            for key in self._LEMMA_KEYS:
+                if key in data and isinstance(data[key], list) and data[key]:
+                    return data[key]
+        return None
 
     def _apply_plan(self, state: TheoryState, lemmas_data: list[dict]) -> TheoryState:
         """Populate proof_plan, lemma_dag, and open_goals from parsed data."""
