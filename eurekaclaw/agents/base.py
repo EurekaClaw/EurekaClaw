@@ -123,7 +123,7 @@ class BaseAgent(ABC):
         list, reducing input tokens for long-running agents.
         """
         from eurekaclaw.config import settings
-        _max_turns = max_turns if max_turns is not None else settings.survey_max_turns
+        _max_turns = max_turns if max_turns is not None else settings.theory_stage_max_turns
         compress_every = settings.context_compress_after_turns  # 0 = disabled
 
         system = self.build_system_prompt(task)

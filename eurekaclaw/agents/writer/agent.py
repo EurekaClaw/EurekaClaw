@@ -110,7 +110,7 @@ Your output must follow standard theory paper format:
 Use proper LaTeX theorem environments throughout.
 Ensure all citations are in \\cite{key} format.
 Make the paper self-contained — a reader should understand it without other references.
-""" + _PROOF_STYLE_RULES
+"""
 
 _MARKDOWN_SYSTEM_PROMPT = """\
 You are the Writer Agent of EurekaClaw. You generate complete, publication-quality Markdown papers \
@@ -128,7 +128,12 @@ Your output must follow standard theory paper format using Markdown headings:
 Use **Theorem**, **Lemma**, **Proof** bold labels for formal results.
 Use $...$ for inline math and $$...$$ for display math (LaTeX-style math is fine inside Markdown).
 Make the paper self-contained — a reader should understand it without other references.
-""" + _PROOF_STYLE_RULES.replace("\\textcolor{orange}{\\textbf{[Unverified step — see discussion]}}", "**⚠ [Unverified step — see discussion]**")
+"""
+
+_PROOF_STYLE_RULES_MARKDOWN = _PROOF_STYLE_RULES.replace(
+    "\\textcolor{orange}{\\textbf{[Unverified step — see discussion]}}",
+    "**⚠ [Unverified step — see discussion]**",
+)
 
 
 class WriterAgent(BaseAgent):
@@ -141,8 +146,10 @@ class WriterAgent(BaseAgent):
 
     def _role_system_prompt(self, task: Task) -> str:
         if settings.output_format == "markdown":
-            return _MARKDOWN_SYSTEM_PROMPT
-        return _LATEX_SYSTEM_PROMPT
+            base = _MARKDOWN_SYSTEM_PROMPT
+            return base + _PROOF_STYLE_RULES_MARKDOWN if settings.enforce_proof_style else base
+        base = _LATEX_SYSTEM_PROMPT
+        return base + _PROOF_STYLE_RULES if settings.enforce_proof_style else base
 
     async def execute(self, task: Task) -> AgentResult:
         brief = self.bus.get_research_brief()
@@ -254,7 +261,9 @@ Include all proofs using \\begin{{proof}}...\\end{{proof}}.
 """
 
         try:
-            text, tokens = await self.run_agent_loop(task, user_message, max_turns=3)
+            text, tokens = await self.run_agent_loop(
+                task, user_message, max_turns=settings.writer_max_turns
+            )
 
             if fmt == "markdown":
                 paper_content = self._extract_markdown(text)
