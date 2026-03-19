@@ -118,29 +118,29 @@ The loop runs until all lemmas are proven, a maximum iteration limit is reached,
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                      CLI / Python API                    │
-├─────────────────────────────────────────────────────────┤
-│                    MetaOrchestrator                      │
-│  ┌──────────────────────────────────────────────────┐   │
-│  │       DivergentConvergentPlanner                 │   │
-│  └──────────────────────────────────────────────────┘   │
-├────────────┬─────────────┬────────────┬─────────────────┤
-│ SurveyAgent│IdeationAgent│ TheoryAgent│ExperimentAgent  │
-│            │             │ (+ inner   │  WriterAgent     │
-│            │             │  loop)     │                  │
-├─────────────────────────────────────────────────────────┤
-│                     KnowledgeBus                         │
-│  research_brief · theory_state · bibliography · results  │
-├──────────────────────┬──────────────────────────────────┤
-│      Memory          │              Skills               │
-│  Episodic · Persist  │  Registry · Injector · Evolver   │
-│  KnowledgeGraph      │  seed_skills / ~/.metaclaw/       │
-├──────────────────────┴──────────────────────────────────┤
-│                    Tool Layer                             │
-│  arxiv · SemanticScholar · WebSearch · CodeExec          │
-│  Lean4 · WolframAlpha · CitationManager                  │
-└─────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────┐
+│                         CLI / Python API                         │
+├──────────────────────────────────────────────────────────────────┤
+│                         MetaOrchestrator                         │
+│       ┌──────────────────────────────────────────────┐          │
+│       │          DivergentConvergentPlanner           │          │
+│       └──────────────────────────────────────────────┘          │
+├─────────────┬──────────────┬─────────────┬────────────┬─────────┤
+│ SurveyAgent │IdeationAgent │ TheoryAgent │Experiment  │ Writer  │
+│             │              │ (6-stage    │  Agent     │ Agent   │
+│             │              │ proof loop) │            │         │
+├─────────────┴──────────────┴─────────────┴────────────┴─────────┤
+│                           KnowledgeBus                           │
+│       research_brief · theory_state · bibliography · results     │
+├─────────────────────────────┬────────────────────────────────────┤
+│           Memory            │              Skills                │
+│  Episodic · Persistent      │  Registry · Injector · Evolver    │
+│  KnowledgeGraph             │  seed_skills / ~/.metaclaw/        │
+├─────────────────────────────┴────────────────────────────────────┤
+│                           Tool Layer                             │
+│       arxiv · SemanticScholar · WebSearch · CodeExec             │
+│       Lean4 · WolframAlpha · CitationManager                     │
+└──────────────────────────────────────────────────────────────────┘
 ```
 
 **Automated pipeline stages** (no human gates by default):
