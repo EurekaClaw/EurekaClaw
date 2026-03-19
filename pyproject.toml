@@ -43,6 +43,7 @@ eurekaclaw = "eurekaclaw.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["eurekaclaw"]
+artifacts = ["eurekaclaw/ui/static/*"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>EurekaClaw Control Center</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand-block">
+          <div class="brand-mark" aria-hidden="true">
+            <img src="./logo-claw.png" alt="" class="brand-mark-image" />
+          </div>
+          <div>
+            <p class="eyebrow">Local-First Research Workspace</p>
+            <h1>EurekaClaw</h1>
+          </div>
+        </div>
+
+        <nav class="nav-stack" aria-label="Primary">
+          <button class="nav-item is-active" data-view-target="workspace">
+            <span>Research Workspace</span>
+            <small>Sessions, pipeline, artifacts</small>
+          </button>
+          <button class="nav-item" data-view-target="skills">
+            <span>Skill Library</span>
+            <small>Search, select, and curate research skills</small>
+          </button>
+          <button class="nav-item" data-view-target="onboarding">
+            <span>Guided Setup</span>
+            <small>Environment, models, health checks</small>
+          </button>
+          <button class="nav-item" data-view-target="systems">
+            <span>System Status</span>
+            <small>Capabilities, tools, skills</small>
+          </button>
+        </nav>
+
+        <section class="sidebar-card">
+          <p class="sidebar-title">Current Session</p>
+          <div class="metric-row">
+            <span>Mode</span>
+            <strong id="sidebar-mode">Not started</strong>
+          </div>
+          <div class="metric-row">
+            <span>Active stage</span>
+            <strong id="sidebar-stage">Idle</strong>
+          </div>
+          <div class="metric-row">
+            <span>Artifacts</span>
+            <strong id="sidebar-artifacts">0</strong>
+          </div>
+        </section>
+      </aside>
+
+      <main class="main-shell">
+        <section class="hero">
+          <div>
+            <p class="eyebrow">Research Operating Surface</p>
+            <h2>The AI that catches your Eureka moments, end to end</h2>
+            <p class="hero-copy">
+              A calm scholarly workspace for literature scanning, direction
+              selection, theorem work, experiments, and paper assembly,
+              designed to turn research momentum into visible artifacts instead
+              of another generic dashboard.
+            </p>
+          </div>
+
+          <div class="hero-actions">
+            <button class="primary-btn" data-view-target="onboarding">
+              Run guided setup
+            </button>
+            <button class="secondary-btn" data-view-target="workspace">
+              Open workspace
+            </button>
+          </div>
+        </section>
+
+        <section class="view is-visible" data-view="workspace">
+          <div class="workspace-grid">
+            <article class="panel session-panel">
+              <div class="panel-header">
+                <div>
+                  <p class="eyebrow">Session Entry</p>
+                  <h3>Open a research session</h3>
+                </div>
+                <span class="status-pill status-online" id="run-status-pill">Ready</span>
+              </div>
+
+              <div class="form-grid">
+                <label>
+                  <span>Input mode</span>
+                  <select id="input-mode">
+                    <option>Detailed proof</option>
+                    <option>Reference-driven</option>
+                    <option>Open exploration</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Research domain</span>
+                  <input
+                    id="input-domain"
+                    type="text"
+                    value="Machine learning theory"
+                    placeholder="e.g. computational complexity"
+                  />
+                </label>
+                <label class="full-width">
+                  <span>Research prompt</span>
+                  <textarea
+                    id="input-prompt"
+                    rows="4"
+                    placeholder="Describe the problem setting, what is already known, or the claim you want EurekaClaw to investigate."
+                  ></textarea>
+                </label>
+              </div>
+
+              <div class="action-row">
+                <button class="primary-btn" id="launch-session-btn">Launch session</button>
+                <button class="secondary-btn" id="load-example-btn">Load example</button>
+              </div>
+              <div class="token-strip" id="token-strip">
+                <span class="token-label">Token usage</span>
+                <span class="token-value" id="token-usage-value">0 total</span>
+                <span class="token-breakdown" id="token-usage-breakdown">Input 0 · Output 0</span>
+              </div>
+              <p class="inline-note" id="run-meta">
+                The UI will create a real EurekaClaw session and stream task status here.
+              </p>
+            </article>
+
+            <article class="panel pipeline-panel">
+              <div class="panel-header">
+                <div>
+                  <p class="eyebrow">Pipeline</p>
+                  <h3>Research program</h3>
+                </div>
+                <span class="mono-label">6 stages</span>
+              </div>
+
+              <div class="pipeline-list" id="pipeline-list"></div>
+            </article>
+
+            <article class="panel agent-panel">
+              <div class="panel-header">
+                <div>
+                  <p class="eyebrow">Agent Surfaces</p>
+                  <h3>Active roles and responsibilities</h3>
+                </div>
+              </div>
+
+              <div class="agent-grid" id="agent-grid"></div>
+            </article>
+
+            <article class="panel artifact-panel">
+              <div class="panel-header">
+                <div>
+                  <p class="eyebrow">Artifacts</p>
+                  <h3>Working corpus</h3>
+                </div>
+              </div>
+
+              <div class="artifact-list" id="artifact-list"></div>
+            </article>
+
+            <article class="panel log-panel">
+              <div class="panel-header">
+                <div>
+                  <p class="eyebrow">Logs & Evidence</p>
+                  <h3>Execution trail and evidence</h3>
+                </div>
+              </div>
+
+              <div class="log-stream" id="log-stream"></div>
+              <div class="log-pagination" id="log-pagination"></div>
+            </article>
+
+            <article class="panel output-panel">
+              <div class="panel-header">
+                <div>
+                  <p class="eyebrow">Output Surface</p>
+                  <h3>Draft and run summary</h3>
+                </div>
+                <span class="status-pill status-idle" id="output-status-pill">Waiting</span>
+              </div>
+
+              <div class="paper-preview" id="paper-preview"></div>
+            </article>
+          </div>
+        </section>
+
+        <section class="view" data-view="skills">
+          <div class="skills-shell">
+            <article class="panel skill-library-panel">
+              <div class="panel-header">
+                <div>
+                  <p class="eyebrow">Skill Library</p>
+                  <h3>Choose the skills that guide the next run</h3>
+                </div>
+                <span class="mono-label" id="skill-meta">Loading skill bank...</span>
+              </div>
+
+              <label class="intent-search skill-search-bar">
+                <span>Search skills</span>
+                <input id="skill-search" type="text" placeholder="proof, survey, induction..." />
+              </label>
+
+              <div class="intent-list skill-library-list" id="skill-list"></div>
+              <div class="skill-pagination" id="skill-pagination"></div>
+            </article>
+
+            <article class="panel skill-selection-panel">
+              <div class="panel-header">
+                <div>
+                  <p class="eyebrow">Research Intent</p>
+                  <h3>Selected skills for this session</h3>
+                </div>
+              </div>
+
+              <div class="intent-selected skill-selected-panel" id="skill-selected"></div>
+              <p class="inline-note">
+                Selected skills are carried into the next session and prioritized during prompt construction.
+              </p>
+            </article>
+          </div>
+        </section>
+
+        <section class="view" data-view="onboarding">
+          <div class="onboarding-shell">
+            <article class="panel wizard-panel">
+              <div class="panel-header">
+                <div>
+                  <p class="eyebrow">Guided Setup</p>
+                  <h3>Productized installation flow</h3>
+                </div>
+                <span class="status-pill status-active" id="wizard-step-label">Step 1 of 7</span>
+              </div>
+
+              <div class="wizard-progress" aria-hidden="true">
+                <div class="wizard-progress-bar" id="wizard-progress-bar"></div>
+              </div>
+
+              <div class="wizard-stage" id="wizard-stage"></div>
+
+              <div class="wizard-actions">
+                <button class="secondary-btn" id="prev-step-btn">Previous</button>
+                <button class="primary-btn" id="next-step-btn">Next</button>
+              </div>
+            </article>
+
+            <article class="panel helper-panel">
+              <div class="panel-header">
+                <div>
+                  <p class="eyebrow">Why this matters</p>
+                  <h3>Setup guidance</h3>
+                </div>
+              </div>
+              <div id="wizard-context" class="context-copy"></div>
+            </article>
+          </div>
+        </section>
+
+        <section class="view" data-view="systems">
+          <div class="systems-grid">
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <p class="eyebrow">System Health</p>
+                  <h3>Current capabilities</h3>
+                </div>
+              </div>
+              <div class="capability-list" id="capability-list"></div>
+            </article>
+
+            <article class="panel config-panel">
+              <div class="panel-header">
+                <div>
+                  <p class="eyebrow">Configuration Model</p>
+                  <h3>Live configuration</h3>
+                </div>
+              </div>
+              <form class="config-form" id="config-form">
+                <label data-config-show="always">
+                  <span>LLM backend</span>
+                  <select name="llm_backend">
+                    <option value="anthropic">anthropic</option>
+                    <option value="openai_compat">openai_compat</option>
+                  </select>
+                </label>
+                <label data-config-show="backend:anthropic">
+                  <span>Auth mode</span>
+                  <select name="anthropic_auth_mode">
+                    <option value="api_key">api_key</option>
+                    <option value="oauth">oauth</option>
+                  </select>
+                </label>
+                <label data-config-show="backend:anthropic auth:oauth">
+                  <span>ccproxy port</span>
+                  <input type="number" name="ccproxy_port" min="1" max="65535" />
+                </label>
+                <label data-config-show="always">
+                  <span>Primary model</span>
+                  <input type="text" name="eurekaclaw_model" />
+                </label>
+                <label data-config-show="always">
+                  <span>Fast model</span>
+                  <input type="text" name="eurekaclaw_fast_model" />
+                </label>
+                <label data-config-show="always">
+                  <span>Theory iterations</span>
+                  <input type="number" name="theory_max_iterations" min="1" />
+                </label>
+                <label data-config-show="always">
+                  <span>Output format</span>
+                  <select name="output_format">
+                    <option value="latex">latex</option>
+                    <option value="markdown">markdown</option>
+                  </select>
+                </label>
+                <label class="full-width" data-config-show="backend:anthropic auth:api_key">
+                  <span>Anthropic API key</span>
+                  <input type="password" name="anthropic_api_key" placeholder="Optional if using oauth" />
+                </label>
+                <label class="full-width" data-config-show="backend:openai_compat">
+                  <span>OpenAI-compatible base URL</span>
+                  <input type="text" name="openai_compat_base_url" />
+                </label>
+                <label class="full-width" data-config-show="backend:openai_compat">
+                  <span>OpenAI-compatible API key</span>
+                  <input type="password" name="openai_compat_api_key" />
+                </label>
+                <label class="full-width" data-config-show="backend:openai_compat">
+                  <span>OpenAI-compatible model</span>
+                  <input type="text" name="openai_compat_model" />
+                </label>
+                <label class="full-width" data-config-show="always">
+                  <span>MetaClaw directory</span>
+                  <input type="text" name="metaclaw_dir" />
+                </label>
+                <div class="action-row full-width">
+                  <button class="secondary-btn" type="button" id="test-connection-btn">Test connection</button>
+                  <button class="secondary-btn" type="button" id="save-and-test-btn">Save and test</button>
+                  <button class="primary-btn" type="submit">Save config</button>
+                  <p class="inline-note" id="config-save-status">Config values are loaded from the live backend.</p>
+                </div>
+                <div class="full-width auth-guidance-shell" id="auth-guidance-shell">
+                  <button class="auth-guidance-toggle" type="button" id="auth-guidance-toggle">
+                    <span class="auth-guidance-toggle-label">Connection guidance</span>
+                    <span class="auth-guidance-toggle-meta" id="auth-guidance-toggle-meta">Tap to view</span>
+                  </button>
+                  <div class="auth-guidance" id="auth-guidance" hidden></div>
+                </div>
+              </form>
+            </article>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <div class="artifact-drawer-backdrop" id="artifact-drawer-backdrop" hidden></div>
+    <aside class="artifact-drawer" id="artifact-drawer" aria-hidden="true">
+      <div class="artifact-drawer-header">
+        <div>
+          <p class="eyebrow">Artifact Detail</p>
+          <h3 id="artifact-drawer-title">Artifact</h3>
+        </div>
+        <button class="ghost-btn" id="close-artifact-drawer-btn">Close</button>
+      </div>
+      <div class="artifact-drawer-body" id="artifact-drawer-body"></div>
+    </aside>
+
+    <script src="./app.js"></script>
+  </body>
+</html>

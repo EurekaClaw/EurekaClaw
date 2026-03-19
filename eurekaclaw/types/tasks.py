@@ -78,6 +78,7 @@ class InputSpec(BaseModel):
     # Shared
     query: str = ""
     additional_context: str = ""
+    selected_skills: list[str] = Field(default_factory=list)
 
 
 class ResearchOutput(BaseModel):

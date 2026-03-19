@@ -73,7 +73,30 @@ class BaseAgent(ABC):
 
     def build_system_prompt(self, task: Task) -> str:
         """Construct system prompt = role description + injected skills."""
-        skills = self.skill_injector.top_k(task=task, role=self.role.value, k=5)
+        brief = self.bus.get_research_brief()
+        selected_skill_names = brief.selected_skills if brief else []
+        selected_skills = []
+        seen: set[str] = set()
+
+        for name in selected_skill_names:
+            skill = self.skill_injector.registry.get(name)
+            if not skill:
+                continue
+            if skill.meta.agent_roles and self.role.value not in skill.meta.agent_roles:
+                continue
+            selected_skills.append(skill)
+            seen.add(skill.meta.name)
+
+        auto_skills = self.skill_injector.top_k(task=task, role=self.role.value, k=5)
+        skills = selected_skills[:5]
+        for skill in auto_skills:
+            if skill.meta.name in seen:
+                continue
+            skills.append(skill)
+            seen.add(skill.meta.name)
+            if len(skills) >= 5:
+                break
+
         skill_block = self.skill_injector.render_for_prompt(skills)
         base = self._role_system_prompt(task)
         if skill_block:
