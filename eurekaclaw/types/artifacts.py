@@ -123,11 +123,40 @@ class Counterexample(BaseModel):
     discovered_at: datetime = Field(default_factory=datetime.utcnow)
 
 
+class KnownResult(BaseModel):
+    """A theorem, lemma, or technique extracted from an existing paper."""
+    source_paper_id: str
+    source_paper_title: str
+    result_type: Literal["theorem", "lemma", "corollary", "algorithm", "technique"]
+    statement: str
+    informal: str = ""
+    proof_technique: str = ""   # e.g. "Azuma-Hoeffding", "elliptical potential lemma"
+    notation: dict[str, str] = Field(default_factory=dict)  # symbol -> definition
+
+
+class ProofPlan(BaseModel):
+    """One node in the proof plan produced by ProofArchitect."""
+    lemma_id: str
+    statement: str
+    informal: str = ""
+    provenance: Literal["known", "adapted", "new"]
+    # For "known": paper citation key.  For "adapted": base result reference.
+    source: str = ""
+    adaptation_note: str = ""   # what to change relative to the source
+    dependencies: list[str] = Field(default_factory=list)  # other lemma_ids
+
+
 class TheoryState(BaseModel):
     session_id: str
     theorem_id: str
     informal_statement: str = ""
-    formal_statement: str = ""    # LaTeX / Lean4 notation
+    formal_statement: str = ""    # LaTeX / Lean4 notation — set by TheoremCrystallizer
+    # --- bottom-up proof pipeline fields ---
+    known_results: list[KnownResult] = Field(default_factory=list)
+    research_gap: str = ""          # output of GapAnalyst
+    proof_plan: list[ProofPlan] = Field(default_factory=list)  # topological order
+    assembled_proof: str = ""       # output of Assembler
+    # --- lemma working state (populated during LemmaDeveloper stage) ---
     lemma_dag: dict[str, LemmaNode] = Field(default_factory=dict)  # lemma_id -> LemmaNode
     proven_lemmas: dict[str, ProofRecord] = Field(default_factory=dict)
     open_goals: list[str] = Field(default_factory=list)  # lemma_ids not yet proven
