@@ -6,7 +6,8 @@ import logging
 from abc import ABC, abstractmethod
 from typing import Any, AsyncIterator
 
-from tenacity import retry, stop_after_attempt, wait_exponential
+from tenacity import stop_after_attempt, wait_exponential, Retrying
+from tenacity.asyncio import AsyncRetrying
 
 from eurekaclaw.agents.session import AgentSession
 from eurekaclaw.knowledge_bus.bus import KnowledgeBus
@@ -112,19 +113,17 @@ class BaseAgent(ABC):
         self,
         task: Task,
         initial_user_message: str,
-        max_turns: int = 20,
+        max_turns: int | None = None,
+        max_tokens: int | None = None,
     ) -> tuple[str, dict[str, int]]:
         """Run the full agent loop with tool-use until the model stops.
 
-        Context compression (inspired by OpenClaw /compact + ScienceClaw smart
-        compaction) is triggered every ``context_compress_after_turns`` turns.
-        The fast model summarises the accumulated history into a short bullet
-        list, which replaces the raw tool-call exchanges.  This dramatically
-        reduces input tokens for long-running agents while preserving all key
-        findings.
+        Context compression is triggered every ``context_compress_after_turns``
+        turns. The fast model summarises accumulated history into a short bullet
+        list, reducing input tokens for long-running agents.
         """
         from eurekaclaw.config import settings
-
+        _max_turns = max_turns if max_turns is not None else settings.theory_stage_max_turns
         compress_every = settings.context_compress_after_turns  # 0 = disabled
 
         system = self.build_system_prompt(task)
@@ -135,7 +134,7 @@ class BaseAgent(ABC):
         total_tokens: dict[str, int] = {"input": 0, "output": 0}
         final_text = ""
 
-        for turn in range(max_turns):
+        for turn in range(_max_turns):
             # --- Periodic context compression ---
             if (
                 compress_every > 0
@@ -154,6 +153,7 @@ class BaseAgent(ABC):
                 system=system,
                 messages=self.session.get_messages(),
                 tools=tools,
+                max_tokens=max_tokens,
             )
             if response.usage:
                 total_tokens["input"] += response.usage.input_tokens
@@ -216,22 +216,15 @@ class BaseAgent(ABC):
         return final_text, total_tokens
 
     async def _compress_history(self) -> str:
-        """Use the fast model to summarise the current conversation history.
-
-        Renders the last 12 messages into a plain-text transcript and asks the
-        fast model for a concise bullet-point progress summary.  Falls back to
-        a simple concatenation of assistant turns if the LLM call fails.
-        """
+        """Use the fast model to summarise the current conversation history."""
         from eurekaclaw.config import settings
 
         msgs = self.session.get_messages()
-        # Render a compact text version of the recent history
         lines: list[str] = []
         for m in msgs[-12:]:
             role = m["role"].upper()
             content = m["content"]
             if isinstance(content, list):
-                # Tool use / tool result blocks — extract readable text
                 parts = []
                 for block in content:
                     if isinstance(block, dict):
@@ -247,23 +240,18 @@ class BaseAgent(ABC):
             lines.append(f"{role}: {content_str}")
 
         history_text = "\n".join(lines)
-
         try:
             response = await self.client.messages.create(
                 model=settings.fast_model,
                 max_tokens=settings.max_tokens_compress,
                 system=_COMPRESS_SYSTEM,
-                messages=[{
-                    "role": "user",
-                    "content": f"Conversation so far:\n{history_text}\n\nWrite the progress summary now.",
-                }],
+                messages=[{"role": "user", "content": f"Conversation so far:\n{history_text}\n\nWrite the progress summary now."}],
             )
             if not response.content:
                 raise ValueError("LLM returned empty content list")
             return response.content[0].text
         except Exception as e:
             logger.warning("Context compression LLM call failed (%s) — using fallback", e)
-            # Fallback: concatenate the last few assistant text turns
             summaries = [
                 str(m["content"])[:200]
                 for m in msgs
@@ -271,29 +259,38 @@ class BaseAgent(ABC):
             ]
             return "Previous findings: " + " | ".join(summaries[-3:])
 
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=1, max=30))
     async def _call_model(
         self,
         system: str,
         messages: list[dict[str, Any]],
         tools: list[dict[str, Any]] | None = None,
+        max_tokens: int | None = None,
     ) -> NormalizedMessage:
         from eurekaclaw.config import settings
-        try:
-            return await self.client.messages.create(
-                model=settings.eurekaclaw_model,
-                max_tokens=settings.max_tokens_agent,
-                system=system,
-                messages=messages,
-                tools=tools or None,
-            )
-        except Exception as e:
-            # Log the real error body before tenacity swallows it into RetryError
-            logger.error(
-                "LLM call failed (model=%s): %s: %s",
-                settings.eurekaclaw_model, type(e).__name__, e,
-            )
-            raise
+        _max_tokens = max_tokens if max_tokens is not None else settings.max_tokens_agent
+        async for attempt in AsyncRetrying(
+            stop=stop_after_attempt(settings.llm_retry_attempts),
+            wait=wait_exponential(
+                min=settings.llm_retry_wait_min,
+                max=settings.llm_retry_wait_max,
+            ),
+            reraise=True,
+        ):
+            with attempt:
+                try:
+                    return await self.client.messages.create(
+                        model=settings.eurekaclaw_model,
+                        max_tokens=_max_tokens,
+                        system=system,
+                        messages=messages,
+                        tools=tools or None,
+                    )
+                except Exception as e:
+                    logger.error(
+                        "LLM call failed (model=%s): %s: %s",
+                        settings.eurekaclaw_model, type(e).__name__, e,
+                    )
+                    raise
 
     def _make_result(
         self,

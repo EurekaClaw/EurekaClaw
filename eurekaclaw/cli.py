@@ -137,7 +137,7 @@ def eval_session(session_id: str) -> None:
 @main.command()
 @click.option("--force", "-f", is_flag=True, help="Overwrite skills that are already installed.")
 def install_skills(force: bool) -> None:
-    """Copy seed skills to ~/.metaclaw/skills/.
+    """Copy seed skills to ~/.eurekaclaw/skills/.
 
     Skips files that already exist unless --force is given.
     """

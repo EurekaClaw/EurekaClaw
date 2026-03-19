@@ -6,6 +6,7 @@ import asyncio
 import json
 import logging
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -48,6 +49,41 @@ class CodeExecutionTool(BaseTool):
             return await self._docker_exec(code, requirements or [])
         return await self._subprocess_exec(code, requirements or [])
 
+    async def _install_requirements(self, requirements: list[str]) -> str | None:
+        """Install packages into the active .venv.
+
+        Tries ``uv pip install --python <venv>`` first (fast, no subprocess
+        resolution issues), then falls back to ``sys.executable -m pip``.
+        Returns an error string on failure, or None on success.
+        """
+        venv_python = sys.executable
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                "uv", "pip", "install", "--quiet", "--python", venv_python, *requirements,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            _, stderr = await asyncio.wait_for(proc.communicate(), timeout=60)
+            if proc.returncode == 0:
+                return None
+            logger.warning("uv pip install failed (%s), falling back to pip", stderr.decode().strip())
+        except FileNotFoundError:
+            logger.debug("uv not found, falling back to sys.executable -m pip")
+        except asyncio.TimeoutError:
+            return "uv pip install timed out"
+
+        # Fallback: use the venv's own Python to invoke pip
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                venv_python, "-m", "pip", "install", "--quiet", *requirements,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            await asyncio.wait_for(proc.communicate(), timeout=60)
+        except asyncio.TimeoutError:
+            return "pip install timed out"
+        return None
+
     async def _subprocess_exec(self, code: str, requirements: list[str]) -> str:
         with tempfile.TemporaryDirectory() as tmpdir:
             code_path = Path(tmpdir) / "script.py"
@@ -55,19 +91,13 @@ class CodeExecutionTool(BaseTool):
 
             # Optionally install requirements
             if requirements:
-                try:
-                    proc = await asyncio.create_subprocess_exec(
-                        "pip", "install", "--quiet", *requirements,
-                        stdout=asyncio.subprocess.PIPE,
-                        stderr=asyncio.subprocess.PIPE,
-                    )
-                    await asyncio.wait_for(proc.communicate(), timeout=60)
-                except asyncio.TimeoutError:
-                    return json.dumps({"error": "pip install timed out"})
+                err = await self._install_requirements(requirements)
+                if err:
+                    return json.dumps({"error": err})
 
             try:
                 proc = await asyncio.create_subprocess_exec(
-                    "python3", str(code_path),
+                    sys.executable, str(code_path),
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
                     cwd=tmpdir,

@@ -135,7 +135,7 @@ The loop runs until all lemmas are proven, a maximum iteration limit is reached,
 ├─────────────────────────────┬────────────────────────────────────┤
 │           Memory            │              Skills                │
 │  Episodic · Persistent      │  Registry · Injector · Evolver     │
-│  KnowledgeGraph             │  seed_skills / ~/.metaclaw/        │
+│  KnowledgeGraph             │  seed_skills / ~/.eurekaclaw/      │
 ├─────────────────────────────┴────────────────────────────────────┤
 │                           Tool Layer                             │
 │       arxiv · SemanticScholar · WebSearch · CodeExec             │
@@ -216,7 +216,7 @@ The bus is persisted to disk at session end via `bus.persist(session_dir)`.
 
 ### Skills Bank
 
-Skills are Markdown files with YAML frontmatter, stored in `~/.metaclaw/skills/`.
+Skills are Markdown files with YAML frontmatter, stored in `~/.eurekaclaw/skills/`.
 They are loaded by `SkillRegistry`, ranked by `SkillInjector` (tag match + semantic
 similarity via sentence-transformers), and injected into agent system prompts as a
 `<skills>...</skills>` XML block.
@@ -235,7 +235,7 @@ similarity via sentence-transformers), and injected into agent system prompts as
 | `empirical_validation` | experiment | empirical, bounds |
 
 ```bash
-eurekaclaw install-skills           # install to ~/.metaclaw/skills/
+eurekaclaw install-skills           # install to ~/.eurekaclaw/skills/
 eurekaclaw install-skills --force   # overwrite existing
 ```
 
@@ -296,7 +296,7 @@ cp .env.example .env
 | `OUTPUT_FORMAT` | `latex` | Paper format: `latex` or `markdown` |
 | `GATE_MODE` | `none` | Gate mode: `none` \| `auto` \| `human` |
 | `THEORY_MAX_ITERATIONS` | `10` | Max proof loop iterations |
-| `METACLAW_DIR` | `~/.metaclaw` | Skills, memory, and run artifacts |
+| `EURECACLAW_DIR` | `~/.eurekaclaw` | Skills, memory, and run artifacts |
 | `BRAVE_SEARCH_API_KEY` | — | Optional. Web search via Brave |
 | `WOLFRAM_APP_ID` | — | Optional. WolframAlpha computations |
 | `LEAN4_BIN` | `lean` | Path to Lean4 binary |
@@ -461,7 +461,7 @@ eurekaclaw from-papers 2301.12345 2302.67890 --domain "ML theory"
 
 ```bash
 eurekaclaw skills                        # list available skills
-eurekaclaw install-skills [--force]      # install seed skills to ~/.metaclaw/skills/
+eurekaclaw install-skills [--force]      # install seed skills to ~/.eurekaclaw/skills/
 eurekaclaw eval-session <session_id>     # evaluate a completed session
 ```
 
@@ -566,7 +566,7 @@ eurekaclaw explore "spectral graph theory"
 
 | Mode | What happens after each session |
 |---|---|
-| `skills_only` (default) | `SkillEvolver` distills failures into new proof strategy `.md` files in `~/.metaclaw/skills/` |
+| `skills_only` (default) | `SkillEvolver` distills failures into new proof strategy `.md` files in `~/.eurekaclaw/skills/` |
 | `rl` | Skills distillation + PRM scoring of proof trajectories |
 | `madmax` | Skills distillation + PRM scoring + cloud LoRA fine-tuning (GRPO) |
 
@@ -649,7 +649,7 @@ pytest --asyncio-mode=auto
 
 ### Writing custom proof skills
 
-Drop a `.md` file with YAML frontmatter into `~/.metaclaw/skills/`:
+Drop a `.md` file with YAML frontmatter into `~/.eurekaclaw/skills/`:
 
 ```markdown
 ---

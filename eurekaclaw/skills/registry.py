@@ -45,7 +45,7 @@ class SkillRegistry:
             if extra_dir.exists():
                 for path in sorted(extra_dir.rglob("*.md")):
                     self._load_file(path, is_seed=True)
-        # 3. User skills from ~/.metaclaw/skills/ (highest priority)
+        # 3. User skills from ~/.eurekaclaw/skills/ (highest priority)
         self._skills_dir.mkdir(parents=True, exist_ok=True)
         for path in sorted(self._skills_dir.rglob("*.md")):
             self._load_file(path, is_seed=False)
