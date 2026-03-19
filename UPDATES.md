@@ -1,6 +1,70 @@
 # EurekaClaw Updates
 
-## v0.2.0 — Domain Plugin Architecture (2026-03-18)
+# 2026-03-18
+
+## 1. Context compression
+
+### Efficiency Gains & Savings
+
+The following table summarizes the primary optimizations applied to the pipeline stages.
+
+| Stage | Before | After | Saving |
+| :--- | :--- | :--- | :--- |
+| **Formalizer model** | `opus` | `haiku` | ~90% cost per call |
+| **Formalizer re-run** | Every iteration | Only on change | Saves $N-1$ calls |
+| **Proven lemma context** | 200 chars proof text | Statement only (120) | ~40% input tokens |
+| **Verifier (high-conf)** | Always LLM call | Auto-accept $\ge 0.85$ | Saves ~30% of calls |
+| **Verifier proof text** | Raw (up to 3000 chars) | Head + Tail (1000 chars) | ~67% input tokens |
+| **Agent loop history** | Accumulates forever | Compressed every 6 turns | ~60% input tokens |
+| **Stagnation** | Wastes 3+ iterations | Forced refinement | Saves full iterations |
+
+---
+
+### Agent Configuration Updates
+
+Specific file-level changes to `max_turns` and model selection to streamline agent execution.
+
+| File | Change |
+| :--- | :--- |
+| `survey/agent.py` | `max_turns` 15 $\rightarrow$ 8 |
+| `ideation/agent.py` | `max_turns` 5 $\rightarrow$ 3 |
+| `experiment/agent.py` | `max_turns` 10 $\rightarrow$ 5 |
+| `writer/agent.py` | `max_turns` 5 $\rightarrow$ 3 |
+| `theory/counterexample.py` | model `eurekaclaw_model` $\rightarrow$ `eurekaclaw_fast_model` |
+| `theory/decomposer.py` | `max_tokens` 3000 $\rightarrow$ 2048 |
+
+> **Run Performance Impact:** A typical run now utilizes **~20 LLM calls** (down from ~35), while worst-case scenarios have dropped from **~100 to ~55 calls**.
+
+---
+
+### Advanced Optimization Techniques
+
+These techniques were integrated based on research into high-efficiency agentic workflows.
+
+| File | Technique | Source Inspiration |
+| :--- | :--- | :--- |
+| **config.py** | Added knobs: `CONTEXT_COMPRESS_AFTER_TURNS`, `AUTO_VERIFY_CONFIDENCE`, `STAGNATION_WINDOW` | — |
+| **agents/session.py** | `compress_to_summary()`: Replaces history with a single compressed message | OpenClaw `/compact` |
+| **agents/base.py** | Periodic compression every 6 turns using fast model via `_compress_history()` | ScienceClaw smart compaction |
+| **theory/formalizer.py** | Fast model + skip re-formalization when informal statement is unchanged | AI-Researcher caching |
+| **theory/decomposer.py** | Skip re-decomposition when formal statement is unchanged; limit keys to last 8 | AI-Researcher caching |
+| **theory/prover.py** | `_format_proven`: Statement-only (120 chars); dynamic top-5 + count | Paper2Poster (87% fewer tokens) |
+| **theory/verifier.py** | Auto-accept at $\ge 0.85$ confidence; head+tail compression for long proofs | ClawTeam performance-based stopping |
+| **theory/counterexample.py** | Proof text 2000 $\rightarrow$ 500 chars; require $\ge 2$ signal matches (was 1) | ScienceClaw selective preservation |
+| **theory/inner_loop.py** | Stagnation detection (forced refinement); skip low-conf verifier; 20s timeout | ClawTeam "kill idle agents" |
+| **orchestrator/planner.py** | Compact direction format in converge call (120+80 chars vs. full text) | AI-Researcher hierarchical distillation |
+| **learning/loop.py** | Deduplicate failures; compress success proofs to 300 chars; skip low-novelty distillation | MetaClaw session-to-skills |
+
+
+### Experiment skip
+in .env.example, user can set:
+
+EXPERIMENT_MODE=auto # or "true"/"false"
+
+for setting the involvement of experiment stage (auto judge / force requirement / force ignore)
+
+
+## Domain Plugin Architecture
 
 ### Architecture Overview
 

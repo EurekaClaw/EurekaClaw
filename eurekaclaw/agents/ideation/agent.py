@@ -88,7 +88,7 @@ Return as JSON: {{"directions": [{{...}}, ...]}}
 """
 
         try:
-            text, tokens = await self.run_agent_loop(task, user_message, max_turns=5)
+            text, tokens = await self.run_agent_loop(task, user_message, max_turns=3)
             directions_data = self._parse_directions(text)
 
             # Convert to ResearchDirection objects and store on brief

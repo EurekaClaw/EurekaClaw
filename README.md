@@ -22,6 +22,7 @@ decomposes, proves, verifies, and refines mathematical conjectures.
    - [LLM Backend](#llm-backend)
    - [OAuth via ccproxy](#oauth-via-ccproxy-claude-promax-no-api-key)
    - [Output Format](#output-format)
+   - [Token Efficiency Knobs](#token-efficiency-knobs)
 5. [Usage](#usage)
    - [CLI Reference](#cli-reference)
    - [Python API](#python-api)
@@ -110,8 +111,13 @@ conjecture is irrefutably refuted.
 | `ideation` | IdeationAgent | Generate research directions |
 | `direction_selection_gate` | orchestrator | Auto-select best research direction |
 | `theory` | TheoryAgent | 6-stage proof loop |
-| `experiment` | ExperimentAgent | Empirical validation of theoretical bounds |
+| `experiment` | ExperimentAgent | Empirical validation of numerical bounds (optional — see [EXPERIMENT_MODE](#token-efficiency-knobs)) |
 | `writer` | WriterAgent | Full paper assembly (LaTeX or Markdown) |
+
+> **Note on experiment stage:** The experiment stage is *optional*. For purely structural
+> or algebraic theorems (existence proofs, graph identities, NP-hardness results) it is
+> automatically skipped. The writer runs regardless of whether the experiment stage
+> succeeds or is skipped — it depends on `theory`, not `experiment`.
 
 > **Note on input modes:** When using `eurekaclaw prove` (Level 1), the direction
 > selection step is bypassed entirely — the user's conjecture is used directly as
@@ -123,17 +129,30 @@ The `TheoryInnerLoop` class in `eurekaclaw/agents/theory/inner_loop.py` orchestr
 the six sub-agents:
 
 - **Formalizer** — converts the informal hypothesis into a rigorous
-  `\begin{theorem}...\end{theorem}` block.
+  `\begin{theorem}...\end{theorem}` block. Skips re-formalization when the informal
+  statement is unchanged across iterations (formalization cache).
 - **LemmaDecomposer** — parses an LLM JSON response into a DAG of lemmas, then
-  topologically sorts them to find a tractable proof order.
+  topologically sorts them to find a tractable proof order. Skips re-decomposition
+  when the formal statement is unchanged (decomposition cache).
 - **Prover** — generates chain-of-thought proof attempts.
-- **Verifier** — tries Lean4 first (if binary is available); falls back to LLM
-  peer review. Returns a `VerificationResult` with `passed`, `errors`, and `notes`.
+- **Verifier** — tries Lean4 first (if binary is available); falls back to LLM peer
+  review using the fast model. High-confidence proofs (≥ `AUTO_VERIFY_CONFIDENCE`)
+  with no explicit gaps are auto-accepted without LLM peer review, saving one API
+  call per lemma. Very low confidence proofs (< 0.3) skip the verifier entirely.
 - **CounterexampleSearcher** — adversarial sub-agent that searches for falsifying
-  examples. If `cx.falsifies_conjecture` is set, the loop routes to the Refiner.
+  examples using the fast model. If `cx.falsifies_conjecture` is set, the loop routes
+  to the Refiner.
 - **Refiner** — rewrites `state.informal_statement` and `state.formal_statement`,
   clears the lemma DAG and proven lemmas, then forces re-decomposition of the
   refined conjecture.
+
+**Token-efficiency features in the inner loop:**
+- *Stagnation detection* — if the same lemma fails `STAGNATION_WINDOW` consecutive
+  times with a similar error pattern, the loop forces a conjecture refinement rather
+  than wasting further calls on an irrecoverably stuck lemma.
+- *Context compression* — every `CONTEXT_COMPRESS_AFTER_TURNS` tool-use turns, the
+  fast model summarises the accumulated conversation history into a concise bullet
+  list, dramatically reducing input tokens for long-running agents.
 
 A parallel `ResourceAnalyst` task runs alongside the loop to produce a bidirectional
 math↔code mapping and skeleton validation code, consumed later by ExperimentAgent.
@@ -239,7 +258,7 @@ cp .env.example .env
 |---|---|---|
 | `ANTHROPIC_API_KEY` | — | Anthropic API key (not needed when using OAuth) |
 | `EUREKACLAW_MODEL` | `claude-opus-4-6` | Primary model for deep reasoning |
-| `EUREKACLAW_FAST_MODEL` | `claude-haiku-4-5-20251001` | Fast model for lightweight tasks |
+| `EUREKACLAW_FAST_MODEL` | `claude-haiku-4-5-20251001` | Fast model for lightweight tasks (verification, compression, skill distillation). Falls back to `EUREKACLAW_MODEL` if left empty. |
 | `EUREKACLAW_MODE` | `skills_only` | Learning mode: `skills_only`, `rl`, `madmax` |
 | `GATE_MODE` | `none` | Gate mode: `none`, `auto`, `human` |
 | `THEORY_MAX_ITERATIONS` | `10` | Max proof loop iterations |
@@ -330,6 +349,53 @@ PDF compilation runs `pdflatex` twice (to resolve cross-references) and writes
 `paper.pdf` alongside `paper.tex` in the `--output` directory. If `pdflatex` is
 not found, a warning is printed and `paper.tex` is still saved.
 To use a different compiler (e.g. `xelatex`), set `LATEX_BIN=xelatex`.
+
+### Token Efficiency Knobs
+
+The inner theory loop can run many LLM calls across many lemmas. These settings
+control the trade-off between proof thoroughness and API cost:
+
+| Variable | Default | Description |
+|---|---|---|
+| `CONTEXT_COMPRESS_AFTER_TURNS` | `6` | Compress conversation history into a bullet summary every N tool-use turns. `0` disables compression. Reduces input tokens for long-running agents. |
+| `AUTO_VERIFY_CONFIDENCE` | `0.85` | Auto-accept a proof without LLM peer review when the prover's confidence meets or exceeds this threshold and no `[GAP:...]` flags are present. Saves one API call per high-confidence lemma. |
+| `STAGNATION_WINDOW` | `3` | If the same lemma fails this many consecutive times with a similar error pattern, force a conjecture refinement instead of continuing to retry. Prevents wasting calls on an irrecoverably stuck proof path. |
+| `EXPERIMENT_MODE` | `auto` | Whether to run the experiment stage: `auto` (run only when the theorem has measurable numerical bounds), `true` (always run), `false` (always skip). |
+
+**Example — aggressive token saving:**
+
+```env
+CONTEXT_COMPRESS_AFTER_TURNS=4
+AUTO_VERIFY_CONFIDENCE=0.80
+STAGNATION_WINDOW=2
+EXPERIMENT_MODE=false
+```
+
+**Example — maximum thoroughness (higher cost):**
+
+```env
+CONTEXT_COMPRESS_AFTER_TURNS=0   # no compression
+AUTO_VERIFY_CONFIDENCE=0.99      # almost always do full peer review
+STAGNATION_WINDOW=5
+EXPERIMENT_MODE=true             # always run experiments
+```
+
+#### Experiment mode details
+
+The experiment stage is only meaningful for theorems with *measurable numerical
+quantities* — bounds, rates, sample complexities, approximation ratios. For purely
+structural theorems (existence proofs, NP-hardness, graph identities) there is nothing
+to validate numerically, so the stage is automatically skipped when
+`EXPERIMENT_MODE=auto`.
+
+| `EXPERIMENT_MODE` | Behaviour |
+|---|---|
+| `auto` | Run a scored heuristic on the formal statement. Quantitative signals (+2 each): `\Omega(`, `\leq`, `\epsilon`, "regret", "with probability", decimal numbers, etc. Structural signals (−3 each): `\exists`, "bijection", "NP-complete", "undecidable", etc. Score > 0 → run. |
+| `true` | Always run, regardless of theorem type. |
+| `false` | Always skip. Useful for pure-math work where experiments add no value. |
+
+The writer stage always runs regardless of experiment outcome — it depends on `theory`,
+not `experiment`.
 
 ---
 

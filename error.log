@@ -1,0 +1,11 @@
+Running continual learning loop...
+[03/18/26 21:44:28] INFO     Post-run learning (mode=skills_only)...                                                                                                                                                         
+[03/18/26 21:44:52] INFO     Upserted skill: distilled_0a9ee758_c462dd                                                                                                               
+                    INFO     Distilled new skill: distilled_0a9ee758_c462dd                                                                                                          
+                    INFO     Distilled 1 new skills                                                                                                                                  
+                    INFO     Post-run learning complete                                                                                                                              
+                    INFO     Persisted 6 artifacts to /home/yifeng/.metaclaw/runs/f700af99-4684-49da-a9b2-8cfc8c2536e8                                                               
+
+Session complete! Artifacts saved to /home/yifeng/.metaclaw/runs/f700af99-4684-49da-a9b2-8cfc8c2536e8
+pdflatex ran but no PDF found — check results/paper.log
+Artifacts saved to results

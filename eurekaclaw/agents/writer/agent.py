@@ -12,7 +12,8 @@ from eurekaclaw.types.tasks import Task
 
 logger = logging.getLogger(__name__)
 
-LATEX_PREAMBLE = r"""\documentclass[12pt]{article}
+LATEX_PREAMBLE = r"""\nonstopmode
+\documentclass[12pt]{article}
 \usepackage{amsmath, amssymb, amsthm}
 \usepackage{hyperref}
 \usepackage{natbib}
@@ -196,14 +197,21 @@ Include all proofs using \\begin{{proof}}...\\end{{proof}}.
 """
 
         try:
-            text, tokens = await self.run_agent_loop(task, user_message, max_turns=5)
+            text, tokens = await self.run_agent_loop(task, user_message, max_turns=3)
 
             if fmt == "markdown":
                 paper_content = self._extract_markdown(text)
                 output_key = "latex_paper"  # reuse existing key for compatibility
             else:
                 latex_body = self._extract_latex(text)
-                paper_content = LATEX_PREAMBLE % (title, f"We present results in {brief.domain}.") + latex_body + LATEX_END
+                paper_content = (
+                    LATEX_PREAMBLE % (
+                        self._escape_latex(title),
+                        f"We present results in {self._escape_latex(brief.domain)}.",
+                    )
+                    + latex_body
+                    + LATEX_END
+                )
                 output_key = "latex_paper"
 
             self.memory.log_event(self.role.value, f"Paper written ({fmt}): {len(paper_content)} characters")
@@ -221,12 +229,45 @@ Include all proofs using \\begin{{proof}}...\\end{{proof}}.
             return self._make_result(task, False, {}, error=str(e))
 
     def _extract_latex(self, text: str) -> str:
-        """Extract LaTeX content, removing markdown code blocks if present."""
+        """Extract LaTeX content, removing markdown code blocks if present.
+
+        Also strips any document-level boilerplate the LLM may have included
+        (\\documentclass, \\begin{document}, \\end{document}) since those are
+        already provided by LATEX_PREAMBLE / LATEX_END.
+        """
         if "```latex" in text:
             start = text.index("```latex") + 8
             end = text.index("```", start) if "```" in text[start:] else len(text)
-            return text[start:end].strip()
-        return text
+            text = text[start:end].strip()
+
+        # Drop preamble / document wrapper if the LLM included a full document
+        if r"\begin{document}" in text:
+            text = text[text.index(r"\begin{document}") + len(r"\begin{document}"):]
+        if r"\end{document}" in text:
+            text = text[:text.rindex(r"\end{document}")]
+        # Drop \documentclass line(s) that might remain above \begin{document}
+        lines = [l for l in text.splitlines() if not l.lstrip().startswith(r"\documentclass")]
+        return "\n".join(lines).strip()
+
+    @staticmethod
+    def _escape_latex(s: str) -> str:
+        """Escape LaTeX special characters in plain-text strings (e.g. titles)."""
+        # Order matters: backslash first so we don't double-escape later subs
+        replacements = [
+            ("\\", r"\textbackslash{}"),
+            ("&",  r"\&"),
+            ("%",  r"\%"),
+            ("$",  r"\$"),
+            ("#",  r"\#"),
+            ("_",  r"\_"),
+            ("{",  r"\{"),
+            ("}",  r"\}"),
+            ("~",  r"\textasciitilde{}"),
+            ("^",  r"\textasciicircum{}"),
+        ]
+        for char, escaped in replacements:
+            s = s.replace(char, escaped)
+        return s
 
     def _extract_markdown(self, text: str) -> str:
         """Extract Markdown content, removing code fences if present."""

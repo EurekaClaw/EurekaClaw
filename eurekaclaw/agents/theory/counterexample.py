@@ -36,8 +36,9 @@ COUNTEREXAMPLE_USER = """\
 Attempt to find a counterexample to the following lemma:
 
 Lemma: {statement}
-Current proof attempt (which failed with reason: {failure_reason}):
-{proof_text}
+Failure reason: {failure_reason}
+Proof sketch (key steps and conclusion):
+{proof_excerpt}
 
 Search for:
 1. A concrete counterexample (specific values satisfying hypotheses but violating conclusion)
@@ -46,6 +47,23 @@ Search for:
 
 For each candidate counterexample, verify it step by step.
 """
+
+
+def _extract_proof_excerpt(proof_text: str, max_chars: int = 500) -> str:
+    """Extract the most informative excerpt from a potentially long proof.
+
+    ScienceClaw-style selective preservation: keep the proof strategy (head)
+    and the conclusion/failed step (tail), drop the middle bulk.
+    """
+    if len(proof_text) <= max_chars:
+        return proof_text
+    # Reserve 24 chars for the "\n...[middle omitted]...\n" separator
+    usable = max_chars - 24
+    head_size = usable // 2
+    tail_size = usable - head_size
+    head = proof_text[:head_size].strip()
+    tail = proof_text[-tail_size:].strip()
+    return f"{head}\n...[middle omitted]...\n{tail}"
 
 
 class CounterexampleSearcher:
@@ -71,9 +89,12 @@ class CounterexampleSearcher:
                 suggested_refinement="",
             )
 
+        # Compress the proof text to focus on the failed parts only
+        proof_excerpt = _extract_proof_excerpt(proof_text, max_chars=500)
+
         try:
             response = await self.client.messages.create(
-                model=settings.eurekaclaw_model,
+                model=settings.fast_model,
                 max_tokens=2048,
                 system=COUNTEREXAMPLE_SYSTEM,
                 messages=[{
@@ -81,7 +102,7 @@ class CounterexampleSearcher:
                     "content": COUNTEREXAMPLE_USER.format(
                         statement=node.statement,
                         failure_reason=failure_reason or "Proof verification failed",
-                        proof_text=proof_text[:2000] or "(no proof text)",
+                        proof_excerpt=proof_excerpt or "(no proof text)",
                     ),
                 }],
             )
@@ -106,7 +127,9 @@ class CounterexampleSearcher:
             "counterexample:", "consider x =", "let x =", "take n =",
             "the function f(x) =", "for example, when", "specific example",
         ]
-        falsifies = any(sig in text_lower for sig in counterexample_signals)
+        signal_count = sum(1 for sig in counterexample_signals if sig in text_lower)
+        # Require at least 2 signals to avoid false positives (more conservative)
+        falsifies = signal_count >= 2
 
         # Extract suggested refinement
         refinement = ""

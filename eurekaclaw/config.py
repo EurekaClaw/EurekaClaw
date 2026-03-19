@@ -59,6 +59,24 @@ class Config(BaseSettings):
     # Output format for the generated paper: "latex" (default) or "markdown"
     output_format: str = Field(default="latex", alias="OUTPUT_FORMAT")
 
+    # ---- Token-efficiency knobs --------------------------------------------
+    # Compress the agent loop's conversation history after this many tool-use
+    # turns.  Set to 0 to disable compression entirely.
+    context_compress_after_turns: int = Field(default=6, alias="CONTEXT_COMPRESS_AFTER_TURNS")
+    # Auto-accept a proof without LLM peer-review when the prover's confidence
+    # meets or exceeds this threshold and no explicit [GAP:...] flags exist.
+    auto_verify_confidence: float = Field(default=0.85, alias="AUTO_VERIFY_CONFIDENCE")
+    # If the same lemma fails this many consecutive times with similar error
+    # signatures, treat it as stagnant and force a conjecture refinement.
+    stagnation_window: int = Field(default=3, alias="STAGNATION_WINDOW")
+    # Whether to run the experiment stage:
+    #   "auto"  — run only when the theorem has measurable numerical bounds (default)
+    #   "true"  — always run experiments
+    #   "false" — always skip experiments
+    experiment_mode: Literal["auto", "true", "false"] = Field(
+        default="auto", alias="EXPERIMENT_MODE"
+    )
+
     # ---- Paths -------------------------------------------------------------
     metaclaw_dir: Path = Field(default=Path.home() / ".metaclaw", alias="METACLAW_DIR")
     lean4_bin: str = Field(default="lean", alias="LEAN4_BIN")
@@ -68,6 +86,17 @@ class Config(BaseSettings):
     @classmethod
     def expand_home(cls, v: str | Path) -> Path:
         return Path(v).expanduser()
+
+    @property
+    def fast_model(self) -> str:
+        """Return the fast model name, falling back to the main model if unset.
+
+        Allows users to leave EUREKACLAW_FAST_MODEL empty (or omit it) when
+        the fast model is not available (e.g. self-hosted endpoints that only
+        serve one model).  All code should call ``settings.fast_model`` instead
+        of ``settings.eurekaclaw_fast_model`` directly.
+        """
+        return self.eurekaclaw_fast_model or self.eurekaclaw_model
 
     @property
     def skills_dir(self) -> Path:

@@ -95,7 +95,7 @@ papers, open_problems, key_mathematical_objects, research_frontier, insights
 """
 
         try:
-            text, tokens = await self.run_agent_loop(task, user_message, max_turns=15)
+            text, tokens = await self.run_agent_loop(task, user_message, max_turns=8)
 
             # Try to extract structured data from the response
             survey_data = self._parse_survey_output(text)

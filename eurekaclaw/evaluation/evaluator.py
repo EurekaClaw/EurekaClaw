@@ -110,7 +110,7 @@ class ScientistBenchEvaluator:
                 paper_titles = "\n".join(f"- {p.title}" for p in bib.papers[:10])
 
             response = await self.client.messages.create(
-                model=settings.eurekaclaw_fast_model,
+                model=settings.fast_model,
                 max_tokens=256,
                 messages=[{
                     "role": "user",
