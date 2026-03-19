@@ -1,5 +1,114 @@
 # EurekaClaw Updates
 
+# 2026-03-18 (shiyuan branch)
+
+## 1. Multi-Backend LLM Support
+
+Added three named backends to `config.py` and `llm/factory.py`:
+
+| Backend | `LLM_BACKEND=` | Notes |
+|---------|---------------|-------|
+| Anthropic native | `anthropic` | Default |
+| OpenRouter | `openrouter` | Set `OPENAI_COMPAT_API_KEY=sk-or-...` |
+| Local (vLLM / Ollama) | `local` | Defaults to `http://localhost:8000/v1` |
+
+**ccproxy / OAuth fallback** (`llm/anthropic_adapter.py`): if `ANTHROPIC_API_KEY` is empty,
+the adapter automatically reads `~/.claude/.credentials.json` and routes through ccproxy,
+allowing Claude Pro/Max users to run EurekaClaw without a separate API key.
+
+---
+
+## 2. Configurable Tuning Knobs
+
+All previously hardcoded parameters are now env-var controlled via `config.py`:
+
+| Variable | Default | Effect |
+|----------|---------|--------|
+| `EUREKACLAW_MODEL` | `claude-sonnet-4-6` | Changed from opus to sonnet (cheaper, less rate-limited) |
+| `AGENT_MAX_TOKENS` | `4096` | Max tokens per LLM response |
+| `SURVEY_MAX_TURNS` | `8` | Tool-use turns in survey (was hardcoded 15) |
+| `THEORY_STAGE_MAX_TURNS` | `6` | Turns per theory stage |
+| `WRITER_MAX_TURNS` | `4` | Turns for paper generation |
+| `ARXIV_MAX_RESULTS` | `10` | Hard cap on arXiv results regardless of LLM request |
+| `LLM_RETRY_ATTEMPTS` | `5` | Retry attempts on 5xx / rate-limit errors |
+| `LLM_RETRY_WAIT_MIN` | `4` | Min backoff seconds |
+| `LLM_RETRY_WAIT_MAX` | `90` | Max backoff seconds |
+
+Retry logic in `agents/base.py` was changed from a static `@retry` decorator to a dynamic
+`AsyncRetrying` context manager so it reads live settings at call time.
+
+---
+
+## 3. Bug Fixes
+
+| File | Bug | Fix |
+|------|-----|-----|
+| `agents/survey/agent.py` | `ValueError: substring not found` when LLM returns unclosed ` ```json ` block | Wrapped `text.index("```", start)` in try/except |
+| `agents/base.py` | `run_agent_loop` default `max_turns` not reading from settings | Added `_max_turns = max_turns if max_turns is not None else settings.survey_max_turns` |
+
+---
+
+## 4. Always-On Stage Summary Cards
+
+`orchestrator/gate.py` now prints a rich summary card after every completed pipeline stage,
+regardless of `GATE_MODE`. Previously cards only appeared at gate prompts.
+
+| Stage | Card shows |
+|-------|-----------|
+| `survey` | Papers found, open problems, key mathematical objects |
+| `theory` | Proof status, per-lemma breakdown with confidence tags |
+| `experiment` | Alignment score, per-lemma numerical check results |
+| `writer` | Full session summary before final output |
+
+---
+
+## 5. Human Gate Improvements
+
+When `GATE_MODE=human` (or auto-escalation triggers):
+
+- **Text feedback input**: after approving a gate, users can optionally type a correction
+  or hint. This text is injected into the next agent's task description via
+  `get_user_feedback()`, so e.g. "use Bernstein instead of Hoeffding for lemma 3" is
+  actually passed to the prover.
+- **Auto-escalation** (`GATE_MODE=auto`): if ≥1 lemma has `verified=False` after the theory
+  stage, the gate automatically escalates from auto to human for the theory review, showing
+  the full lemma confidence breakdown.
+- **Default changed**: `GATE_MODE` default changed from `none` to `auto`.
+
+---
+
+## 6. Proof Readability Enforcement (Writer Agent)
+
+Added `_PROOF_STYLE_RULES` injected into both LaTeX and Markdown writer prompts:
+
+- **No skip words**: "clearly", "it is easy to see", "by standard arguments", "trivially"
+  are forbidden unless the justification immediately follows.
+- **Citation requirement**: every inequality must name the lemma or theorem it uses.
+- **Informal intuition**: each lemma proof must open with 1–2 sentences of informal explanation
+  before the formal argument.
+- **Low-confidence tagging**: lemmas with `verified=False` are passed as `[LOW CONFIDENCE]`
+  to the writer, which must add `\textcolor{orange}{[Unverified step]}` after the proof and
+  include a Limitations paragraph explaining what was not formally verified.
+- Added `\usepackage{xcolor}` to the LaTeX preamble.
+
+---
+
+## 7. Targeted Numerical Testing for Low-Confidence Lemmas (Experiment Agent)
+
+Previously the experiment stage ran a single generic validation of the main theorem.
+Now it separates proven lemmas into `verified` and `low_confidence` groups:
+
+- For each **low-confidence lemma**, the agent generates a dedicated numerical test:
+  sample random instances satisfying the lemma's hypothesis, check the conclusion holds,
+  compute `violation_rate`.
+- Lemmas with `violation_rate > 1%` are flagged as `numerically_suspect` and stored on
+  the knowledge bus.
+- The experiment summary card (gate) shows per-lemma check results with color coding:
+  green (✓ passes), red (✗ suspect).
+- The writer agent can then add stronger warnings for suspect lemmas in the paper.
+
+---
+
 # 2026-03-18
 
 ## 1. Context compression

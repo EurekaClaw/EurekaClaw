@@ -29,7 +29,7 @@ class Config(BaseSettings):
 
     # Anthropic native
     anthropic_api_key: str = Field(default="", alias="ANTHROPIC_API_KEY")
-    eurekaclaw_model: str = Field(default="claude-opus-4-6", alias="EUREKACLAW_MODEL")
+    eurekaclaw_model: str = Field(default="claude-sonnet-4-6", alias="EUREKACLAW_MODEL")
     eurekaclaw_fast_model: str = Field(
         default="claude-haiku-4-5-20251001", alias="EUREKACLAW_FAST_MODEL"
     )
@@ -52,7 +52,7 @@ class Config(BaseSettings):
         default="skills_only", alias="EUREKACLAW_MODE"
     )
     gate_mode: Literal["auto", "human", "none"] = Field(
-        default="none", alias="GATE_MODE"
+        default="auto", alias="GATE_MODE"
     )
     theory_max_iterations: int = Field(default=10, alias="THEORY_MAX_ITERATIONS")
     use_docker_sandbox: bool = Field(default=False, alias="USE_DOCKER_SANDBOX")
@@ -60,22 +60,22 @@ class Config(BaseSettings):
     output_format: str = Field(default="latex", alias="OUTPUT_FORMAT")
 
     # ---- Token-efficiency knobs --------------------------------------------
-    # Compress the agent loop's conversation history after this many tool-use
-    # turns.  Set to 0 to disable compression entirely.
     context_compress_after_turns: int = Field(default=6, alias="CONTEXT_COMPRESS_AFTER_TURNS")
-    # Auto-accept a proof without LLM peer-review when the prover's confidence
-    # meets or exceeds this threshold and no explicit [GAP:...] flags exist.
     auto_verify_confidence: float = Field(default=0.85, alias="AUTO_VERIFY_CONFIDENCE")
-    # If the same lemma fails this many consecutive times with similar error
-    # signatures, treat it as stagnant and force a conjecture refinement.
     stagnation_window: int = Field(default=3, alias="STAGNATION_WINDOW")
-    # Whether to run the experiment stage:
-    #   "auto"  — run only when the theorem has measurable numerical bounds (default)
-    #   "true"  — always run experiments
-    #   "false" — always skip experiments
     experiment_mode: Literal["auto", "true", "false"] = Field(
         default="auto", alias="EXPERIMENT_MODE"
     )
+
+    # ---- LLM call tuning ---------------------------------------------------
+    agent_max_tokens: int = Field(default=4096, alias="AGENT_MAX_TOKENS")
+    survey_max_turns: int = Field(default=8, alias="SURVEY_MAX_TURNS")
+    theory_stage_max_turns: int = Field(default=6, alias="THEORY_STAGE_MAX_TURNS")
+    writer_max_turns: int = Field(default=4, alias="WRITER_MAX_TURNS")
+    arxiv_max_results: int = Field(default=10, alias="ARXIV_MAX_RESULTS")
+    llm_retry_attempts: int = Field(default=5, alias="LLM_RETRY_ATTEMPTS")
+    llm_retry_wait_min: int = Field(default=4, alias="LLM_RETRY_WAIT_MIN")
+    llm_retry_wait_max: int = Field(default=90, alias="LLM_RETRY_WAIT_MAX")
 
     # ---- Paths -------------------------------------------------------------
     metaclaw_dir: Path = Field(default=Path.home() / ".metaclaw", alias="METACLAW_DIR")

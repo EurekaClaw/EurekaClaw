@@ -48,24 +48,16 @@ class SurveyAgent(BaseAgent):
 
     def _role_system_prompt(self, task: Task) -> str:
         return """\
-You are the Survey Agent of EurekaClaw, a multi-agent system for theoretical research.
+You are the Survey Agent of EurekaClaw. Your job: fast, focused literature search.
 
-Your mission:
-1. Search arXiv and Semantic Scholar for papers relevant to the research question
-2. Identify the frontier of the field: What is the current state of the art?
-3. Extract open problems and unexplored gaps from the literature
-4. Build a citation graph and identify the most influential papers
-5. Summarize key mathematical objects, definitions, and techniques in the area
-6. Decompose each important paper into: Insight, Research Trending, Serendipity
+Do 2-3 targeted arXiv searches, then synthesize. Be concise.
 
-Use the available search tools systematically. Start broad (3-5 searches), then drill into the most relevant papers.
-
-Output a structured JSON summary with:
-- papers: list of the most relevant papers with metadata
-- open_problems: list of explicit open questions from the literature
-- key_mathematical_objects: central definitions, theorems, techniques
-- research_frontier: what directions are most active right now
-- citation_graph_summary: which papers are most highly cited / influential
+Output a JSON object with keys:
+- papers: top 5-8 most relevant papers (title, authors, year, arxiv_id, abstract 1 sentence)
+- open_problems: 3-5 open questions from the literature
+- key_mathematical_objects: core definitions/theorems (bullet list)
+- research_frontier: 2-3 sentences on active directions
+- insights: 2-3 key takeaways
 """
 
     async def execute(self, task: Task) -> AgentResult:
@@ -77,25 +69,21 @@ Output a structured JSON summary with:
         domain = brief.domain
 
         user_message = f"""\
-Conduct a comprehensive literature survey for the following research area:
-
 Domain: {domain}
 Research Question: {query}
-Additional Context: {brief.conjecture or "No specific conjecture yet — do open exploration"}
+Conjecture: {brief.conjecture or "open exploration"}
 
-Please:
-1. Search arXiv for the 10-15 most relevant recent papers
-2. Search Semantic Scholar for highly-cited foundational works
-3. Identify at least 5 specific open problems
-4. List the key mathematical objects/definitions in this area
-5. Summarize the research frontier
-
-Return your final findings as a JSON object with keys:
-papers, open_problems, key_mathematical_objects, research_frontier, insights
+Do 2-3 focused arXiv searches, then return a JSON with:
+papers (5-8), open_problems (3-5), key_mathematical_objects, research_frontier, insights
 """
 
         try:
-            text, tokens = await self.run_agent_loop(task, user_message, max_turns=8)
+            from eurekaclaw.config import settings
+            text, tokens = await self.run_agent_loop(
+                task, user_message,
+                max_turns=settings.survey_max_turns,
+                max_tokens=settings.agent_max_tokens,
+            )
 
             # Try to extract structured data from the response
             survey_data = self._parse_survey_output(text)
@@ -150,11 +138,11 @@ papers, open_problems, key_mathematical_objects, research_frontier, insights
         """Try to extract JSON from the agent's text output."""
         # Find JSON block
         if "```json" in text:
-            start = text.index("```json") + 7
-            end = text.index("```", start)
             try:
+                start = text.index("```json") + 7
+                end = text.index("```", start)
                 return json.loads(text[start:end].strip())
-            except json.JSONDecodeError:
+            except (json.JSONDecodeError, ValueError):
                 pass
         if "{" in text and "}" in text:
             try:
