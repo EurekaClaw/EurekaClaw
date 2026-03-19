@@ -43,8 +43,7 @@ class AgentSession:
     def compress_to_summary(self, original_task: str, summary: str) -> None:
         """Replace accumulated conversation history with a single compressed message.
 
-        Inspired by OpenClaw's /compact command and ScienceClaw's smart compaction:
-        preserves the original task goal plus a concise summary of all key findings,
+        Preserves the original task goal plus a concise summary of all key findings,
         discarding intermediate tool-call exchanges to free up the context window.
 
         After this call the session contains exactly one user message so that the

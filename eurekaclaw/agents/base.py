@@ -99,6 +99,11 @@ class BaseAgent(ABC):
                 break
 
         skill_block = self.skill_injector.render_for_prompt(skills)
+        # Record injected skill names on bus so learning loop can update stats
+        if skills:
+            existing: set = self.bus.get("injected_skills") or set()
+            existing.update(s.meta.name for s in skills)
+            self.bus.put("injected_skills", existing)
         base = self._role_system_prompt(task)
         if skill_block:
             return f"{base}\n\n{skill_block}"

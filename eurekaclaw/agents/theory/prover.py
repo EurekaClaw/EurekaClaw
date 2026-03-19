@@ -41,7 +41,7 @@ Already proven lemmas you may cite (statement only):
 
 Dependencies for this lemma:
 {dependencies}
-
+{past_context}
 Provide a complete, rigorous proof. Use LaTeX notation.
 Start with the proof strategy, then give the detailed proof steps.
 If this requires techniques from a specific area (e.g., concentration inequalities,
@@ -65,8 +65,24 @@ class Prover:
     def __init__(self, client: LLMClient | None = None) -> None:
         self.client: LLMClient = client or create_client()
 
-    async def attempt(self, state: TheoryState, lemma_id: str) -> ProofAttempt:
-        """Attempt to prove lemma_id given the current state."""
+    async def attempt(
+        self,
+        state: TheoryState,
+        lemma_id: str,
+        past_failures: list[str] | None = None,
+        cross_session_hint: str | None = None,
+        skill_context: str = "",
+    ) -> ProofAttempt:
+        """Attempt to prove lemma_id given the current state.
+
+        Args:
+            state: current TheoryState
+            lemma_id: which lemma to prove
+            past_failures: failure reasons from earlier iterations of this session
+            cross_session_hint: proof approach from a prior session (persistent memory)
+            skill_context: optional XML skill block (from SkillInjector) appended
+                           to the system prompt to guide proof technique selection
+        """
         node = state.lemma_dag.get(lemma_id)
         if not node:
             return ProofAttempt(
@@ -76,12 +92,27 @@ class Prover:
 
         proven_summary = self._format_proven(state)
         deps_summary = self._format_dependencies(state, node)
+        system = PROVE_SYSTEM + ("\n\n" + skill_context if skill_context else "")
+
+        # Build past context block (memory injection)
+        past_parts: list[str] = []
+        if past_failures:
+            fails_text = "\n".join(f"  - {r[:120]}" for r in past_failures[:3])
+            past_parts.append(
+                f"\nPREVIOUS FAILED APPROACHES (avoid repeating these):\n{fails_text}"
+            )
+        if cross_session_hint:
+            past_parts.append(
+                f"\nCROSS-SESSION HINT (approach that worked in a prior session):\n"
+                f"  {cross_session_hint[:200]}"
+            )
+        past_context = "\n".join(past_parts)
 
         try:
             response = await self.client.messages.create(
                 model=settings.eurekaclaw_model,
                 max_tokens=settings.max_tokens_prover,
-                system=PROVE_SYSTEM,
+                system=system,
                 messages=[{
                     "role": "user",
                     "content": PROVE_USER.format(
@@ -90,6 +121,7 @@ class Prover:
                         informal=node.informal,
                         proven_lemmas=proven_summary,
                         dependencies=deps_summary,
+                        past_context=past_context,
                     ),
                 }],
             )
@@ -112,8 +144,8 @@ class Prover:
     def _format_proven(self, state: TheoryState) -> str:
         """Compact representation of proven lemmas — statement only (no proof text).
 
-        Inspired by Paper2Poster's 87%-fewer-tokens approach: include only the
-        minimal information needed (lemma ID + statement), not the full proof.
+        Include only the minimal information needed (lemma ID + statement),
+        not the full proof.
         For large DAGs, show the 5 most recently proven lemmas plus a count.
         """
         if not state.proven_lemmas:

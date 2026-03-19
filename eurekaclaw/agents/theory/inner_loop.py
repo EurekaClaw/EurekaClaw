@@ -78,6 +78,7 @@ class TheoryInnerLoop:
         cx_searcher: CounterexampleSearcher | None = None,
         refiner: Refiner | None = None,
         resource_analyst: ResourceAnalyst | None = None,
+        memory: "MemoryManager | None" = None,  # type: ignore[name-defined]
     ) -> None:
         self.bus = bus
         self.formalizer = formalizer or Formalizer()
@@ -87,13 +88,14 @@ class TheoryInnerLoop:
         self.cx_searcher = cx_searcher or CounterexampleSearcher()
         self.refiner = refiner or Refiner()
         self.resource_analyst = resource_analyst or ResourceAnalyst()
+        self.memory = memory  # MemoryManager for cross-session recall
 
         self.max_iterations = settings.theory_max_iterations
         self._failure_log: list[FailedAttempt] = []
-        # stagnation_window: consecutive failures with same signature → force refinement
         self._stagnation_window = settings.stagnation_window
-        # Per-lemma: list of normalised error signatures from recent failures
         self._lemma_failure_sigs: dict[str, list[str]] = {}
+        # Per-lemma failure reasons accumulated in THIS session (for prover context)
+        self._session_failures: dict[str, list[str]] = {}
 
     def _record_failure(self, lemma_id: str, reason: str) -> bool:
         """Record a failure and return True if stagnation is detected.
@@ -174,8 +176,26 @@ class TheoryInnerLoop:
             for lemma_id in list(state.open_goals):
                 logger.info("[3/6] Attempting proof of lemma: %s", lemma_id)
 
-                # Step 3: Proof attempt
-                proof_attempt = await self.prover.attempt(state, lemma_id)
+                # Step 3: Proof attempt — inject memory context
+                past_failures = self._session_failures.get(lemma_id, [])
+                cross_hint: str | None = None
+                if self.memory:
+                    # Check persistent memory for a successful approach from a prior session
+                    node = state.lemma_dag.get(lemma_id)
+                    stmt_key = f"proved:{hash(node.statement) & 0xFFFFFFFF}" if node else None
+                    if stmt_key:
+                        prior = self.memory.recall(stmt_key)
+                        if prior:
+                            cross_hint = prior.get("approach", "")
+                            logger.info(
+                                "Cross-session hint found for %s (prior session proved it)", lemma_id
+                            )
+
+                proof_attempt = await self.prover.attempt(
+                    state, lemma_id,
+                    past_failures=past_failures or None,
+                    cross_session_hint=cross_hint,
+                )
 
                 # Step 4: Verification
                 # Two shortcuts to save LLM calls:
@@ -223,13 +243,32 @@ class TheoryInnerLoop:
                         state.lemma_dag[lemma_id].verified = True
                         state.lemma_dag[lemma_id].confidence_score = verification.confidence
                         state.lemma_dag[lemma_id].verification_method = verification.method
-                    # Reset stagnation counter on success
+                    # Persist successful approach to memory for future sessions
+                    if self.memory:
+                        node = state.lemma_dag.get(lemma_id)
+                        if node:
+                            stmt_key = f"proved:{hash(node.statement) & 0xFFFFFFFF}"
+                            self.memory.remember(
+                                stmt_key,
+                                {
+                                    "lemma_id": lemma_id,
+                                    "approach": proof_attempt.proof_text[:300],
+                                    "method": verification.method,
+                                    "confidence": verification.confidence,
+                                },
+                                tags=["proved_lemma"],
+                                source_session=self.bus.session_id,
+                            )
+                    # Reset stagnation and session failure tracking
                     self._lemma_failure_sigs.pop(lemma_id, None)
+                    self._session_failures.pop(lemma_id, None)
                     logger.info("✓ Lemma proved: %s (method=%s, conf=%.2f)",
                                 lemma_id, verification.method, verification.confidence)
                     self.bus.put_theory_state(state)
                 else:
                     failure_reason = "; ".join(verification.errors[:3]) or "verification failed"
+                    # Track in session memory so next prover call avoids this approach
+                    self._session_failures.setdefault(lemma_id, []).append(failure_reason)
                     failure = FailedAttempt(
                         lemma_id=lemma_id,
                         attempt_text=proof_attempt.proof_text[:500],
