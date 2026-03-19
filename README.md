@@ -122,19 +122,19 @@ The loop runs until all lemmas are proven, a maximum iteration limit is reached,
 │                         CLI / Python API                         │
 ├──────────────────────────────────────────────────────────────────┤
 │                         MetaOrchestrator                         │
-│       ┌──────────────────────────────────────────────┐          │
+│       ┌───────────────────────────────────────────────┐          │
 │       │          DivergentConvergentPlanner           │          │
-│       └──────────────────────────────────────────────┘          │
-├─────────────┬──────────────┬─────────────┬────────────┬─────────┤
-│ SurveyAgent │IdeationAgent │ TheoryAgent │Experiment  │ Writer  │
-│             │              │ (6-stage    │  Agent     │ Agent   │
-│             │              │ proof loop) │            │         │
-├─────────────┴──────────────┴─────────────┴────────────┴─────────┤
+│       └───────────────────────────────────────────────┘          │
+├─────────────┬──────────────┬─────────────┬────────────┬──────────┤
+│ SurveyAgent │ IdeationAgent│ TheoryAgent │ Experiment │  Writer  │
+│             │              │ (6-stage    │   Agent    │  Agent   │
+│             │              │  proof loop)│            │          │
+├─────────────┴──────────────┴─────────────┴────────────┴──────────┤
 │                           KnowledgeBus                           │
 │       research_brief · theory_state · bibliography · results     │
 ├─────────────────────────────┬────────────────────────────────────┤
 │           Memory            │              Skills                │
-│  Episodic · Persistent      │  Registry · Injector · Evolver    │
+│  Episodic · Persistent      │  Registry · Injector · Evolver     │
 │  KnowledgeGraph             │  seed_skills / ~/.metaclaw/        │
 ├─────────────────────────────┴────────────────────────────────────┤
 │                           Tool Layer                             │
