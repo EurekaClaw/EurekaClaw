@@ -228,6 +228,7 @@ similarity via sentence-transformers), and injected into agent system prompts as
 | `induction_strategy` | theory | proof, induction |
 | `contradiction_proof` | theory | proof, contradiction |
 | `compactness_argument` | theory | proof, compactness, topology |
+| `concentration_inequalities` | theory | probability, Hoeffding, Bernstein |
 | `complexity_template` | theory | complexity, PAC, Rademacher |
 | `literature_decomp` | survey | survey, literature |
 | `hypothesis_gen` | ideation | hypothesis, novelty |
