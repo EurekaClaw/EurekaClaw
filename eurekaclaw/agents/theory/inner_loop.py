@@ -217,9 +217,16 @@ class TheoryInnerLoop:
                     )
                     state.proven_lemmas[lemma_id] = record
                     state.open_goals.remove(lemma_id)
+                    # Write verification result back to lemma_dag node so gate
+                    # and writer can access per-lemma confidence
+                    if lemma_id in state.lemma_dag:
+                        state.lemma_dag[lemma_id].verified = True
+                        state.lemma_dag[lemma_id].confidence_score = verification.confidence
+                        state.lemma_dag[lemma_id].verification_method = verification.method
                     # Reset stagnation counter on success
                     self._lemma_failure_sigs.pop(lemma_id, None)
-                    logger.info("✓ Lemma proved: %s (method=%s)", lemma_id, verification.method)
+                    logger.info("✓ Lemma proved: %s (method=%s, conf=%.2f)",
+                                lemma_id, verification.method, verification.confidence)
                     self.bus.put_theory_state(state)
                 else:
                     failure_reason = "; ".join(verification.errors[:3]) or "verification failed"
@@ -297,6 +304,10 @@ class TheoryInnerLoop:
                         )
                         state.proven_lemmas[lemma_id] = record
                         state.open_goals.remove(lemma_id)
+                        if lemma_id in state.lemma_dag:
+                            state.lemma_dag[lemma_id].verified = False
+                            state.lemma_dag[lemma_id].confidence_score = verification.confidence
+                            state.lemma_dag[lemma_id].verification_method = "llm_check"
                         self.bus.put_theory_state(state)
 
             # Only declare complete when all goals for the *current* DAG are done.
