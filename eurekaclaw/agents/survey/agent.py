@@ -82,7 +82,7 @@ papers (5-8), open_problems (3-5), key_mathematical_objects, research_frontier, 
             text, tokens = await self.run_agent_loop(
                 task, user_message,
                 max_turns=settings.survey_max_turns,
-                max_tokens=settings.agent_max_tokens,
+                max_tokens=settings.max_tokens_agent,
             )
 
             # Try to extract structured data from the response

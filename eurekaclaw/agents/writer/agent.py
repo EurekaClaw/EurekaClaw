@@ -230,6 +230,7 @@ Use **Theorem X**: and **Proof**: for formal results.
 Use $...$ for inline math and $$...$$ for display math.
 """
         else:
+            _no_refs = "(no references — omit \\bibliography and \\bibliographystyle commands)"
             user_message = f"""\
 Write a complete LaTeX research paper based on these artifacts:
 
@@ -245,7 +246,7 @@ Experimental results:
 {exp_summary or "(no experiments run)"}
 
 Key references to cite (use EXACTLY these \\cite{{}} keys — they match the references.bib file):
-{citations or "(no references — omit \\bibliography and \\bibliographystyle commands)"}
+{citations or _no_refs}
 
 Write the full paper body (abstract through conclusion) in LaTeX.
 Use \\begin{{theorem}}...\\end{{theorem}} environments.
