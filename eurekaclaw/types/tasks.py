@@ -89,6 +89,7 @@ class ResearchOutput(BaseModel):
     theory_state_json: str = ""
     experiment_result_json: str = ""
     research_brief_json: str = ""
+    bibliography_json: str = ""
     eval_report_json: str = ""
     skills_distilled: list[str] = Field(default_factory=list)
     completed_at: datetime = Field(default_factory=datetime.utcnow)

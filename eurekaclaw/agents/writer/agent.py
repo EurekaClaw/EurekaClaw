@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from pathlib import Path
 
 from eurekaclaw.agents.base import BaseAgent
@@ -11,6 +12,29 @@ from eurekaclaw.types.agents import AgentResult, AgentRole
 from eurekaclaw.types.tasks import Task
 
 logger = logging.getLogger(__name__)
+
+
+def _compute_cite_keys(papers: list) -> list[str]:
+    """Generate BibTeX cite keys using the same algorithm as main._generate_bibtex.
+
+    Must stay in sync with _generate_bibtex in eurekaclaw/main.py.
+    """
+    keys: list[str] = []
+    seen: set[str] = set()
+    for p in papers:
+        authors = getattr(p, "authors", None) or []
+        year = getattr(p, "year", None) or ""
+        first_author = (authors[0].split()[-1] if authors else "unknown").lower()
+        base = re.sub(r"[^a-z0-9]", "", first_author) + str(year)
+        key = base
+        suffix = 1
+        while key in seen:
+            key = f"{base}{chr(ord('a') + suffix - 1)}"
+            suffix += 1
+        seen.add(key)
+        keys.append(key)
+    return keys
+
 
 LATEX_PREAMBLE = r"""\nonstopmode
 \documentclass[12pt]{article}
@@ -25,6 +49,13 @@ LATEX_PREAMBLE = r"""\nonstopmode
 \newtheorem{corollary}[theorem]{Corollary}
 \newtheorem{definition}[theorem]{Definition}
 \newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{assumption}[theorem]{Assumption}
+\newtheorem{conjecture}[theorem]{Conjecture}
+\newtheorem{claim}[theorem]{Claim}
+\newtheorem{example}[theorem]{Example}
+\newtheorem{fact}[theorem]{Fact}
+\newtheorem{observation}[theorem]{Observation}
+\newtheorem{maintheorem}[theorem]{Main Theorem}
 \newtheorem{remark}{Remark}
 
 \title{%s}
@@ -140,9 +171,12 @@ class WriterAgent(BaseAgent):
 
         citations = ""
         if bib and bib.papers:
+            # Pre-compute the exact cite keys that _generate_bibtex will use,
+            # so the LLM can reference them correctly in \cite{} commands.
+            cite_keys = _compute_cite_keys([p for p in bib.papers[:15]])
             citations = "\n".join(
-                f"- {p.title} ({p.year}), {', '.join(p.authors[:2])}"
-                for p in bib.papers[:15]
+                f"- \\cite{{{key}}} — {p.title} ({p.year}), {', '.join(p.authors[:2])}"
+                for key, p in zip(cite_keys, bib.papers[:15])
             )
 
         if fmt == "markdown":
@@ -188,8 +222,8 @@ Proven lemmas (use in Proofs section):
 Experimental results:
 {exp_summary or "(no experiments run)"}
 
-Key references to cite:
-{citations or "(no references)"}
+Key references to cite (use EXACTLY these \\cite{{}} keys — they match the references.bib file):
+{citations or "(no references — omit \\bibliography and \\bibliographystyle commands)"}
 
 Write the full paper body (abstract through conclusion) in LaTeX.
 Use \\begin{{theorem}}...\\end{{theorem}} environments.
@@ -229,25 +263,116 @@ Include all proofs using \\begin{{proof}}...\\end{{proof}}.
             return self._make_result(task, False, {}, error=str(e))
 
     def _extract_latex(self, text: str) -> str:
-        """Extract LaTeX content, removing markdown code blocks if present.
+        """Extract the paper body, stripping all document-level boilerplate.
 
-        Also strips any document-level boilerplate the LLM may have included
-        (\\documentclass, \\begin{document}, \\end{document}) since those are
-        already provided by LATEX_PREAMBLE / LATEX_END.
+        LATEX_PREAMBLE already provides: \\documentclass, packages, theorem
+        environments, \\title, \\author, \\date, \\begin{document}, \\maketitle,
+        and \\begin{abstract}...\\end{abstract}.  Any of those emitted by the LLM
+        must be removed to avoid duplicates in the final file.
         """
+        import re
+
+        # 1. Unwrap markdown code fences if present
         if "```latex" in text:
             start = text.index("```latex") + 8
             end = text.index("```", start) if "```" in text[start:] else len(text)
             text = text[start:end].strip()
 
-        # Drop preamble / document wrapper if the LLM included a full document
+        # 2. If the LLM output a full document, take only the body
+        #    (everything between \begin{document} and \end{document})
         if r"\begin{document}" in text:
             text = text[text.index(r"\begin{document}") + len(r"\begin{document}"):]
         if r"\end{document}" in text:
             text = text[:text.rindex(r"\end{document}")]
-        # Drop \documentclass line(s) that might remain above \begin{document}
-        lines = [l for l in text.splitlines() if not l.lstrip().startswith(r"\documentclass")]
-        return "\n".join(lines).strip()
+
+        # 3. Strip preamble-style lines that may appear before or after
+        #    \begin{document} when the LLM writes a full or partial document.
+        _PREAMBLE_PREFIXES = (
+            r"\documentclass",
+            r"\usepackage",
+            r"\geometry",
+            r"\newtheorem",
+            r"\newcommand",
+            r"\renewcommand",
+            r"\DeclareMathOperator",
+            r"\theoremstyle",
+            r"\setlength",
+            r"\pagestyle",
+            r"\setcounter",
+        )
+        lines = [
+            l for l in text.splitlines()
+            if not any(l.lstrip().startswith(p) for p in _PREAMBLE_PREFIXES)
+        ]
+        text = "\n".join(lines)
+
+        # 4. Strip \title{...}, \author{...}, \date{...} — possibly spanning
+        #    multiple lines (match balanced braces up to depth 1 is enough here)
+        for cmd in (r"\title", r"\author", r"\date"):
+            text = re.sub(
+                r"(?m)^[ \t]*" + re.escape(cmd) + r"\{[^}]*\}[ \t]*\n?", "", text
+            )
+
+        # 5. Strip \maketitle and duplicate \begin{abstract}...\end{abstract}
+        text = re.sub(r"(?m)^[ \t]*\\maketitle[ \t]*\n?", "", text)
+        text = re.sub(
+            r"(?s)\\begin\{abstract\}.*?\\end\{abstract\}", "", text
+        )
+
+        # 6. Normalize broken or mis-cased environment names produced by the LLM.
+        #    e.g. \begin{Proof} → \begin{proof}, \begin{le mma} → \begin{lemma}
+        _ENV_FIXES = {
+            "Proof": "proof", "PROOF": "proof",
+            "Lemma": "lemma", "LEMMA": "lemma",
+            "le mma": "lemma", "lem ma": "lemma",
+            "Theorem": "theorem", "THEOREM": "theorem",
+            "Corollary": "corollary", "COROLLARY": "corollary",
+            "Definition": "definition", "DEFINITION": "definition",
+            "Proposition": "proposition", "PROPOSITION": "proposition",
+            "Assumption": "assumption", "ASSUMPTION": "assumption",
+            "Remark": "remark", "REMARK": "remark",
+            "Example": "example", "EXAMPLE": "example",
+            "Claim": "claim", "CLAIM": "claim",
+        }
+        for wrong, correct in _ENV_FIXES.items():
+            text = text.replace(r"\begin{" + wrong + "}", r"\begin{" + correct + "}")
+            text = text.replace(r"\end{" + wrong + "}", r"\end{" + correct + "}")
+
+        # 7. Close any unclosed environments (LLM may be truncated by max_tokens).
+        #    Scan \begin{X}/\end{X} pairs; append missing \end{X} in reverse order.
+        #    Also drop any trailing partial tabular row (no closing \\) before closing.
+        text = WriterAgent._close_open_environments(text)
+
+        return text.strip()
+
+    @staticmethod
+    def _close_open_environments(text: str) -> str:
+        """Detect unclosed LaTeX environments and append the missing \\end{} tags."""
+        import re
+        # Process \begin{X} and \end{X} in document order using a stack
+        tokens = re.finditer(r"\\(begin|end)\{([^}]+)\}", text)
+        stack: list[str] = []
+        for m in tokens:
+            kind, env = m.group(1), m.group(2)
+            if kind == "begin":
+                stack.append(env)
+            elif kind == "end" and stack and stack[-1] == env:
+                stack.pop()
+            # Mismatched \end (wrong env name) — ignore, don't pop
+        if not stack:
+            return text
+        # For tabular: drop trailing incomplete row (no closing \\)
+        if "tabular" in stack:
+            lines = text.rstrip().splitlines()
+            while lines:
+                last = lines[-1].strip()
+                if not last or last.startswith(r"\end") or last.endswith("\\\\"):
+                    break
+                lines.pop()
+            text = "\n".join(lines)
+        # Append missing \end{} in reverse stack order
+        closing = "\n".join(r"\end{" + env + "}" for env in reversed(stack))
+        return text + "\n" + closing
 
     @staticmethod
     def _escape_latex(s: str) -> str:

@@ -85,7 +85,7 @@ class Formalizer:
             context_keys = list(state.lemma_dag.keys())[-8:]
             response = await self.client.messages.create(
                 model=settings.fast_model,  # formalization is deterministic
-                max_tokens=2048,
+                max_tokens=settings.max_tokens_formalizer,
                 system=FORMALIZE_SYSTEM,
                 messages=[{
                     "role": "user",
@@ -96,6 +96,8 @@ class Formalizer:
                     ),
                 }],
             )
+            if not response.content:
+                raise ValueError("LLM returned empty content list")
             text = response.content[0].text
 
             # Extract the formal statement from the response

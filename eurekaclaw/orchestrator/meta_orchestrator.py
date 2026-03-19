@@ -276,6 +276,7 @@ class MetaOrchestrator:
 
         theory_state = self.bus.get_theory_state()
         exp_result = self.bus.get_experiment_result()
+        bib = self.bus.get_bibliography()
 
         # WriterAgent stores its output in task.outputs (via mark_completed),
         # not on the bus under a "writer" key.  Retrieve it from the pipeline.
@@ -292,4 +293,5 @@ class MetaOrchestrator:
             theory_state_json=theory_state.model_dump_json(indent=2) if theory_state else "",
             experiment_result_json=exp_result.model_dump_json(indent=2) if exp_result else "",
             research_brief_json=brief.model_dump_json(indent=2),
+            bibliography_json=bib.model_dump_json(indent=2) if bib else "",
         )

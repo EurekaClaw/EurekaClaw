@@ -95,7 +95,7 @@ class CounterexampleSearcher:
         try:
             response = await self.client.messages.create(
                 model=settings.fast_model,
-                max_tokens=2048,
+                max_tokens=settings.max_tokens_formalizer,
                 system=COUNTEREXAMPLE_SYSTEM,
                 messages=[{
                     "role": "user",
@@ -106,11 +106,13 @@ class CounterexampleSearcher:
                     ),
                 }],
             )
+            if not response.content:
+                raise ValueError("LLM returned empty content list")
             text = response.content[0].text
             return self._parse_counterexample(lemma_id, text)
 
         except Exception as e:
-            logger.exception("Counterexample search failed: %s", e)
+            logger.warning("Counterexample search failed: %s", e)
             return Counterexample(
                 lemma_id=lemma_id,
                 counterexample_description=f"Search failed: {e}",

@@ -67,7 +67,7 @@ class Refiner:
         try:
             response = await self.client.messages.create(
                 model=settings.eurekaclaw_model,
-                max_tokens=2048,
+                max_tokens=settings.max_tokens_formalizer,
                 system=REFINE_SYSTEM,
                 messages=[{
                     "role": "user",
@@ -80,6 +80,8 @@ class Refiner:
                     ),
                 }],
             )
+            if not response.content:
+                raise ValueError("LLM returned empty content list")
             text = response.content[0].text
             refined_informal, refined_formal = self._extract_refinements(text)
 

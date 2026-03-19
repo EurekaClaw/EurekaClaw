@@ -77,6 +77,22 @@ class Config(BaseSettings):
         default="auto", alias="EXPERIMENT_MODE"
     )
 
+    # ---- Token limits per call type ----------------------------------------
+    # Main agent loop: max tokens per LLM turn in run_agent_loop()
+    max_tokens_agent: int = Field(default=8192, alias="MAX_TOKENS_AGENT")
+    # Proof generation (prover): longer proofs need more room
+    max_tokens_prover: int = Field(default=4096, alias="MAX_TOKENS_PROVER")
+    # Research direction planner (diverge + converge calls)
+    max_tokens_planner: int = Field(default=4096, alias="MAX_TOKENS_PLANNER")
+    # Lemma decomposition
+    max_tokens_decomposer: int = Field(default=2048, alias="MAX_TOKENS_DECOMPOSER")
+    # Theorem formalization, refiner, counterexample, resource analyst
+    max_tokens_formalizer: int = Field(default=2048, alias="MAX_TOKENS_FORMALIZER")
+    # Proof verification
+    max_tokens_verifier: int = Field(default=1024, alias="MAX_TOKENS_VERIFIER")
+    # Context compression summaries (fast model)
+    max_tokens_compress: int = Field(default=512, alias="MAX_TOKENS_COMPRESS")
+
     # ---- Paths -------------------------------------------------------------
     metaclaw_dir: Path = Field(default=Path.home() / ".metaclaw", alias="METACLAW_DIR")
     lean4_bin: str = Field(default="lean", alias="LEAN4_BIN")

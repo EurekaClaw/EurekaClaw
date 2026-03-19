@@ -48,7 +48,7 @@ class DivergentConvergentPlanner:
 
         response = await self.client.messages.create(
             model=settings.eurekaclaw_model,
-            max_tokens=4096,
+            max_tokens=settings.max_tokens_planner,
             system=DIVERGE_SYSTEM,
             messages=[{
                 "role": "user",
@@ -67,6 +67,8 @@ Return JSON: {{"directions": [
 """,
             }],
         )
+        if not response.content:
+            raise ValueError("LLM returned empty content list")
         return self._parse_directions(response.content[0].text)
 
     async def converge(
@@ -90,7 +92,7 @@ Return JSON: {{"directions": [
 
         response = await self.client.messages.create(
             model=settings.eurekaclaw_model,
-            max_tokens=2048,
+            max_tokens=settings.max_tokens_planner // 2,
             system=CONVERGE_SYSTEM,
             messages=[{
                 "role": "user",
@@ -109,6 +111,8 @@ Return JSON: {{
 """,
             }],
         )
+        if not response.content:
+            raise ValueError("LLM returned empty content list")
         return self._apply_scores(directions, response.content[0].text)
 
     def _parse_directions(self, text: str) -> list[ResearchDirection]:

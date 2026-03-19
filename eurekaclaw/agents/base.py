@@ -251,13 +251,15 @@ class BaseAgent(ABC):
         try:
             response = await self.client.messages.create(
                 model=settings.fast_model,
-                max_tokens=512,
+                max_tokens=settings.max_tokens_compress,
                 system=_COMPRESS_SYSTEM,
                 messages=[{
                     "role": "user",
                     "content": f"Conversation so far:\n{history_text}\n\nWrite the progress summary now.",
                 }],
             )
+            if not response.content:
+                raise ValueError("LLM returned empty content list")
             return response.content[0].text
         except Exception as e:
             logger.warning("Context compression LLM call failed (%s) — using fallback", e)
@@ -280,7 +282,7 @@ class BaseAgent(ABC):
         try:
             return await self.client.messages.create(
                 model=settings.eurekaclaw_model,
-                max_tokens=8192,
+                max_tokens=settings.max_tokens_agent,
                 system=system,
                 messages=messages,
                 tools=tools or None,

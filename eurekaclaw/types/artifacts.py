@@ -102,7 +102,7 @@ class ProofRecord(BaseModel):
     proof_text: str          # human-readable proof
     lean4_proof: str = ""    # Lean4 tactic proof (if available)
     coq_proof: str = ""      # Coq proof (if available)
-    verification_method: Literal["lean4", "coq", "peer_review", "llm_check"] = "llm_check"
+    verification_method: Literal["lean4", "coq", "peer_review", "llm_check", "auto_high_confidence"] = "llm_check"
     verified: bool = False
     verifier_notes: str = ""
     proved_at: datetime = Field(default_factory=datetime.utcnow)

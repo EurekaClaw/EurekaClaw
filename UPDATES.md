@@ -1,5 +1,128 @@
 # EurekaClaw Updates
 
+# 2026-03-19
+
+## 1. Robust Lemma Decomposer Parsing
+
+`_parse_lemmas` in `agents/theory/decomposer.py` now uses a 4-pass extraction strategy
+instead of 2, preventing the "Empty lemma list from decomposer" fallback in most cases:
+
+| Pass | Strategy |
+|---|---|
+| 1 | JSON inside ` ```json ``` ` or plain ` ``` ``` ` code fence (regex, not `str.index`) |
+| 2 | First JSON object `{...}` in text — checks 7 key names: `lemmas`, `steps`, `subgoals`, `proof_steps`, `lemma_list`, `components`, `parts` |
+| 3 | First JSON array `[...]` in text — accepted directly as lemma list |
+| 4 | Plain-text numbered/bulleted list heuristic — extracts items as lemma statements |
+
+`_normalize_list` accepts flexible field names per item (`id`/`lemma_id`/`name`/`title`,
+`statement`/`formal_statement`/`hypothesis`/`content`, etc.) so variant LLM schemas
+are handled without falling back to single-theorem mode.
+
+---
+
+## 2. UI Polling Log Suppression
+
+`GET /api/runs/<id> 200` status-poll requests are now logged at `DEBUG` level instead of
+`INFO`, removing the repetitive log noise during long runs. All other requests (POST,
+errors, non-200 responses) continue to log at `INFO`.
+
+---
+
+## 3. Bug Fixes
+
+| File | Bug | Fix |
+|---|---|---|
+| `main.py` | `NameError: name 'Path' is not defined` in `save_artifacts` | Added `from pathlib import Path` |
+| `ui/server.py` | `GET /api/runs/...` spamming the log | Demoted to `DEBUG` for 200 polling responses |
+
+---
+
+## 4. LaTeX Compilation Robustness
+
+### Extended theorem environment support
+
+Added 7 more `\newtheorem` declarations to `LATEX_PREAMBLE` in `writer/agent.py`:
+`assumption`, `maintheorem`, `conjecture`, `claim`, `example`, `fact`, `observation`.
+These cover the most common environments the LLM generates that previously caused
+`! LaTeX Error: Environment X undefined.` fatal errors.
+
+### Environment name normalization (`_extract_latex` step 6)
+
+`_extract_latex` now normalises mis-cased or mis-spaced environment names before
+writing `paper.tex`:
+
+| LLM output | Corrected to |
+|---|---|
+| `\begin{Proof}` | `\begin{proof}` |
+| `\begin{le mma}` | `\begin{lemma}` |
+| `\begin{Theorem}`, `\begin{Lemma}`, … | lowercase equivalents |
+
+### Unclosed environment auto-closing (`_extract_latex` step 7)
+
+New `_close_open_environments()` static method scans `\begin{X}` / `\end{X}` tokens
+in document order using a stack, detects any environments left open at the end of the
+body (e.g. when the LLM hits `max_tokens` mid-table), drops incomplete trailing rows,
+and appends the missing `\end{X}` tags. Prevents `\begin{tabular}` truncation from
+causing a fatal LaTeX error.
+
+### Removed rescue compile
+
+`_rescue_compile` and the associated `paper_rescue.tex` fallback have been removed.
+`_compile_pdf` now logs a warning if no PDF is produced, but never silently replaces
+`paper.pdf` with a stripped plain-text version.
+
+---
+
+## 5. Bibliography & Reference Resolution
+
+Previously all `\cite{}` keys appeared as `?` in the PDF because:
+1. `references.bib` was written **after** `_compile_pdf` ran.
+2. `bibtex` was never called — only `pdflatex` ran twice.
+3. The LLM invented its own cite keys that didn't match what `_generate_bibtex` produced.
+
+All three issues are now fixed:
+
+| Fix | Detail |
+|---|---|
+| Write order | `references.bib` is saved **before** `_compile_pdf` is called in `save_artifacts` |
+| Full compile sequence | `_compile_pdf` now runs `pdflatex → bibtex → pdflatex → pdflatex`; `bibtex` is skipped only when no `.bib` file exists |
+| Cite key consistency | New `_compute_cite_keys()` in `writer/agent.py` uses the identical algorithm as `_generate_bibtex` in `main.py`; the writer prompt now includes `\cite{key}` for each reference so the LLM uses exact matching keys |
+| `ResearchOutput` | Added `bibliography_json` field; `_collect_outputs` in meta-orchestrator populates it from `bus.get_bibliography()` |
+| Duplicate key handling | `_generate_bibtex` deduplicates conflicting author-year keys with `a`, `b`, … suffixes |
+
+---
+
+## 6. Configurable Token Limits Per Call Type
+
+All LLM output token budgets are now configurable via `.env` and UI sliders.
+
+### New `.env` variables
+
+| Variable | Default | Scope |
+|---|---|---|
+| `MAX_TOKENS_AGENT` | `8192` | Main agent reasoning loop (all agents) |
+| `MAX_TOKENS_PROVER` | `4096` | Proof generation |
+| `MAX_TOKENS_PLANNER` | `4096` | Research direction planning (diverge phase); converge uses half |
+| `MAX_TOKENS_DECOMPOSER` | `2048` | Lemma decomposition |
+| `MAX_TOKENS_FORMALIZER` | `2048` | Formalization, refiner, counterexample, resource analyst |
+| `MAX_TOKENS_VERIFIER` | `1024` | Proof verification |
+| `MAX_TOKENS_COMPRESS` | `512` | Context compression summaries (fast model) |
+
+### Files updated
+
+`config.py`, `agents/base.py`, `agents/theory/prover.py`, `agents/theory/decomposer.py`,
+`agents/theory/formalizer.py`, `agents/theory/verifier.py`, `agents/theory/refiner.py`,
+`agents/theory/counterexample.py`, `agents/theory/resource_analyst.py`,
+`orchestrator/planner.py` — all now read from `settings.max_tokens_*`.
+
+### UI sliders
+
+A **"Token limits per call type"** section with 7 range sliders has been added to the
+Settings tab. Each slider shows its live value and persists to `.env` via the existing
+"Save config" button.
+
+---
+
 # 2026-03-18
 
 ## 1. Context compression
