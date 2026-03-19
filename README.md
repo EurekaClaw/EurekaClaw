@@ -25,9 +25,11 @@ $ eurekaclaw ask "Find recent papers on sparse attention + prove efficiency boun
 
 ---
 
-**EurekaClaw** is a multi-agent system for automated theoretical research. It synthesizes proof-heavy, formalism-rich, mathematically dense work in domains such as ML theory, computational complexity, probability theory, and pure mathematics. The system is built around a unique **Theory Agent inner loop** that iteratively formalizes, decomposes, proves, verifies, and refines mathematical conjectures.
+**EurekaClaw** is a multi-agent AI research assistant that helps you go from a question to a publishable result — autonomously. It crawls the literature, generates and stress-tests hypotheses, runs experiments, and writes up findings, all from your terminal or chat app.
 
-Inspired by [OpenClaw](https://github.com/openclaw/openclaw) — extended into the theoretical research domain.
+EurekaClaw ships with a suite of specialized agents ("claws"), each handling a different part of the research pipeline. One standout is the built-in **Theory Agent** — a dedicated agent for formal mathematical research that synthesizes proof-heavy, formalism-rich work across ML theory, computational complexity, probability, and pure mathematics through an iterative 6-stage proof loop.
+
+Inspired by [OpenClaw](https://github.com/openclaw/openclaw) — built for researchers.
 
 > **Open Source · Local-First · Private by Default · MIT License**
 
