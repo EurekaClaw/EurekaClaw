@@ -1,0 +1,176 @@
+# Architecture
+
+## Overview
+
+EurekaClaw is organized as a **multi-agent pipeline** coordinated by a `MetaOrchestrator`. Each agent is specialized for one stage of the research lifecycle. Artifacts are shared between agents via a central `KnowledgeBus`.
+
+## Pipeline Stages
+
+```
+InputSpec (conjecture / domain / paper_ids)
+        │
+        ▼
+ ┌─────────────────────────────────────────────────────────────┐
+ │                    MetaOrchestrator                         │
+ │                                                             │
+ │  1. SurveyAgent ──────────────────────────► Bibliography   │
+ │                                             ResearchBrief   │
+ │  2. IdeationAgent ────────────────────────► ResearchBrief   │
+ │                                             (5 directions)  │
+ │  3. DivergentConvergentPlanner ───────────► selected dir.   │
+ │                                                             │
+ │  4. [GateController] ─── human review ────► approved dir.  │
+ │                                                             │
+ │  5. TheoryAgent ──────────────────────────► TheoryState     │
+ │       ├── PaperReader                       (proven lemmas) │
+ │       ├── GapAnalyst                                        │
+ │       ├── ProofArchitect                                    │
+ │       ├── LemmaDeveloper loop (Prover/Verifier/Refiner)     │
+ │       ├── Assembler                                         │
+ │       ├── TheoremCrystallizer                               │
+ │       └── ConsistencyChecker                                │
+ │                                                             │
+ │  6. ExperimentAgent (optional) ───────────► ExperimentResult│
+ │                                                             │
+ │  7. WriterAgent ──────────────────────────► LaTeX paper     │
+ │                                             + PDF           │
+ │  8. ContinualLearningLoop ────────────────► new skills      │
+ └─────────────────────────────────────────────────────────────┘
+        │
+        ▼
+ ResearchOutput → results/<session_id>/
+   ├── paper.tex / paper.pdf
+   ├── references.bib
+   ├── theory_state.json
+   ├── research_brief.json
+   └── experiment_result.json
+```
+
+## Core Components
+
+### KnowledgeBus
+
+Central in-memory artifact store shared by all agents. All data flows through it — no agent holds private state between turns.
+
+```
+KnowledgeBus
+├── ResearchBrief    — survey findings, selected direction
+├── TheoryState      — proof state machine (lemma DAG, proofs, goals)
+├── Bibliography     — all papers found during survey
+├── ExperimentResult — numerical validation results
+└── TaskPipeline     — current task execution plan
+```
+
+Artifacts are persisted to `~/.eurekaclaw/runs/<session_id>/` at the end of each session.
+
+### Agent Session & Context Compression
+
+Each agent maintains a conversation history (`AgentSession`) through its tool-use loop. To prevent unbounded context growth:
+- History is **compressed every N turns** (configurable via `CONTEXT_COMPRESS_AFTER_TURNS`, default 6)
+- A fast model summarizes the history into bullet points
+- The full conversation is replaced with the summary
+
+### Skill Injection
+
+Before each agent call, the `SkillInjector` retrieves the top-k most relevant skills from the skill bank and injects them into the system prompt as examples. This is the primary mechanism for cross-session learning.
+
+### Domain Plugin System
+
+Domain-specific behavior (tools, skills, workflow hints) is injected via `DomainPlugin` classes. The correct plugin is auto-detected from the domain string or conjecture keywords. See [domains.md](domains.md).
+
+## Data Models
+
+### TheoryState — Proof State Machine
+
+```
+TheoryState
+├── informal_statement      — plain-English conjecture
+├── formal_statement        — LaTeX-formalized theorem
+├── known_results[]         — KnownResult extracted from literature
+├── research_gap            — GapAnalyst's finding
+├── proof_plan[]            — ProofPlan (provenance: known/adapted/new)
+├── lemma_dag{}             — LemmaNode graph (dependencies)
+├── proven_lemmas{}         — lemma_id → ProofRecord
+├── open_goals[]            — remaining lemma_ids to prove
+├── failed_attempts[]       — FailedAttempt history
+├── counterexamples[]       — Counterexample discoveries
+├── assembled_proof         — final combined proof text
+└── status                  — pending/in_progress/proved/refuted/abandoned
+```
+
+### ResearchBrief — Planning State
+
+```
+ResearchBrief
+├── domain, query, conjecture
+├── directions[]            — ResearchDirection (scored 0-1)
+│     ├── novelty_score
+│     ├── soundness_score
+│     ├── transformative_score
+│     └── composite_score   — weighted average
+├── selected_direction      — chosen after convergence
+└── open_problems[], key_mathematical_objects[]
+```
+
+## Theory Agent Inner Loop (7 Stages)
+
+The `TheoryAgent` runs a **bottom-up proof pipeline** implemented in `inner_loop_yaml.py`:
+
+| Stage | Class | Input | Output |
+|---|---|---|---|
+| 1 | `PaperReader` | Bibliography | `known_results[]` |
+| 2 | `GapAnalyst` | known_results + conjecture | `research_gap` |
+| 3 | `ProofArchitect` | research_gap | `proof_plan[]` (provenance-annotated) |
+| 4 | `LemmaDeveloper` | proof_plan, open_goals | `proven_lemmas{}` |
+| 5 | `Assembler` | proven_lemmas | `assembled_proof` |
+| 6 | `TheoremCrystallizer` | assembled_proof | `formal_statement` |
+| 7 | `ConsistencyChecker` | full TheoryState | consistency report |
+
+The `LemmaDeveloper` runs its own inner loop per lemma:
+```
+for each open_goal:
+    Prover → Verifier → (if failed) Refiner → repeat
+    CounterexampleSearcher runs in parallel
+    Stagnation detection: if same error N times → force Refiner
+```
+
+## LaTeX Compilation Pipeline
+
+```
+WriterAgent.execute()
+    │  generates paper body
+    ▼
+_extract_latex()          — strip preamble, normalize envs, fix syntax
+    ├── markdown → section headings
+    ├── \begin{Proof} → \begin{proof}  (case normalization)
+    ├── \endproof → \end{proof}
+    ├── tikzpicture removal
+    ├── QED box deduplication
+    ├── orphan \end{X} removal
+    └── unclosed \begin{X} auto-closing
+    │
+    ▼
+LATEX_PREAMBLE + body + LATEX_END  →  paper.tex
+    │
+    ▼
+save_artifacts()
+    ├── write references.bib   ← BEFORE compile
+    ├── _fix_missing_citations() — remove \cite{} with no .bib entry
+    └── _compile_pdf()
+          ├── pdflatex (pass 1 — generate .aux)
+          ├── bibtex  (if references.bib exists)
+          ├── pdflatex (pass 2 — resolve citations)
+          └── pdflatex (pass 3 — finalize)
+```
+
+## Post-Run Learning
+
+```
+ContinualLearningLoop.post_run()
+    ├── extract failures (FailedAttempt[]) from TheoryState
+    ├── deduplicate — only unique failure patterns
+    ├── compress successes — proof text trimmed to 300 chars
+    ├── SkillEvolver.distill_from_session()
+    │       → new SkillRecord .md files in ~/.eurekaclaw/skills/
+    └── (rl/madmax modes) ProcessRewardModel scoring
+```
