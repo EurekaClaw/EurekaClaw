@@ -1,41 +1,30 @@
 # EurekaClaw Updates
 
-# 2026-03-18 (shiyuan branch)
+# 2026-03-19 (shiyuan branch)
 
-## 1. Multi-Backend LLM Support
+## 1. Robust Lemma Decomposer Parsing
 
-Added three named backends to `config.py` and `llm/factory.py`:
+`_parse_lemmas` in `agents/theory/decomposer.py` now uses a 4-pass extraction strategy
+instead of 2, preventing the "Empty lemma list from decomposer" fallback in most cases:
 
-| Backend | `LLM_BACKEND=` | Notes |
-|---------|---------------|-------|
-| Anthropic native | `anthropic` | Default |
-| OpenRouter | `openrouter` | Set `OPENAI_COMPAT_API_KEY=sk-or-...` |
-| Local (vLLM / Ollama) | `local` | Defaults to `http://localhost:8000/v1` |
+| Pass | Strategy |
+|---|---|
+| 1 | JSON inside ` ```json ``` ` or plain ` ``` ``` ` code fence (regex, not `str.index`) |
+| 2 | First JSON object `{...}` in text — checks 7 key names: `lemmas`, `steps`, `subgoals`, `proof_steps`, `lemma_list`, `components`, `parts` |
+| 3 | First JSON array `[...]` in text — accepted directly as lemma list |
+| 4 | Plain-text numbered/bulleted list heuristic — extracts items as lemma statements |
 
-**ccproxy / OAuth fallback** (`llm/anthropic_adapter.py`): if `ANTHROPIC_API_KEY` is empty,
-the adapter automatically reads `~/.claude/.credentials.json` and routes through ccproxy,
-allowing Claude Pro/Max users to run EurekaClaw without a separate API key.
+`_normalize_list` accepts flexible field names per item (`id`/`lemma_id`/`name`/`title`,
+`statement`/`formal_statement`/`hypothesis`/`content`, etc.) so variant LLM schemas
+are handled without falling back to single-theorem mode.
 
 ---
 
-## 2. Configurable Tuning Knobs
+## 2. UI Polling Log Suppression
 
-All previously hardcoded parameters are now env-var controlled via `config.py`:
-
-| Variable | Default | Effect |
-|----------|---------|--------|
-| `EUREKACLAW_MODEL` | `claude-sonnet-4-6` | Changed from opus to sonnet (cheaper, less rate-limited) |
-| `AGENT_MAX_TOKENS` | `4096` | Max tokens per LLM response |
-| `SURVEY_MAX_TURNS` | `8` | Tool-use turns in survey (was hardcoded 15) |
-| `THEORY_STAGE_MAX_TURNS` | `6` | Turns per theory stage |
-| `WRITER_MAX_TURNS` | `4` | Turns for paper generation |
-| `ARXIV_MAX_RESULTS` | `10` | Hard cap on arXiv results regardless of LLM request |
-| `LLM_RETRY_ATTEMPTS` | `5` | Retry attempts on 5xx / rate-limit errors |
-| `LLM_RETRY_WAIT_MIN` | `4` | Min backoff seconds |
-| `LLM_RETRY_WAIT_MAX` | `90` | Max backoff seconds |
-
-Retry logic in `agents/base.py` was changed from a static `@retry` decorator to a dynamic
-`AsyncRetrying` context manager so it reads live settings at call time.
+`GET /api/runs/<id> 200` status-poll requests are now logged at `DEBUG` level instead of
+`INFO`, removing the repetitive log noise during long runs. All other requests (POST,
+errors, non-200 responses) continue to log at `INFO`.
 
 ---
 
@@ -43,10 +32,6 @@ Retry logic in `agents/base.py` was changed from a static `@retry` decorator to 
 
 | File | Bug | Fix |
 |------|-----|-----|
-| `agents/survey/agent.py` | `ValueError: substring not found` when LLM returns unclosed ` ```json ` block | Wrapped `text.index("```", start)` in try/except |
-| `agents/base.py` | `run_agent_loop` default `max_turns` not reading from settings | Added `_max_turns = max_turns if max_turns is not None else settings.survey_max_turns` |
-
----
 
 ## 4. Always-On Stage Summary Cards
 
@@ -106,6 +91,152 @@ Now it separates proven lemmas into `verified` and `low_confidence` groups:
 - The experiment summary card (gate) shows per-lemma check results with color coding:
   green (✓ passes), red (✗ suspect).
 - The writer agent can then add stronger warnings for suspect lemmas in the paper.
+| `agents/survey/agent.py` | `ValueError: substring not found` on unclosed ` ```json ` block | Wrapped `text.index` in try/except |
+| `agents/base.py` | `run_agent_loop` ignoring `SURVEY_MAX_TURNS` setting | Uses dynamic `AsyncRetrying` now |
+| `main.py` | `NameError: name 'Path' is not defined` in `save_artifacts` | Added `from pathlib import Path` |
+| `ui/server.py` | `GET /api/runs/...` spamming the log | Demoted to `DEBUG` for 200 polling responses |
+
+---
+
+## 4. LaTeX Compilation Robustness
+
+### Extended theorem environment support
+
+Added 7 more `\newtheorem` declarations to `LATEX_PREAMBLE` in `writer/agent.py`:
+`assumption`, `maintheorem`, `conjecture`, `claim`, `example`, `fact`, `observation`.
+These cover the most common environments the LLM generates that previously caused
+`! LaTeX Error: Environment X undefined.` fatal errors.
+
+### Environment name normalization (`_extract_latex` step 6)
+
+`_extract_latex` now normalises mis-cased or mis-spaced environment names before
+writing `paper.tex`:
+
+| LLM output | Corrected to |
+|---|---|
+| `\begin{Proof}` | `\begin{proof}` |
+| `\begin{le mma}` | `\begin{lemma}` |
+| `\begin{Theorem}`, `\begin{Lemma}`, … | lowercase equivalents |
+
+### Unclosed environment auto-closing (`_extract_latex` step 7)
+
+New `_close_open_environments()` static method scans `\begin{X}` / `\end{X}` tokens
+in document order using a stack, detects any environments left open at the end of the
+body (e.g. when the LLM hits `max_tokens` mid-table), drops incomplete trailing rows,
+and appends the missing `\end{X}` tags. Prevents `\begin{tabular}` truncation from
+causing a fatal LaTeX error.
+
+### Removed rescue compile
+
+`_rescue_compile` and the associated `paper_rescue.tex` fallback have been removed.
+`_compile_pdf` now logs a warning if no PDF is produced, but never silently replaces
+`paper.pdf` with a stripped plain-text version.
+
+---
+
+## 5. Bibliography & Reference Resolution
+
+Previously all `\cite{}` keys appeared as `?` in the PDF because:
+1. `references.bib` was written **after** `_compile_pdf` ran.
+2. `bibtex` was never called — only `pdflatex` ran twice.
+3. The LLM invented its own cite keys that didn't match what `_generate_bibtex` produced.
+
+All three issues are now fixed:
+
+| Fix | Detail |
+|---|---|
+| Write order | `references.bib` is saved **before** `_compile_pdf` is called in `save_artifacts` |
+| Full compile sequence | `_compile_pdf` now runs `pdflatex → bibtex → pdflatex → pdflatex`; `bibtex` is skipped only when no `.bib` file exists |
+| Cite key consistency | New `_compute_cite_keys()` in `writer/agent.py` uses the identical algorithm as `_generate_bibtex` in `main.py`; the writer prompt now includes `\cite{key}` for each reference so the LLM uses exact matching keys |
+| `ResearchOutput` | Added `bibliography_json` field; `_collect_outputs` in meta-orchestrator populates it from `bus.get_bibliography()` |
+| Duplicate key handling | `_generate_bibtex` deduplicates conflicting author-year keys with `a`, `b`, … suffixes |
+
+---
+
+## 6. Configurable Token Limits Per Call Type
+
+All LLM output token budgets are now configurable via `.env` and UI sliders.
+
+### New `.env` variables
+
+| Variable | Default | Scope |
+|---|---|---|
+| `MAX_TOKENS_AGENT` | `8192` | Main agent reasoning loop (all agents) |
+| `MAX_TOKENS_PROVER` | `4096` | Proof generation |
+| `MAX_TOKENS_PLANNER` | `4096` | Research direction planning (diverge phase); converge uses half |
+| `MAX_TOKENS_DECOMPOSER` | `2048` | Lemma decomposition |
+| `MAX_TOKENS_FORMALIZER` | `2048` | Formalization, refiner, counterexample, resource analyst |
+| `MAX_TOKENS_VERIFIER` | `1024` | Proof verification |
+| `MAX_TOKENS_COMPRESS` | `512` | Context compression summaries (fast model) |
+
+### Files updated
+
+`config.py`, `agents/base.py`, `agents/theory/prover.py`, `agents/theory/decomposer.py`,
+`agents/theory/formalizer.py`, `agents/theory/verifier.py`, `agents/theory/refiner.py`,
+`agents/theory/counterexample.py`, `agents/theory/resource_analyst.py`,
+`orchestrator/planner.py` — all now read from `settings.max_tokens_*`.
+
+### UI sliders
+
+A **"Token limits per call type"** section with 7 range sliders has been added to the
+Settings tab. Each slider shows its live value and persists to `.env` via the existing
+"Save config" button.
+
+---
+
+## 7. Multi-Backend LLM Support (shiyuan)
+
+Added three named backends to `config.py` and `llm/factory.py`:
+
+| Backend | `LLM_BACKEND=` | Notes |
+|---------|---------------|-------|
+| Anthropic native | `anthropic` | Default |
+| OpenRouter | `openrouter` | Set `OPENAI_COMPAT_API_KEY=sk-or-...` |
+| Local (vLLM / Ollama) | `local` | Defaults to `http://localhost:8000/v1` |
+
+**ccproxy / OAuth fallback** (`llm/anthropic_adapter.py`): if `ANTHROPIC_API_KEY` is empty,
+the adapter automatically reads `~/.claude/.credentials.json` and routes through ccproxy,
+allowing Claude Pro/Max users to run EurekaClaw without a separate API key.
+
+---
+
+## 8. Additional Tuning Knobs (shiyuan)
+
+| Variable | Default | Effect |
+|----------|---------|--------|
+| `SURVEY_MAX_TURNS` | `8` | Tool-use turns in survey |
+| `THEORY_STAGE_MAX_TURNS` | `6` | Turns per theory stage |
+| `WRITER_MAX_TURNS` | `4` | Turns for paper generation |
+| `ARXIV_MAX_RESULTS` | `10` | Hard cap on arXiv results |
+| `LLM_RETRY_ATTEMPTS` | `5` | Retry attempts on 5xx / rate-limit errors |
+| `LLM_RETRY_WAIT_MIN` / `MAX` | `4` / `90` | Exponential backoff bounds |
+
+Retry logic in `agents/base.py` uses dynamic `AsyncRetrying` so settings are read at call time.
+
+---
+
+## 9. Stage Summary Cards + Human Gate (shiyuan)
+
+`orchestrator/gate.py` prints a rich summary card after every completed pipeline stage.
+When `GATE_MODE=human` (or auto-escalation triggers on low-confidence lemmas), the gate
+pauses and accepts optional text feedback injected into the next agent's task.
+
+---
+
+## 10. Proof Readability Enforcement (shiyuan)
+
+`ENFORCE_PROOF_STYLE=true` (default) injects `_PROOF_STYLE_RULES` into writer prompts:
+- No skipped steps; "clearly" / "it follows that" must be immediately justified
+- Every inequality cites its lemma
+- Low-confidence lemmas tagged `\textcolor{orange}{\textbf{[Unverified step]}}` in PDF
+
+---
+
+## 11. Targeted Numerical Verification (shiyuan)
+
+`agents/experiment/agent.py` now separates low-confidence lemmas and runs dedicated
+numerical tests for each. Lemmas with `violation_rate > 1%` are flagged as
+`numerically_suspect` and the writer adds stronger warnings for those in the paper.
 
 ---
 

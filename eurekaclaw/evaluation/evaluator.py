@@ -125,6 +125,8 @@ Return JSON: {{"novelty_score": 0.0-1.0, "reasoning": "..."}}
 """,
                 }],
             )
+            if not response.content:
+                raise ValueError("LLM returned empty content list")
             text = response.content[0].text
             data = json.loads(text[text.index("{"):text.rindex("}")+1])
             score = float(data.get("novelty_score", 0.5))

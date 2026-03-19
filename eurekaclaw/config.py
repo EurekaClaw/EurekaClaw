@@ -67,8 +67,16 @@ class Config(BaseSettings):
         default="auto", alias="EXPERIMENT_MODE"
     )
 
-    # ---- LLM call tuning ---------------------------------------------------
-    agent_max_tokens: int = Field(default=4096, alias="AGENT_MAX_TOKENS")
+    # ---- Token limits per call type ----------------------------------------
+    max_tokens_agent: int = Field(default=8192, alias="MAX_TOKENS_AGENT")
+    max_tokens_prover: int = Field(default=4096, alias="MAX_TOKENS_PROVER")
+    max_tokens_planner: int = Field(default=4096, alias="MAX_TOKENS_PLANNER")
+    max_tokens_decomposer: int = Field(default=2048, alias="MAX_TOKENS_DECOMPOSER")
+    max_tokens_formalizer: int = Field(default=2048, alias="MAX_TOKENS_FORMALIZER")
+    max_tokens_verifier: int = Field(default=1024, alias="MAX_TOKENS_VERIFIER")
+    max_tokens_compress: int = Field(default=512, alias="MAX_TOKENS_COMPRESS")
+
+    # ---- Agent loop tuning --------------------------------------------------
     survey_max_turns: int = Field(default=8, alias="SURVEY_MAX_TURNS")
     theory_stage_max_turns: int = Field(default=6, alias="THEORY_STAGE_MAX_TURNS")
     writer_max_turns: int = Field(default=4, alias="WRITER_MAX_TURNS")
@@ -76,6 +84,11 @@ class Config(BaseSettings):
     llm_retry_attempts: int = Field(default=5, alias="LLM_RETRY_ATTEMPTS")
     llm_retry_wait_min: int = Field(default=4, alias="LLM_RETRY_WAIT_MIN")
     llm_retry_wait_max: int = Field(default=90, alias="LLM_RETRY_WAIT_MAX")
+
+    # ---- Proof quality ------------------------------------------------------
+    # When True, writer enforces step-by-step proof rules and highlights
+    # low-confidence lemmas with \textcolor{orange} in the PDF output.
+    enforce_proof_style: bool = Field(default=True, alias="ENFORCE_PROOF_STYLE")
 
     # ---- Paths -------------------------------------------------------------
     metaclaw_dir: Path = Field(default=Path.home() / ".metaclaw", alias="METACLAW_DIR")

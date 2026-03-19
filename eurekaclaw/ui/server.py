@@ -22,7 +22,7 @@ from urllib.parse import urlparse
 from eurekaclaw.ccproxy_manager import maybe_start_ccproxy, stop_ccproxy
 from eurekaclaw.config import settings
 from eurekaclaw.llm import create_client
-from eurekaclaw.main import EurekaSession
+from eurekaclaw.main import EurekaSession, save_artifacts
 from eurekaclaw.skills.registry import SkillRegistry
 from eurekaclaw.types.tasks import InputSpec, ResearchOutput, TaskStatus
 
@@ -48,6 +48,14 @@ _CONFIG_FIELDS: dict[str, str] = {
     "theory_max_iterations": "THEORY_MAX_ITERATIONS",
     "output_format": "OUTPUT_FORMAT",
     "metaclaw_dir": "METACLAW_DIR",
+    # Token limits
+    "max_tokens_agent": "MAX_TOKENS_AGENT",
+    "max_tokens_prover": "MAX_TOKENS_PROVER",
+    "max_tokens_planner": "MAX_TOKENS_PLANNER",
+    "max_tokens_decomposer": "MAX_TOKENS_DECOMPOSER",
+    "max_tokens_formalizer": "MAX_TOKENS_FORMALIZER",
+    "max_tokens_verifier": "MAX_TOKENS_VERIFIER",
+    "max_tokens_compress": "MAX_TOKENS_COMPRESS",
 }
 
 
@@ -66,6 +74,7 @@ class SessionRun:
     result: ResearchOutput | None = None
     eureka_session: EurekaSession | None = None
     output_summary: dict[str, Any] = field(default_factory=dict)
+    output_dir: str = ""
 
 
 def _serialize_value(value: Any) -> Any:
@@ -192,11 +201,17 @@ class UIServerState:
             with _temporary_auth_env(_config_payload()):
                 result = asyncio.run(session.run(run.input_spec))
             run.result = result
+
+            # Save artifacts to results/<run_id>/ so files are always on disk.
+            out_dir = save_artifacts(result, _ROOT_DIR / "results" / run.run_id)
+            run.output_dir = str(out_dir)
+
             run.status = "completed"
             run.output_summary = {
                 "latex_paper_length": len(result.latex_paper),
                 "has_experiment_result": bool(result.experiment_result_json),
                 "has_theory_state": bool(result.theory_state_json),
+                "output_dir": str(out_dir),
             }
         except Exception as exc:
             logger.exception("UI session run failed")
@@ -250,6 +265,7 @@ class UIServerState:
             },
             "result": _serialize_value(run.result) if run.result else None,
             "output_summary": _serialize_value(run.output_summary),
+            "output_dir": run.output_dir,
         }
 
 
@@ -448,7 +464,12 @@ class UIRequestHandler(SimpleHTTPRequestHandler):
         self._send_json({"error": "Not found"}, status=HTTPStatus.NOT_FOUND)
 
     def log_message(self, format: str, *args: Any) -> None:
-        logger.info("UI %s", format % args)
+        # Silence noisy polling GETs to /api/runs/<id> (status-check endpoint)
+        msg = format % args
+        if '"GET /api/runs/' in msg and '" 200 -' in msg:
+            logger.debug("UI %s", msg)
+            return
+        logger.info("UI %s", msg)
 
     def _read_json(self) -> dict[str, Any]:
         length = int(self.headers.get("Content-Length", "0"))

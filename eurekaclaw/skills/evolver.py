@@ -86,10 +86,12 @@ class SkillEvolver:
                 max_tokens=1024,
                 messages=[{"role": "user", "content": DISTILL_PROMPT.format(evidence=evidence)}],
             )
+            if not response.content:
+                raise ValueError("LLM returned empty content list")
             text = response.content[0].text
             return self._parse_skill_response(text, session_id, agent_role)
         except Exception as e:
-            logger.exception("Skill distillation failed: %s", e)
+            logger.warning("Skill distillation failed: %s", e)
             return []
 
     def _parse_skill_response(

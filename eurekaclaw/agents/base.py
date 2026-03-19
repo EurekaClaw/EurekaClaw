@@ -243,10 +243,12 @@ class BaseAgent(ABC):
         try:
             response = await self.client.messages.create(
                 model=settings.fast_model,
-                max_tokens=512,
+                max_tokens=settings.max_tokens_compress,
                 system=_COMPRESS_SYSTEM,
                 messages=[{"role": "user", "content": f"Conversation so far:\n{history_text}\n\nWrite the progress summary now."}],
             )
+            if not response.content:
+                raise ValueError("LLM returned empty content list")
             return response.content[0].text
         except Exception as e:
             logger.warning("Context compression LLM call failed (%s) — using fallback", e)
@@ -265,7 +267,7 @@ class BaseAgent(ABC):
         max_tokens: int | None = None,
     ) -> NormalizedMessage:
         from eurekaclaw.config import settings
-        _max_tokens = max_tokens if max_tokens is not None else settings.agent_max_tokens
+        _max_tokens = max_tokens if max_tokens is not None else settings.max_tokens_agent
         async for attempt in AsyncRetrying(
             stop=stop_after_attempt(settings.llm_retry_attempts),
             wait=wait_exponential(

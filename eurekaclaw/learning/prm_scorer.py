@@ -53,6 +53,8 @@ class ProcessRewardModel:
                     "content": f"Lemma: {traj.lemma_id}\nOutcome: {traj.outcome}\nSteps:\n{steps_text}\n\nReturn JSON: {{\"score\": -1.0 to 1.0}}"
                 }],
             )
+            if not response.content:
+                raise ValueError("LLM returned empty content list")
             text = response.content[0].text
             if "score" in text:
                 data = json.loads(text[text.index("{"):text.rindex("}")+1])

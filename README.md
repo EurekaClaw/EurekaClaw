@@ -345,9 +345,11 @@ Control the format of the generated paper with `OUTPUT_FORMAT`:
 OUTPUT_FORMAT=latex   # or: markdown
 ```
 
-PDF compilation runs `pdflatex` twice (to resolve cross-references) and writes
-`paper.pdf` alongside `paper.tex` in the `--output` directory. If `pdflatex` is
-not found, a warning is printed and `paper.tex` is still saved.
+PDF compilation runs the full bibliography-aware sequence:
+`pdflatex → bibtex → pdflatex → pdflatex`. A `references.bib` file is generated
+from the session bibliography and written next to `paper.tex` before compilation,
+so all `\cite{}` keys are resolved. If `pdflatex` is not found, a warning is
+printed and `paper.tex`/`references.bib` are still saved.
 To use a different compiler (e.g. `xelatex`), set `LATEX_BIN=xelatex`.
 
 ### Token Efficiency Knobs
@@ -361,6 +363,24 @@ control the trade-off between proof thoroughness and API cost:
 | `AUTO_VERIFY_CONFIDENCE` | `0.85` | Auto-accept a proof without LLM peer review when the prover's confidence meets or exceeds this threshold and no `[GAP:...]` flags are present. Saves one API call per high-confidence lemma. |
 | `STAGNATION_WINDOW` | `3` | If the same lemma fails this many consecutive times with a similar error pattern, force a conjecture refinement instead of continuing to retry. Prevents wasting calls on an irrecoverably stuck proof path. |
 | `EXPERIMENT_MODE` | `auto` | Whether to run the experiment stage: `auto` (run only when the theorem has measurable numerical bounds), `true` (always run), `false` (always skip). |
+
+#### Token limits per call type
+
+Each LLM call type has an independently configurable output token budget, adjustable
+in `.env` or via the UI sliders in the Settings tab:
+
+| Variable | Default | Call type |
+|---|---|---|
+| `MAX_TOKENS_AGENT` | `8192` | Main agent reasoning loop (all agents) |
+| `MAX_TOKENS_PROVER` | `4096` | Proof generation |
+| `MAX_TOKENS_PLANNER` | `4096` | Research direction planning (diverge phase) |
+| `MAX_TOKENS_DECOMPOSER` | `2048` | Lemma decomposition |
+| `MAX_TOKENS_FORMALIZER` | `2048` | Theorem formalization, refiner, counterexample, resource analyst |
+| `MAX_TOKENS_VERIFIER` | `1024` | Proof verification |
+| `MAX_TOKENS_COMPRESS` | `512` | Context compression summaries (fast model) |
+
+Reduce these to lower API cost; increase `MAX_TOKENS_PROVER` and `MAX_TOKENS_AGENT`
+for more complex theorems that need longer outputs.
 
 **Example — aggressive token saving:**
 
@@ -417,8 +437,11 @@ reinterpret or replace it with a different direction.
 
 Artifacts written to `--output`:
 - `paper.tex` — full LaTeX source
-- `paper.pdf` — compiled PDF (requires `pdflatex`)
+- `references.bib` — BibTeX bibliography (generated from session literature search)
+- `paper.pdf` — compiled PDF (requires `pdflatex` + `bibtex`)
 - `theory_state.json` — lemma DAG, proof records, counterexamples
+- `research_brief.json` — selected research direction and domain metadata
+- `experiment_result.json` — numerical validation results (when experiment ran)
 
 **Options:**
 - `--domain, -d` — Research domain (auto-inferred if omitted).
@@ -539,6 +562,7 @@ result = asyncio.run(session.run_exploration(
 | `theory_state_json` | `str` | JSON dump of `TheoryState` |
 | `experiment_result_json` | `str` | JSON dump of `ExperimentResult` |
 | `research_brief_json` | `str` | JSON dump of `ResearchBrief` (incl. selected direction) |
+| `bibliography_json` | `str` | JSON dump of `Bibliography` (papers + BibTeX) — used to generate `references.bib` |
 
 #### Low-level API
 
