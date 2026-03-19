@@ -101,6 +101,8 @@ class LemmaDecomposer:
                     ),
                 }],
             )
+            if not response.content:
+                raise ValueError("LLM returned empty content list")
             text = response.content[0].text
             lemmas_data = self._parse_lemmas(text)
             if lemmas_data:
@@ -108,21 +110,29 @@ class LemmaDecomposer:
                 self._last_formal = state.formal_statement
                 logger.info("Decomposed into %d lemmas", len(state.lemma_dag))
             else:
-                logger.warning("Decomposer returned no lemmas — falling back to single theorem")
-                raise ValueError("Empty lemma list from decomposer")
+                # LLM returned parseable JSON but with no lemmas — use single-theorem fallback.
+                # This is an expected degraded path, not an error.
+                logger.warning(
+                    "Decomposer returned no lemmas — using single-theorem fallback"
+                )
+                state = self._single_theorem_fallback(state)
 
         except Exception as e:
-            logger.exception("Lemma decomposition failed: %s", e)
-            # Fallback: single lemma = the theorem itself
-            lemma_id = "main_theorem"
-            state.lemma_dag[lemma_id] = LemmaNode(
-                lemma_id=lemma_id,
-                statement=state.formal_statement,
-                informal=state.informal_statement,
-                dependencies=[],
-            )
-            state.open_goals = [lemma_id]
+            logger.exception("Lemma decomposition failed unexpectedly: %s", e)
+            state = self._single_theorem_fallback(state)
 
+        return state
+
+    def _single_theorem_fallback(self, state: TheoryState) -> TheoryState:
+        """Create a single-node DAG treating the theorem itself as the only lemma."""
+        lemma_id = "main_theorem"
+        state.lemma_dag[lemma_id] = LemmaNode(
+            lemma_id=lemma_id,
+            statement=state.formal_statement,
+            informal=state.informal_statement,
+            dependencies=[],
+        )
+        state.open_goals = [lemma_id]
         return state
 
     def _parse_lemmas(self, text: str) -> list[dict]:
