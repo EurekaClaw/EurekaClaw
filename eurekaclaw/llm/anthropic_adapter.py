@@ -2,12 +2,26 @@
 
 from __future__ import annotations
 
+import json
 import os
+from pathlib import Path
 from typing import Any
 
 import anthropic
 
 from eurekaclaw.llm.base import LLMClient
+
+
+def _read_claude_oauth_token() -> str:
+    """Read Claude Code OAuth access token as fallback auth method."""
+    creds_path = Path.home() / ".claude" / ".credentials.json"
+    if creds_path.exists():
+        try:
+            creds = json.loads(creds_path.read_text())
+            return creds.get("claudeAiOauth", {}).get("accessToken", "")
+        except Exception:
+            pass
+    return ""
 from eurekaclaw.llm.types import (
     NormalizedMessage,
     NormalizedTextBlock,
@@ -27,9 +41,11 @@ class AnthropicAdapter(LLMClient):
         # though the env var is now populated.
         effective_key = os.environ.get("ANTHROPIC_API_KEY") or api_key
         if not effective_key:
+            effective_key = _read_claude_oauth_token()
+        if not effective_key:
             raise ValueError(
-                "ANTHROPIC_API_KEY is not set. Either add it to .env or "
-                "configure OAuth via ANTHROPIC_AUTH_MODE=oauth."
+                "ANTHROPIC_API_KEY is not set. Either add it to .env, "
+                "run ccproxy (ANTHROPIC_AUTH_MODE=oauth), or log in to Claude Code."
             )
         self._client = anthropic.AsyncAnthropic(api_key=effective_key)
 

@@ -15,6 +15,7 @@ from eurekaclaw.agents.survey.agent import SurveyAgent
 from eurekaclaw.agents.theory.agent import TheoryAgent
 from eurekaclaw.agents.writer.agent import WriterAgent
 from eurekaclaw.config import settings
+from eurekaclaw.domains.base import DomainPlugin
 from eurekaclaw.knowledge_bus.bus import KnowledgeBus
 from eurekaclaw.llm import LLMClient, create_client
 from eurekaclaw.learning.loop import ContinualLearningLoop
@@ -43,11 +44,21 @@ class MetaOrchestrator:
         tool_registry: ToolRegistry | None = None,
         skill_registry: SkillRegistry | None = None,
         client: LLMClient | None = None,
+        domain_plugin: DomainPlugin | None = None,
     ) -> None:
         self.bus = bus
         self.client: LLMClient = client or create_client()
         self.tool_registry = tool_registry or build_default_registry()
         self.skill_registry = skill_registry or SkillRegistry()
+        self.domain_plugin = domain_plugin
+
+        # Apply domain plugin: register extra tools and skills
+        if domain_plugin:
+            domain_plugin.register_tools(self.tool_registry)
+            for skills_dir in domain_plugin.get_skills_dirs():
+                self.skill_registry.add_skills_dir(skills_dir)
+            logger.info("Domain plugin loaded: %s", domain_plugin.display_name)
+
         self.skill_injector = SkillInjector(self.skill_registry)
         self.memory = MemoryManager(session_id=bus.session_id)
 
@@ -85,7 +96,11 @@ class MetaOrchestrator:
         brief = self._init_brief(input_spec)
         self.bus.put_research_brief(brief)
         console.print(f"\n[bold green]EurekaClaw[/bold green] session: {brief.session_id}")
-        console.print(f"Domain: {brief.domain} | Mode: {input_spec.mode} | Learning: {settings.eurekaclaw_mode}\n")
+        plugin_name = self.domain_plugin.display_name if self.domain_plugin else "general"
+        console.print(f"Domain: {brief.domain} ({plugin_name}) | Mode: {input_spec.mode} | Learning: {settings.eurekaclaw_mode}\n")
+        if self.domain_plugin:
+            # Store workflow hint on bus so agents can read it
+            self.bus.put("domain_workflow_hint", self.domain_plugin.get_workflow_hint())
 
         # --- Phase 2: Divergent-Convergent planning (before survey, so we have a direction) ---
         # We'll do the survey first to get open problems, then plan

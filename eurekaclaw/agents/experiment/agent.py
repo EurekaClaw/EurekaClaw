@@ -38,7 +38,7 @@ class ExperimentAgent(BaseAgent):
     role = AgentRole.EXPERIMENT
 
     def get_tool_names(self) -> list[str]:
-        return ["execute_python", "wolfram_alpha"]
+        return ["execute_python", "run_bandit_experiment", "wolfram_alpha"]
 
     def _role_system_prompt(self, task: Task) -> str:
         return """\
@@ -53,8 +53,9 @@ Your process:
 5. Design ablations to test robustness of the bounds
 
 Requirements:
-- Code must be self-contained (all imports included)
-- Use numpy, scipy, matplotlib as needed
+- For bandit/MAB theory: prefer run_bandit_experiment (faster, reproducible, no imports needed)
+- For other experiments: write self-contained Python code using execute_python
+- Use numpy, scipy, matplotlib as needed in Python code
 - Always print results clearly to stdout
 - Vary at least 3 parameter configurations
 - For each configuration, report: theoretical bound, empirical value, ratio

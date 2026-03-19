@@ -53,7 +53,11 @@ class ToolRegistry:
 
 
 def build_default_registry() -> ToolRegistry:
-    """Build and return the default tool registry with all built-in tools."""
+    """Build and return the default tool registry with all built-in (domain-agnostic) tools.
+
+    Domain-specific tools (e.g. run_bandit_experiment) are registered separately
+    by DomainPlugin.register_tools() in MetaOrchestrator.__init__().
+    """
     from eurekaclaw.tools.arxiv import ArxivSearchTool
     from eurekaclaw.tools.citation import CitationManagerTool
     from eurekaclaw.tools.code_exec import CodeExecutionTool

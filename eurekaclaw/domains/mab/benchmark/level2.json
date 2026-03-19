@@ -1,0 +1,35 @@
+[
+  {
+    "title": "Bernstein-UCB: tighter bounds via empirical variance",
+    "setting": "Show that using Bernstein concentration instead of Hoeffding tightens UCB constants when arm variance sigma_i^2 << 1. Derive the exact instance-dependent improvement factor.",
+    "domain": "stochastic_mab",
+    "known_results": [
+      "Bernstein bound: sqrt(2 sigma^2 log(1/delta) / n) + 2 log(1/delta) / (3n)",
+      "UCB1 uses Hoeffding: sqrt(2 log t / n)",
+      "Variance-UCB (Audibert et al. 2009)"
+    ],
+    "difficulty": "level2"
+  },
+  {
+    "title": "MOSS minimax optimality",
+    "setting": "Show that MOSS (Minimax Optimal Strategy in the Stochastic case) achieves R_T = O(sqrt(KT)) without the log(T) factor, matching the minimax lower bound up to constants.",
+    "domain": "stochastic_mab",
+    "known_results": [
+      "Standard UCB1 achieves O(sqrt(KT log T))",
+      "MOSS index: hat{mu}_i + sqrt(log(T / (K * N_i)) / N_i)",
+      "Minimax lower bound is Omega(sqrt(KT))"
+    ],
+    "difficulty": "level2"
+  },
+  {
+    "title": "KL-UCB asymptotic optimality for Bernoulli bandits",
+    "setting": "Prove that KL-UCB achieves the Lai-Robbins lower bound asymptotically for Bernoulli bandits: lim sup R_T / log T <= sum_i Delta_i / KL(mu_i, mu*).",
+    "domain": "stochastic_mab",
+    "known_results": [
+      "KL-UCB index: max{q : KL(hat{mu}_i, q) <= log(t)/N_i}",
+      "Lai-Robbins lower bound",
+      "Thompson Sampling also achieves this bound"
+    ],
+    "difficulty": "level2"
+  }
+]

@@ -17,12 +17,19 @@ _SEED_DIR = Path(__file__).parent / "seed_skills"
 
 
 class SkillRegistry:
-    """Discovers .md files from skills_dir and the bundled seed_skills/."""
+    """Discovers .md files from skills_dir, bundled seed_skills/, and domain plugins."""
 
     def __init__(self, skills_dir: Path | None = None) -> None:
         self._skills_dir = skills_dir or settings.skills_dir
+        self._extra_dirs: list[Path] = []
         self._skills: dict[str, SkillRecord] = {}
         self._loaded = False
+
+    def add_skills_dir(self, path: Path) -> None:
+        """Register an extra directory (e.g. from a DomainPlugin) to load skills from."""
+        if path not in self._extra_dirs:
+            self._extra_dirs.append(path)
+        self._loaded = False  # force reload on next access
 
     def _ensure_loaded(self) -> None:
         if not self._loaded:
@@ -30,10 +37,15 @@ class SkillRegistry:
 
     def _load(self) -> None:
         self._skills.clear()
-        # Load seed skills first (lower priority, can be overridden)
+        # 1. Seed skills bundled with the package (lowest priority)
         for path in sorted(_SEED_DIR.rglob("*.md")):
             self._load_file(path, is_seed=True)
-        # Load user skills from ~/.metaclaw/skills/ (higher priority)
+        # 2. Domain plugin skill dirs (medium priority)
+        for extra_dir in self._extra_dirs:
+            if extra_dir.exists():
+                for path in sorted(extra_dir.rglob("*.md")):
+                    self._load_file(path, is_seed=True)
+        # 3. User skills from ~/.metaclaw/skills/ (highest priority)
         self._skills_dir.mkdir(parents=True, exist_ok=True)
         for path in sorted(self._skills_dir.rglob("*.md")):
             self._load_file(path, is_seed=False)
