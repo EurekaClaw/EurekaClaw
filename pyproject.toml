@@ -27,6 +27,7 @@ dependencies = [
     "aiofiles>=23.0",
     "numpy>=1.26",
     "arxiv>=2.1",
+    "PyYAML>=6.0",
 ]
 
 [project.optional-dependencies]
