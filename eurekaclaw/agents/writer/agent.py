@@ -251,25 +251,45 @@ Include all proofs using \\begin{{proof}}...\\end{{proof}}.
             return self._make_result(task, False, {}, error=str(e))
 
     def _extract_latex(self, text: str) -> str:
-        """Extract LaTeX content, removing markdown code blocks if present.
+        """Extract LaTeX body content, stripping all preamble boilerplate.
 
-        Also strips any document-level boilerplate the LLM may have included
-        (\\documentclass, \\begin{document}, \\end{document}) since those are
-        already provided by LATEX_PREAMBLE / LATEX_END.
+        Handles two cases:
+        1. LLM wrapped output in ```latex fences → extract between fences first.
+        2. LLM included a full document (\\documentclass … \\begin{document} … \\end{document})
+           → strip everything up to and including \\begin{document}.
+
+        The preamble stripping is aggressive: if \\begin{document} is present,
+        everything before it (\\documentclass, \\usepackage, \\newtheorem, macros,
+        comments) is discarded since LATEX_PREAMBLE already supplies those.
         """
+        # Step 1: unwrap ```latex ... ``` fences
         if "```latex" in text:
             start = text.index("```latex") + 8
             end = text.index("```", start) if "```" in text[start:] else len(text)
             text = text[start:end].strip()
 
-        # Drop preamble / document wrapper if the LLM included a full document
+        # Step 2: strip everything before (and including) \begin{document}
+        # This removes \documentclass, all \usepackage, \newtheorem, macros, etc.
         if r"\begin{document}" in text:
             text = text[text.index(r"\begin{document}") + len(r"\begin{document}"):]
+
+        # Step 3: strip \end{document} and everything after
         if r"\end{document}" in text:
             text = text[:text.rindex(r"\end{document}")]
-        # Drop \documentclass line(s) that might remain above \begin{document}
-        lines = [l for l in text.splitlines() if not l.lstrip().startswith(r"\documentclass")]
-        return "\n".join(lines).strip()
+
+        # Step 4: strip any \maketitle / \begin{abstract}…\end{abstract} block
+        # that the LLM may have duplicated (LATEX_PREAMBLE already adds these)
+        if r"\maketitle" in text and r"\end{abstract}" in text:
+            try:
+                end_abs = text.index(r"\end{abstract}") + len(r"\end{abstract}")
+                # Only strip if \maketitle comes before the first \section
+                first_section = text.find(r"\section")
+                if first_section == -1 or end_abs <= first_section:
+                    text = text[end_abs:]
+            except ValueError:
+                pass
+
+        return text.strip()
 
     @staticmethod
     def _escape_latex(s: str) -> str:
