@@ -46,25 +46,45 @@ Keep the formalization as close to standard mathematical practice as possible.
 
 
 class Formalizer:
-    """Step 1 of the Theory Agent inner loop: informal → formal notation."""
+    """Step 1 of the Theory Agent inner loop: informal → formal notation.
+
+    Uses the fast model (formalization is deterministic given a clear informal
+    statement, so the heavier main model is not needed).  Re-formalization is
+    skipped unless the informal statement changed (i.e. after a refinement).
+    """
 
     def __init__(self, client: LLMClient | None = None) -> None:
         self.client: LLMClient = client or create_client()
+        # Track the last informal statement we formalized so we only re-run
+        # when the conjecture actually changed (e.g. after a refinement step).
+        self._last_formalized: str = ""
 
     async def run(self, state: TheoryState, domain: str = "") -> TheoryState:
-        """Translate informal_statement → formal_statement on the TheoryState."""
+        """Translate informal_statement → formal_statement on the TheoryState.
+
+        Skips the LLM call when:
+        - The informal statement is empty, OR
+        - We already have a formal statement AND the informal statement has not
+          changed since the last formalization (avoids redundant re-formalization
+          across inner-loop retries that do not involve refinement).
+        """
         if not state.informal_statement:
             logger.warning("No informal statement to formalize")
             return state
 
-        if state.formal_statement and state.iteration > 0:
-            # Only re-formalize on retry if the conjecture was updated
-            logger.debug("Skipping re-formalization (already formalized, iteration %d)", state.iteration)
+        # Skip if nothing changed — save one full-model call per iteration
+        if state.formal_statement and state.informal_statement == self._last_formalized:
+            logger.debug(
+                "Skipping re-formalization — informal statement unchanged (iteration %d)",
+                state.iteration,
+            )
             return state
 
         try:
+            # Limit context keys to the most recent 8 lemmas to save tokens
+            context_keys = list(state.lemma_dag.keys())[-8:]
             response = await self.client.messages.create(
-                model=settings.eurekaclaw_model,
+                model=settings.fast_model,  # formalization is deterministic
                 max_tokens=2048,
                 system=FORMALIZE_SYSTEM,
                 messages=[{
@@ -72,7 +92,7 @@ class Formalizer:
                     "content": FORMALIZE_USER.format(
                         informal=state.informal_statement,
                         domain=domain or "mathematics",
-                        context=", ".join(state.lemma_dag.keys()) or "none",
+                        context=", ".join(context_keys) or "none",
                     ),
                 }],
             )
@@ -81,6 +101,7 @@ class Formalizer:
             # Extract the formal statement from the response
             formal = self._extract_formal_statement(text)
             state.formal_statement = formal
+            self._last_formalized = state.informal_statement
             logger.info("Formalized: %s → %s", state.informal_statement[:80], formal[:80])
 
         except Exception as e:

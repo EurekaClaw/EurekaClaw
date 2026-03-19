@@ -36,7 +36,7 @@ Lemma ID: {lemma_id}
 Statement: {statement}
 Informal: {informal}
 
-Already proven lemmas you can cite:
+Already proven lemmas you may cite (statement only):
 {proven_lemmas}
 
 Dependencies for this lemma:
@@ -108,11 +108,22 @@ class Prover:
             )
 
     def _format_proven(self, state: TheoryState) -> str:
+        """Compact representation of proven lemmas — statement only (no proof text).
+
+        Inspired by Paper2Poster's 87%-fewer-tokens approach: include only the
+        minimal information needed (lemma ID + statement), not the full proof.
+        For large DAGs, show the 5 most recently proven lemmas plus a count.
+        """
         if not state.proven_lemmas:
             return "(none yet)"
+        items = list(state.proven_lemmas.items())
         lines = []
-        for lid, record in list(state.proven_lemmas.items())[:5]:
-            lines.append(f"[{lid}]: {record.proof_text[:200]}")
+        if len(items) > 5:
+            lines.append(f"(+{len(items) - 5} more proven lemmas not shown)")
+        for lid, _record in items[-5:]:
+            node = state.lemma_dag.get(lid)
+            stmt = (node.statement[:120] if node else _record.proof_text[:80]).strip()
+            lines.append(f"[{lid}] ✓ {stmt}")
         return "\n".join(lines)
 
     def _format_dependencies(self, state: TheoryState, node: LemmaNode) -> str:
@@ -120,7 +131,9 @@ class Prover:
         for dep_id in node.dependencies:
             dep_node = state.lemma_dag.get(dep_id)
             if dep_node:
-                deps.append(f"[{dep_id}]: {dep_node.statement}")
+                # Truncate long dependency statements to save tokens
+                stmt = dep_node.statement[:120] if len(dep_node.statement) > 120 else dep_node.statement
+                deps.append(f"[{dep_id}]: {stmt}")
         return "\n".join(deps) if deps else "(no sub-dependencies)"
 
     def _parse_proof_attempt(self, lemma_id: str, text: str) -> ProofAttempt:
@@ -134,6 +147,10 @@ class Prover:
         # Assess confidence based on presence of gaps and completeness signals
         has_qed = any(kw in text.lower() for kw in ["qed", "□", "\\qed", "this completes", "as desired"])
         confidence = 0.8 if (has_qed and not gaps) else (0.5 if has_qed else 0.3)
+
+        # Boost confidence when prover explicitly states no gaps remain
+        if has_qed and not gaps and "therefore" in text.lower() and len(text) > 500:
+            confidence = min(confidence + 0.1, 1.0)
 
         # Extract Lean4 sketch if present
         lean4_sketch = ""

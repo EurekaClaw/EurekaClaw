@@ -82,7 +82,7 @@ class SkillEvolver:
 
         try:
             response = await self.client.messages.create(
-                model=settings.eurekaclaw_fast_model,
+                model=settings.fast_model,
                 max_tokens=1024,
                 messages=[{"role": "user", "content": DISTILL_PROMPT.format(evidence=evidence)}],
             )

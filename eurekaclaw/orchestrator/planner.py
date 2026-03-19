@@ -78,8 +78,13 @@ Return JSON: {{"directions": [
         if len(directions) == 1:
             return directions[0]
 
-        directions_text = "\n\n".join(
-            f"Direction {i+1}: {d.title}\nHypothesis: {d.hypothesis}\nApproach: {d.approach_sketch}"
+        # Compact representation: title + first 120 chars of hypothesis + first 80
+        # chars of approach.  Saves ~300-400 tokens vs. full text in the converge
+        # call (AI-Researcher hierarchical distillation pattern).
+        directions_text = "\n".join(
+            f"[{i+1}] {d.title} | "
+            f"Hyp: {d.hypothesis[:120].rstrip()}{'...' if len(d.hypothesis) > 120 else ''} | "
+            f"Approach: {d.approach_sketch[:80].rstrip()}{'...' if len(d.approach_sketch) > 80 else ''}"
             for i, d in enumerate(directions)
         )
 

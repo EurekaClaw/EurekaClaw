@@ -49,22 +49,48 @@ Requirements:
 
 
 class LemmaDecomposer:
-    """Step 2 of the Theory Agent inner loop: theorem → lemma DAG."""
+    """Step 2 of the Theory Agent inner loop: theorem → lemma DAG.
+
+    Caching: if the formal statement has not changed since the last successful
+    decomposition (i.e. no refinement occurred), the existing lemma_dag is
+    reused and no LLM call is made.  This saves 1 call per inner-loop iteration
+    that does not involve a counterexample-triggered refinement.
+    """
 
     def __init__(self, client: LLMClient | None = None) -> None:
         self.client: LLMClient = client or create_client()
+        # Cache key: the last formal statement we successfully decomposed.
+        self._last_formal: str = ""
 
     async def run(self, state: TheoryState) -> TheoryState:
-        """Build the lemma DAG for the current formal statement."""
+        """Build the lemma DAG for the current formal statement.
+
+        Skips the LLM call when:
+        - A DAG already exists AND
+        - The formal statement has not changed since the last decomposition.
+        This avoids redundant re-decomposition across retry iterations that do
+        not involve conjecture refinement.
+        """
         if state.lemma_dag and state.iteration == 0:
             logger.debug("Lemma DAG already built")
             return state
 
+        # Skip re-decomposition if the conjecture has not changed
+        if state.lemma_dag and state.formal_statement == self._last_formal:
+            logger.debug(
+                "Skipping re-decomposition — formal statement unchanged (iteration %d)",
+                state.iteration,
+            )
+            return state
+
         try:
-            context = ", ".join(k for k in state.proven_lemmas.keys()) if state.proven_lemmas else "none"
+            # Limit proven-lemma context to at most 8 keys to save tokens
+            context_keys = list(state.proven_lemmas.keys())[-8:]
+            context = ", ".join(context_keys) if context_keys else "none"
+
             response = await self.client.messages.create(
                 model=settings.eurekaclaw_model,
-                max_tokens=3000,
+                max_tokens=2048,
                 system=DECOMPOSE_SYSTEM,
                 messages=[{
                     "role": "user",
@@ -77,8 +103,13 @@ class LemmaDecomposer:
             )
             text = response.content[0].text
             lemmas_data = self._parse_lemmas(text)
-            state = self._build_dag(state, lemmas_data)
-            logger.info("Decomposed into %d lemmas", len(state.lemma_dag))
+            if lemmas_data:
+                state = self._build_dag(state, lemmas_data)
+                self._last_formal = state.formal_statement
+                logger.info("Decomposed into %d lemmas", len(state.lemma_dag))
+            else:
+                logger.warning("Decomposer returned no lemmas — falling back to single theorem")
+                raise ValueError("Empty lemma list from decomposer")
 
         except Exception as e:
             logger.exception("Lemma decomposition failed: %s", e)
@@ -134,21 +165,6 @@ class LemmaDecomposer:
 
     def _topological_sort(self, dag: dict[str, LemmaNode]) -> list[str]:
         """Kahn's algorithm for topological sort of the lemma DAG."""
-        in_degree = {lid: 0 for lid in dag}
-        for node in dag.values():
-            for dep in node.dependencies:
-                if dep in in_degree:
-                    in_degree[dep] = in_degree.get(dep, 0)  # dep exists
-                    in_degree[node.lemma_id] = in_degree.get(node.lemma_id, 0)
-
-        # Rebuild in-degree correctly
-        in_degree = {lid: 0 for lid in dag}
-        for node in dag.values():
-            for dep in node.dependencies:
-                if dep in dag:
-                    in_degree[node.lemma_id] += 1
-                    # wait — this is wrong; in_degree should count dependencies
-        # Correct: in_degree[v] = number of dependencies of v that are in the dag
         in_degree = {lid: len([d for d in node.dependencies if d in dag])
                      for lid, node in dag.items()}
 

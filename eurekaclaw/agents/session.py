@@ -40,5 +40,24 @@ class AgentSession:
             # Always keep the first user message as context anchor
             self._messages = self._messages[:1] + self._messages[-(max_messages - 1):]
 
+    def compress_to_summary(self, original_task: str, summary: str) -> None:
+        """Replace accumulated conversation history with a single compressed message.
+
+        Inspired by OpenClaw's /compact command and ScienceClaw's smart compaction:
+        preserves the original task goal plus a concise summary of all key findings,
+        discarding intermediate tool-call exchanges to free up the context window.
+
+        After this call the session contains exactly one user message so that the
+        next assistant turn maintains proper role alternation.
+        """
+        compressed = (
+            f"{original_task}\n\n"
+            f"### Progress Summary (context compressed for token efficiency)\n"
+            f"{summary}\n\n"
+            f"Continue from the above progress."
+        )
+        self._messages = [{"role": "user", "content": compressed}]
+        self._token_count = 0
+
     def __len__(self) -> int:
         return len(self._messages)

@@ -72,6 +72,7 @@ class PipelineManager:
                 inputs={},
                 depends_on=[t_theory],
                 gate_required=False,
+                max_retries=0,  # retrying won't help: theorem is fixed, structural skip won't change
             ),
             Task(
                 task_id=t_writer,
@@ -79,7 +80,12 @@ class PipelineManager:
                 agent_role="writer",
                 description="Write complete paper from all artifacts",
                 inputs={},
-                depends_on=[t_experiment],
+                # Writer depends on theory, not experiment.  Experiment is a
+                # side-validation that enriches the paper when applicable, but
+                # its failure or skip (e.g. for purely structural theorems with
+                # no measurable bounds) must never prevent the paper from being
+                # written.  The writer reads exp_result from the bus if present.
+                depends_on=[t_theory],
                 gate_required=False,
             ),
         ]

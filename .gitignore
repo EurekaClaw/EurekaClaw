@@ -6,3 +6,4 @@ results/
 .pytest_cache/
 dist/
 *.egg-info/
+.claude/

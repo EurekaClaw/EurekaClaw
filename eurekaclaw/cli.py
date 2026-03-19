@@ -164,26 +164,123 @@ def install_skills(force: bool) -> None:
 
 
 def _compile_pdf(tex_path: Path) -> None:
-    """Run pdflatex twice on tex_path to resolve cross-references."""
+    """Run pdflatex twice on tex_path to resolve cross-references.
+
+    Strategy:
+    1. Normal compile with -interaction=nonstopmode (ignores most errors, continues).
+    2. If no PDF is produced (truly fatal LaTeX error), generate a rescue document
+       that is guaranteed to compile and contains the key content as plain text.
+    """
     import subprocess
 
     latex_bin = settings.latex_bin  # "pdflatex" by default
     out_dir = tex_path.parent
+    pdf_path = out_dir / tex_path.with_suffix(".pdf").name
 
     try:
-        cmd = [latex_bin, "-interaction=nonstopmode", "-output-directory", str(out_dir), str(tex_path)]
+        cmd = [latex_bin, "-interaction=nonstopmode", "-output-directory", str(out_dir.resolve()), str(tex_path.resolve())]
         for _ in range(2):  # two passes for refs/TOC
-            subprocess.run(cmd, capture_output=True, check=False, cwd=out_dir)
-        pdf_path = out_dir / tex_path.with_suffix(".pdf").name
+            subprocess.run(cmd, capture_output=True, check=False, cwd=out_dir.resolve())
+
         if pdf_path.exists():
             console.print(f"[green]PDF generated: {pdf_path}[/green]")
         else:
-            console.print(f"[yellow]pdflatex ran but no PDF found — check {out_dir}/paper.log[/yellow]")
+            console.print("[yellow]pdflatex: fatal errors prevented PDF output — attempting rescue compile...[/yellow]")
+            _show_latex_errors(out_dir / tex_path.with_suffix(".log").name)
+            _rescue_compile(tex_path, pdf_path, latex_bin, out_dir)
     except FileNotFoundError:
         console.print(
             f"[yellow]PDF generation skipped: '{latex_bin}' not found. "
             "Install TeX Live or set LATEX_BIN in .env.[/yellow]"
         )
+
+
+def _rescue_compile(original_tex: Path, pdf_path: Path, latex_bin: str, out_dir: Path) -> None:
+    """Build a guaranteed-compilable fallback PDF from the original .tex source.
+
+    Extracts the title and raw body text (stripping all LaTeX commands) and
+    wraps them in a minimal, error-free document.  The result is labelled
+    'Draft (rescue compile)' so the user knows it is a fallback.
+    """
+    import re
+    import subprocess
+
+    try:
+        src = original_tex.read_text(errors="replace")
+    except Exception:
+        src = ""
+
+    # Extract title from \title{...}
+    title_match = re.search(r"\\title\{([^}]*)\}", src)
+    title = title_match.group(1) if title_match else "Research Paper"
+
+    # Extract body between \begin{document} and \end{document}
+    body_match = re.search(r"\\begin\{document\}(.*?)\\end\{document\}", src, re.DOTALL)
+    raw_body = body_match.group(1) if body_match else src
+
+    # Strip LaTeX commands to get plain text (best-effort)
+    plain = re.sub(r"\\[a-zA-Z]+\*?\{[^}]*\}", " ", raw_body)   # \cmd{arg}
+    plain = re.sub(r"\\[a-zA-Z]+\*?", " ", plain)                # \cmd
+    plain = re.sub(r"[{}$^_&]", " ", plain)                      # special chars
+    plain = re.sub(r"\s{2,}", "\n\n", plain).strip()
+    # Truncate to avoid overfull pages in the rescue doc
+    plain = plain[:6000]
+
+    # Escape percent signs (only special char that survives above and breaks LaTeX)
+    plain_escaped = plain.replace("%", r"\%")
+
+    rescue_tex = rf"""\nonstopmode
+\documentclass[12pt]{{article}}
+\usepackage[T1]{{fontenc}}
+\usepackage[margin=1in]{{geometry}}
+\title{{{title} \\ \large Draft (rescue compile --- original LaTeX had fatal errors)}}
+\author{{EurekaClaw}}
+\date{{\today}}
+\begin{{document}}
+\maketitle
+\begin{{verbatim}}
+{plain[:5000]}
+\end{{verbatim}}
+\end{{document}}
+"""
+    rescue_path = out_dir / "paper_rescue.tex"
+    rescue_path.write_text(rescue_tex, encoding="utf-8")
+
+    import subprocess
+    abs_out = out_dir.resolve()
+    cmd = [latex_bin, "-interaction=nonstopmode", "-output-directory", str(abs_out), str(rescue_path.resolve())]
+    for _ in range(2):
+        subprocess.run(cmd, capture_output=True, check=False, cwd=abs_out)
+
+    rescue_pdf = out_dir / "paper_rescue.pdf"
+    if rescue_pdf.exists():
+        rescue_pdf.rename(pdf_path)
+        console.print(f"[yellow]Rescue PDF generated (plain-text fallback): {pdf_path}[/yellow]")
+    else:
+        console.print(f"[red]Rescue compile also failed. Check {out_dir}/paper_rescue.log[/red]")
+
+
+def _show_latex_errors(log_path: Path) -> None:
+    """Extract and print error lines from a pdflatex .log file."""
+    if not log_path.exists():
+        console.print(f"[yellow]  No log file found at {log_path}[/yellow]")
+        return
+    errors = []
+    try:
+        lines = log_path.read_text(errors="replace").splitlines()
+        for i, line in enumerate(lines):
+            if line.startswith("!") or (line.startswith("l.") and errors):
+                errors.append(line)
+                # include the next two context lines pdflatex prints after "!"
+                errors.extend(lines[i + 1 : i + 3])
+        if errors:
+            console.print("[yellow]  LaTeX errors:[/yellow]")
+            for err in errors[:20]:  # cap at 20 lines
+                console.print(f"[red]  {err}[/red]")
+        else:
+            console.print(f"[yellow]  No explicit errors found in log. Full log: {log_path}[/yellow]")
+    except Exception as exc:
+        console.print(f"[yellow]  Could not read log file: {exc}[/yellow]")
 
 
 def _run_session(

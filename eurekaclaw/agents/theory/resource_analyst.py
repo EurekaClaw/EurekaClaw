@@ -69,7 +69,7 @@ class ResourceAnalyst:
 
         try:
             response = await self.client.messages.create(
-                model=settings.eurekaclaw_fast_model,
+                model=settings.fast_model,
                 max_tokens=2048,
                 system=ANALYST_SYSTEM,
                 messages=[{

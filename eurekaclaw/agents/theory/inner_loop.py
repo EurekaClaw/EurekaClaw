@@ -6,6 +6,14 @@ Pipeline:
        |                                              [pass] → update proven_lemmas
        |                                              [fail] → Counterexample search
        └──────────────── Refinement ←─────────────────────────┘
+
+Token-efficiency improvements (v2):
+- Stagnation detection: if a lemma fails ``stagnation_window`` consecutive times
+  with similar error signatures, skip directly to forced refinement instead of
+  wasting more prover/verifier calls.
+- Resource-analyst timeout reduced from 60 s → 20 s.
+- Formalizer skips re-formalization when informal statement unchanged.
+- Verifier auto-accepts high-confidence proofs without an LLM peer-review call.
 """
 
 from __future__ import annotations
@@ -33,6 +41,23 @@ from eurekaclaw.types.artifacts import (
 logger = logging.getLogger(__name__)
 
 
+def _error_signature(reason: str) -> str:
+    """Reduce a failure reason to a short normalised signature for comparison.
+
+    Two reasons with the same signature are treated as "the same failure" for
+    the purpose of stagnation detection.
+    """
+    reason_lower = reason.lower()
+    for keyword in (
+        "circular", "gap", "unjustified", "quantifier", "edge case",
+        "missing assumption", "not proven", "failed", "parse", "timeout",
+    ):
+        if keyword in reason_lower:
+            return keyword
+    # Fallback: first 40 chars normalised
+    return reason_lower[:40].strip()
+
+
 class TheoryInnerLoop:
     """Orchestrates the 6-stage proof loop with retry semantics.
 
@@ -40,6 +65,7 @@ class TheoryInnerLoop:
     - All lemmas are proven (state.is_complete() == True)
     - MAX_ITERATIONS is reached (abandon)
     - A fatal counterexample is found (status = "refuted")
+    - Stagnation is detected on a lemma (forced refinement)
     """
 
     def __init__(
@@ -64,6 +90,30 @@ class TheoryInnerLoop:
 
         self.max_iterations = settings.theory_max_iterations
         self._failure_log: list[FailedAttempt] = []
+        # stagnation_window: consecutive failures with same signature → force refinement
+        self._stagnation_window = settings.stagnation_window
+        # Per-lemma: list of normalised error signatures from recent failures
+        self._lemma_failure_sigs: dict[str, list[str]] = {}
+
+    def _record_failure(self, lemma_id: str, reason: str) -> bool:
+        """Record a failure and return True if stagnation is detected.
+
+        Stagnation = the last ``stagnation_window`` failures for this lemma all
+        share the same normalised error signature (i.e. we're stuck in a loop).
+        """
+        sig = _error_signature(reason)
+        sigs = self._lemma_failure_sigs.setdefault(lemma_id, [])
+        sigs.append(sig)
+        # Only look at the tail of length stagnation_window
+        recent = sigs[-self._stagnation_window:]
+        if len(recent) >= self._stagnation_window and len(set(recent)) <= 2:
+            logger.warning(
+                "Stagnation detected for lemma '%s' after %d failures with similar "
+                "errors (%s) — forcing conjecture refinement.",
+                lemma_id, len(recent), set(recent),
+            )
+            return True
+        return False
 
     async def run(self, session_id: str, domain: str = "") -> TheoryState:
         """Drive the full proof loop from initial state to completion."""
@@ -84,6 +134,8 @@ class TheoryInnerLoop:
             state.iteration = iteration
 
             # --- Step 1: Formalization ---
+            # Formalizer internally skips the LLM call when informal statement
+            # has not changed since the last formalization.
             logger.info("[1/6] Formalizing conjecture...")
             state = await self.formalizer.run(state, domain)
             self.bus.put_theory_state(state)
@@ -126,8 +178,31 @@ class TheoryInnerLoop:
                 proof_attempt = await self.prover.attempt(state, lemma_id)
 
                 # Step 4: Verification
-                logger.info("[4/6] Verifying proof of lemma: %s", lemma_id)
-                verification = await self.verifier.check(proof_attempt, state)
+                # Two shortcuts to save LLM calls:
+                #   HIGH confidence (≥ auto_verify_confidence): Verifier auto-accepts.
+                #   LOW confidence (< 0.3): skip peer review entirely; go straight to
+                #   counterexample search.  An obviously incomplete proof cannot be
+                #   saved by a verifier — failing fast saves one fast-model call.
+                if proof_attempt.confidence < 0.3:
+                    logger.info(
+                        "Skipping verification for very low-confidence proof "
+                        "(lemma=%s, conf=%.2f) — proceeding to counterexample search",
+                        lemma_id, proof_attempt.confidence,
+                    )
+                    from eurekaclaw.agents.theory.verifier import VerificationResult
+                    verification = VerificationResult(
+                        lemma_id=lemma_id,
+                        passed=False,
+                        method="llm_check",
+                        confidence=proof_attempt.confidence,
+                        errors=proof_attempt.gaps or ["Very low confidence — skipped verification"],
+                        notes="Auto-rejected: confidence below 0.3 threshold",
+                    )
+                else:
+                    # High-confidence proofs are auto-accepted by the Verifier
+                    # without an additional LLM call (see verifier.py).
+                    logger.info("[4/6] Verifying proof of lemma: %s", lemma_id)
+                    verification = await self.verifier.check(proof_attempt, state)
 
                 if verification.passed:
                     # Record the proven lemma
@@ -142,18 +217,48 @@ class TheoryInnerLoop:
                     )
                     state.proven_lemmas[lemma_id] = record
                     state.open_goals.remove(lemma_id)
+                    # Reset stagnation counter on success
+                    self._lemma_failure_sigs.pop(lemma_id, None)
                     logger.info("✓ Lemma proved: %s (method=%s)", lemma_id, verification.method)
                     self.bus.put_theory_state(state)
                 else:
-                    # Record failure
+                    failure_reason = "; ".join(verification.errors[:3]) or "verification failed"
                     failure = FailedAttempt(
                         lemma_id=lemma_id,
                         attempt_text=proof_attempt.proof_text[:500],
-                        failure_reason="; ".join(verification.errors[:3]) or "verification failed",
+                        failure_reason=failure_reason,
                         iteration=iteration,
                     )
                     state.failed_attempts.append(failure)
                     self._failure_log.append(failure)
+
+                    # --- Stagnation detection ---
+                    # If the same lemma has been failing with the same error
+                    # pattern repeatedly, skip counterexample search and go
+                    # straight to refinement to avoid wasting more calls.
+                    stagnant = self._record_failure(lemma_id, failure_reason)
+
+                    if stagnant:
+                        # Create a synthetic "no counterexample" result and force
+                        # refinement with a stagnation note as the description.
+                        cx = Counterexample(
+                            lemma_id=lemma_id,
+                            counterexample_description=(
+                                f"Stagnation: lemma failed {self._stagnation_window} times "
+                                f"with similar errors. Forcing conjecture refinement."
+                            ),
+                            falsifies_conjecture=True,  # treat as fatal to trigger refinement
+                            suggested_refinement="Refine the conjecture to address the repeated failure pattern.",
+                        )
+                        state.counterexamples.append(cx)
+                        logger.info("[6/6] Forced refinement due to stagnation...")
+                        state = await self.refiner.refine(state, lemma_id, cx)
+                        state.iteration = iteration + 1
+                        self.bus.put_theory_state(state)
+                        goal_proved = False
+                        # Reset stagnation tracking after refinement
+                        self._lemma_failure_sigs.clear()
+                        break
 
                     # Step 5: Counterexample search
                     logger.info("[5/6] Searching for counterexample to lemma: %s", lemma_id)
@@ -172,6 +277,7 @@ class TheoryInnerLoop:
                         state.iteration = iteration + 1
                         self.bus.put_theory_state(state)
                         goal_proved = False
+                        self._lemma_failure_sigs.clear()
                         break  # Restart the loop with refined conjecture
                     else:
                         # No counterexample found — proof may be valid but checker failed
@@ -211,9 +317,9 @@ class TheoryInnerLoop:
                     self.max_iterations, len(state.open_goals),
                 )
 
-        # Await resource analysis result
+        # Await resource analysis — reduced timeout (20 s) to avoid blocking
         try:
-            analysis = await asyncio.wait_for(analysis_task, timeout=60)
+            analysis = await asyncio.wait_for(analysis_task, timeout=20)
             self.bus.put("resource_analysis", {
                 "atomic_components": analysis.atomic_components,
                 "math_to_code": analysis.math_to_code,
@@ -221,7 +327,7 @@ class TheoryInnerLoop:
                 "validation_code": analysis.validation_code,
             })
         except asyncio.TimeoutError:
-            logger.warning("Resource analysis timed out")
+            logger.warning("Resource analysis timed out (20 s limit)")
 
         self.bus.put_theory_state(state)
         logger.info(

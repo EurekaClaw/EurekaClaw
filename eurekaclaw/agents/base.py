@@ -20,6 +20,17 @@ from eurekaclaw.types.tasks import Task
 
 logger = logging.getLogger(__name__)
 
+_COMPRESS_SYSTEM = (
+    "You are a research assistant summarising the progress of an ongoing task. "
+    "Produce a concise bullet-point summary (≤8 bullets) that captures: "
+    "(1) the original goal, "
+    "(2) every important finding or tool result so far, "
+    "(3) any decisions already made, "
+    "(4) what remains to be done. "
+    "Preserve all numbers, citations, and key facts verbatim. "
+    "Be brief — this summary replaces a long tool-call history."
+)
+
 
 class BaseAgent(ABC):
     """All specialized agents inherit from this.
@@ -29,6 +40,7 @@ class BaseAgent(ABC):
     - Tool-use loop with automatic dispatch
     - Skill injection into system prompt
     - Session-based context management
+    - Periodic context compression to keep the window manageable
     - Retry with exponential backoff
     """
 
@@ -79,7 +91,19 @@ class BaseAgent(ABC):
         initial_user_message: str,
         max_turns: int = 20,
     ) -> tuple[str, dict[str, int]]:
-        """Run the full agent loop with tool-use until the model stops."""
+        """Run the full agent loop with tool-use until the model stops.
+
+        Context compression (inspired by OpenClaw /compact + ScienceClaw smart
+        compaction) is triggered every ``context_compress_after_turns`` turns.
+        The fast model summarises the accumulated history into a short bullet
+        list, which replaces the raw tool-call exchanges.  This dramatically
+        reduces input tokens for long-running agents while preserving all key
+        findings.
+        """
+        from eurekaclaw.config import settings
+
+        compress_every = settings.context_compress_after_turns  # 0 = disabled
+
         system = self.build_system_prompt(task)
         tools = self.tool_registry.definitions_for(self.get_tool_names())
         self.session.clear()
@@ -89,6 +113,20 @@ class BaseAgent(ABC):
         final_text = ""
 
         for turn in range(max_turns):
+            # --- Periodic context compression ---
+            if (
+                compress_every > 0
+                and turn > 0
+                and turn % compress_every == 0
+                and len(self.session) > compress_every
+            ):
+                summary = await self._compress_history()
+                self.session.compress_to_summary(initial_user_message, summary)
+                logger.debug(
+                    "[%s] Context compressed at turn %d (session → 1 message)",
+                    self.role.value, turn,
+                )
+
             response = await self._call_model(
                 system=system,
                 messages=self.session.get_messages(),
@@ -153,6 +191,60 @@ class BaseAgent(ABC):
             self.session.trim_to_fit()
 
         return final_text, total_tokens
+
+    async def _compress_history(self) -> str:
+        """Use the fast model to summarise the current conversation history.
+
+        Renders the last 12 messages into a plain-text transcript and asks the
+        fast model for a concise bullet-point progress summary.  Falls back to
+        a simple concatenation of assistant turns if the LLM call fails.
+        """
+        from eurekaclaw.config import settings
+
+        msgs = self.session.get_messages()
+        # Render a compact text version of the recent history
+        lines: list[str] = []
+        for m in msgs[-12:]:
+            role = m["role"].upper()
+            content = m["content"]
+            if isinstance(content, list):
+                # Tool use / tool result blocks — extract readable text
+                parts = []
+                for block in content:
+                    if isinstance(block, dict):
+                        if block.get("type") == "text":
+                            parts.append(block.get("text", "")[:300])
+                        elif block.get("type") == "tool_use":
+                            parts.append(f"[tool:{block.get('name')}({str(block.get('input', ''))[:150]})]")
+                        elif block.get("type") == "tool_result":
+                            parts.append(f"[result:{str(block.get('content', ''))[:300]}]")
+                content_str = " ".join(parts)
+            else:
+                content_str = str(content)[:600]
+            lines.append(f"{role}: {content_str}")
+
+        history_text = "\n".join(lines)
+
+        try:
+            response = await self.client.messages.create(
+                model=settings.fast_model,
+                max_tokens=512,
+                system=_COMPRESS_SYSTEM,
+                messages=[{
+                    "role": "user",
+                    "content": f"Conversation so far:\n{history_text}\n\nWrite the progress summary now.",
+                }],
+            )
+            return response.content[0].text
+        except Exception as e:
+            logger.warning("Context compression LLM call failed (%s) — using fallback", e)
+            # Fallback: concatenate the last few assistant text turns
+            summaries = [
+                str(m["content"])[:200]
+                for m in msgs
+                if m["role"] == "assistant" and isinstance(m["content"], str)
+            ]
+            return "Previous findings: " + " | ".join(summaries[-3:])
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=1, max=30))
     async def _call_model(
