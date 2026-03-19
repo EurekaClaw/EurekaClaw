@@ -39,6 +39,7 @@ def _compute_cite_keys(papers: list) -> list[str]:
 LATEX_PREAMBLE = r"""\nonstopmode
 \documentclass[12pt]{article}
 \usepackage{amsmath, amssymb, amsthm}
+\usepackage{xcolor}
 \usepackage{hyperref}
 \usepackage{natbib}
 \usepackage{geometry}
@@ -74,6 +75,23 @@ LATEX_END = r"""
 \bibliographystyle{plainnat}
 \bibliography{references}
 \end{document}
+"""
+
+_PROOF_STYLE_RULES = """\
+
+PROOF WRITING RULES (strictly enforced):
+- Every lemma proof MUST begin with 1-2 sentences of informal intuition before the formal argument.
+  Example: "Intuitively, this holds because UCB's confidence bonus shrinks faster than the gap Δ_i grows."
+- NEVER write "it is easy to see", "clearly", "by standard arguments", "it follows that",
+  "trivially", or "one can show" without immediately justifying the claim in the next sentence.
+- Every inequality must explicitly cite which lemma, theorem, or named bound justifies it.
+  Bad:  "...therefore E[N_i(T)] ≤ 8 log T / Δ_i²"
+  Good: "...by Lemma 3 (Hoeffding concentration) applied with δ = t^{-2}, we get E[N_i(T)] ≤ 8 log T / Δ_i²"
+- If a step requires a calculation that takes more than one line, write it out inline — do not skip it.
+- LOW-CONFIDENCE LEMMAS: any lemma marked [LOW CONFIDENCE] in the input has NOT been formally
+  verified. You MUST add a \\textcolor{orange}{\\textbf{[Unverified step — see discussion]}} tag
+  immediately after its \\end{proof}, and add a paragraph in the Limitations section explaining
+  which steps lack formal verification and why they are believed to hold.
 """
 
 _LATEX_SYSTEM_PROMPT = """\
@@ -112,6 +130,11 @@ Use $...$ for inline math and $$...$$ for display math (LaTeX-style math is fine
 Make the paper self-contained — a reader should understand it without other references.
 """
 
+_PROOF_STYLE_RULES_MARKDOWN = _PROOF_STYLE_RULES.replace(
+    "\\textcolor{orange}{\\textbf{[Unverified step — see discussion]}}",
+    "**⚠ [Unverified step — see discussion]**",
+)
+
 
 class WriterAgent(BaseAgent):
     """Generates a complete paper (LaTeX or Markdown) from all knowledge bus artifacts."""
@@ -123,8 +146,10 @@ class WriterAgent(BaseAgent):
 
     def _role_system_prompt(self, task: Task) -> str:
         if settings.output_format == "markdown":
-            return _MARKDOWN_SYSTEM_PROMPT
-        return _LATEX_SYSTEM_PROMPT
+            base = _MARKDOWN_SYSTEM_PROMPT
+            return base + _PROOF_STYLE_RULES_MARKDOWN if settings.enforce_proof_style else base
+        base = _LATEX_SYSTEM_PROMPT
+        return base + _PROOF_STYLE_RULES if settings.enforce_proof_style else base
 
     async def execute(self, task: Task) -> AgentResult:
         brief = self.bus.get_research_brief()
@@ -139,25 +164,29 @@ class WriterAgent(BaseAgent):
         title = direction.title if direction else f"Results in {brief.domain}"
         fmt = settings.output_format
 
-        # Build context for the writer
+        # Build context for the writer, tagging low-confidence lemmas explicitly
+        lemma_entries = [
+            (theory_state.lemma_dag.get(lid), rec, lid)
+            for lid, rec in theory_state.proven_lemmas.items()
+            if theory_state.lemma_dag.get(lid)
+        ]
         if fmt == "markdown":
             proven_proofs = "\n\n".join(
-                f"**Lemma**: {node.statement}\n\n**Proof**: {rec.proof_text[:1500]}"
-                for node, rec in [
-                    (theory_state.lemma_dag.get(lid), rec)
-                    for lid, rec in theory_state.proven_lemmas.items()
-                    if theory_state.lemma_dag.get(lid)
-                ]
+                (
+                    f"**Lemma** [{lid}]{' [LOW CONFIDENCE — not formally verified]' if not rec.verified else ''}:"
+                    f" {node.statement}\n\n**Proof**: {rec.proof_text[:1500]}"
+                )
+                for node, rec, lid in lemma_entries
                 if node is not None
             )
         else:
             proven_proofs = "\n\n".join(
-                f"\\begin{{lemma}}\n{node.statement}\n\\end{{lemma}}\n\\begin{{proof}}\n{rec.proof_text[:1500]}\n\\end{{proof}}"
-                for node, rec in [
-                    (theory_state.lemma_dag.get(lid), rec)
-                    for lid, rec in theory_state.proven_lemmas.items()
-                    if theory_state.lemma_dag.get(lid)
-                ]
+                (
+                    f"% {'[LOW CONFIDENCE — not formally verified]' if not rec.verified else '[verified]'}\n"
+                    f"\\begin{{lemma}}[{lid}]\n{node.statement}\n\\end{{lemma}}\n"
+                    f"\\begin{{proof}}\n{rec.proof_text[:1500]}\n\\end{{proof}}"
+                )
+                for node, rec, lid in lemma_entries
                 if node is not None
             )
 
@@ -208,6 +237,7 @@ Use **Theorem X**: and **Proof**: for formal results.
 Use $...$ for inline math and $$...$$ for display math.
 """
         else:
+            _no_refs = "(no references — omit \\bibliography and \\bibliographystyle commands)"
             user_message = f"""\
 Write a complete LaTeX research paper based on these artifacts:
 
@@ -223,7 +253,7 @@ Experimental results:
 {exp_summary or "(no experiments run)"}
 
 Key references to cite (use EXACTLY these \\cite{{}} keys — they match the references.bib file):
-{citations or "(no references — omit \\bibliography and \\bibliographystyle commands)"}
+{citations or _no_refs}
 
 Write the full paper body (abstract through conclusion) in LaTeX.
 Use \\begin{{theorem}}...\\end{{theorem}} environments.
@@ -231,7 +261,9 @@ Include all proofs using \\begin{{proof}}...\\end{{proof}}.
 """
 
         try:
-            text, tokens = await self.run_agent_loop(task, user_message, max_turns=3)
+            text, tokens = await self.run_agent_loop(
+                task, user_message, max_turns=settings.writer_max_turns
+            )
 
             if fmt == "markdown":
                 paper_content = self._extract_markdown(text)
@@ -282,8 +314,11 @@ Include all proofs using \\begin{{proof}}...\\end{{proof}}.
         #    (everything between \begin{document} and \end{document})
         if r"\begin{document}" in text:
             text = text[text.index(r"\begin{document}") + len(r"\begin{document}"):]
+
+        # Step 3: strip \end{document} and everything after
         if r"\end{document}" in text:
             text = text[:text.rindex(r"\end{document}")]
+
 
         # 3. Strip preamble-style lines that may appear before or after
         #    \begin{document} when the LLM writes a full or partial document.

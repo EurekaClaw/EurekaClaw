@@ -95,6 +95,10 @@ class LemmaNode(BaseModel):
     statement: str         # formal statement
     informal: str = ""     # human-readable version
     dependencies: list[str] = Field(default_factory=list)  # other lemma IDs this needs
+    # Set by inner_loop after verification
+    verified: bool | None = None          # None = not yet attempted
+    confidence_score: float | None = None # 0.0–1.0; None = not yet attempted
+    verification_method: str | None = None
 
 
 class ProofRecord(BaseModel):

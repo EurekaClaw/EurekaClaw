@@ -20,7 +20,7 @@ from eurekaclaw.knowledge_bus.bus import KnowledgeBus
 from eurekaclaw.llm import LLMClient, create_client
 from eurekaclaw.learning.loop import ContinualLearningLoop
 from eurekaclaw.memory.manager import MemoryManager
-from eurekaclaw.orchestrator.gate import GateController
+from eurekaclaw.orchestrator.gate import GateController, get_user_feedback
 from eurekaclaw.orchestrator.pipeline import PipelineManager
 from eurekaclaw.orchestrator.planner import DivergentConvergentPlanner
 from eurekaclaw.orchestrator.router import TaskRouter
@@ -137,6 +137,18 @@ class MetaOrchestrator:
                 task.mark_completed()
                 continue
 
+            # Inject user feedback from the preceding gate into this task
+            _gate_name = f"{task.name}_gate" if not task.name.endswith("_gate") else task.name
+            _prev_gates = {
+                "theory": "direction_selection_gate",
+                "experiment": "theory_review_gate",
+                "writer": "final_review_gate",
+            }
+            _feedback = get_user_feedback(_prev_gates.get(task.name, _gate_name))
+            if _feedback:
+                task.description = (task.description or "") + f"\n\n[User guidance]: {_feedback}"
+                console.print(f"[dim]  ↳ User feedback injected: {_feedback[:80]}[/dim]")
+
             task.mark_started()
             console.print(f"[blue]▶ Running: {task.name}[/blue]")
 
@@ -168,6 +180,9 @@ class MetaOrchestrator:
                 console.print(f"[green]✓ Done: {task.name}[/green]")
                 if result.text_summary:
                     console.print(f"  {result.text_summary}")
+
+                # Always-on summary card — visible regardless of gate_mode
+                self.gate.print_stage_summary(task.name)
 
             self.bus.put_pipeline(pipeline)
 
