@@ -1,4 +1,4 @@
-"""ContinualLearningLoop — MetaClaw-style cross-run improvement.
+"""ContinualLearningLoop: cross-run improvement.
 
 Three modes:
 - skills_only: skill distillation only (default, no GPU needed)
@@ -30,7 +30,7 @@ _MIN_NOVEL_FAILURES = 2
 def _deduplicate_failures(failures: list[FailedAttempt]) -> list[FailedAttempt]:
     """Return only unique failure instances (by lemma_id + first 80 chars of reason).
 
-    MetaClaw / ScienceClaw pattern: pass only novel signal to the skill
+    EurekaClaw / ScienceClaw pattern: pass only novel signal to the skill
     evolver rather than every raw failure.  Repetitive failures with the same
     reason add no new information and waste evolver tokens.
     """
@@ -92,7 +92,7 @@ class ContinualLearningLoop:
         raw_failures: list[FailedAttempt] = theory_state.failed_attempts if theory_state else []
         raw_successes: list[ProofRecord] = list(theory_state.proven_lemmas.values()) if theory_state else []
 
-        # --- Deduplicate failures (MetaClaw pattern: only novel signal) ---
+        # --- Deduplicate failures (EurekaClaw pattern: only novel signal) ---
         failures = _deduplicate_failures(raw_failures)
         novel_count = len(failures)
         if novel_count < len(raw_failures):

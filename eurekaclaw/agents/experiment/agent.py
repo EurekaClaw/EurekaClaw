@@ -203,10 +203,36 @@ Requirements:
         validation_code_hint = resource_analysis.get("validation_code", "")
         math_to_code = resource_analysis.get("math_to_code", {})
 
+        # Separate verified vs low-confidence lemmas
+        verified_lemmas = {
+            lid: rec for lid, rec in theory_state.proven_lemmas.items() if rec.verified
+        }
+        low_conf_lemmas = {
+            lid: rec for lid, rec in theory_state.proven_lemmas.items() if not rec.verified
+        }
+
         proven_summary = "\n".join(
-            f"[{lid}] {rec.proof_text[:300]}"
-            for lid, rec in list(theory_state.proven_lemmas.items())[:3]
+            f"[{lid}] {'[VERIFIED]' if rec.verified else '[LOW CONFIDENCE]'} {rec.proof_text[:300]}"
+            for lid, rec in list(theory_state.proven_lemmas.items())[:5]
         )
+
+        # Build targeted checks for low-confidence lemmas
+        low_conf_section = ""
+        if low_conf_lemmas:
+            items = []
+            for lid, rec in low_conf_lemmas.items():
+                node = theory_state.lemma_dag.get(lid)
+                stmt = node.statement[:200] if node else lid
+                items.append(f"  - [{lid}]: {stmt}")
+            low_conf_section = (
+                f"\nLOW-CONFIDENCE LEMMAS (not formally verified — MUST test numerically):\n"
+                + "\n".join(items)
+                + "\n\nFor each low-confidence lemma, write a dedicated numerical test that:\n"
+                "  1. Samples random instances where the lemma's hypothesis holds\n"
+                "  2. Checks whether the lemma's conclusion holds in each instance\n"
+                "  3. Reports a violation rate (0.0 = never violated = good)\n"
+                "  4. Flags the lemma as 'numerically_suspect' if violation_rate > 0.01\n"
+            )
 
         user_message = f"""\
 Validate the following proven theorems experimentally:
@@ -217,7 +243,7 @@ Informal: {theory_state.informal_statement}
 
 Proven lemmas summary:
 {proven_summary or "(no proven lemmas yet)"}
-
+{low_conf_section}
 Math-to-code hints:
 {json.dumps(math_to_code, indent=2)[:500] if math_to_code else "(none)"}
 
@@ -227,11 +253,11 @@ Validation code hint:
 Please:
 1. Write Python code that empirically measures the key quantities
 2. Execute it using the execute_python tool
-3. Compare the theoretical bounds against empirical measurements
-4. Report alignment scores for each bound
+3. For each LOW-CONFIDENCE lemma, run the dedicated numerical test described above
+4. Compare theoretical bounds against empirical measurements
+5. Report alignment scores for each bound
 
-After executing, summarize the results as JSON with this exact schema
-(theoretical and empirical MUST be numbers — use null if unavailable):
+After executing, summarize the results as JSON:
 {{
   "bounds": [
     {{
@@ -239,6 +265,14 @@ After executing, summarize the results as JSON with this exact schema
       "theoretical": 1.23,
       "empirical": 1.05,
       "aligned": true
+    }}
+  ],
+  "lemma_checks": [
+    {{
+      "lemma_id": "hoeffding_concentration",
+      "violation_rate": 0.0,
+      "n_trials": 1000,
+      "numerically_suspect": false
     }}
   ],
   "alignment_score": 0.85,
@@ -264,12 +298,25 @@ After executing, summarize the results as JSON with this exact schema
             alignment_score = _to_float(result_data.get("alignment_score", 0.0))
             succeeded = alignment_score > 0
 
+            # Flag any lemma that failed numerical testing back onto theory_state
+            lemma_checks = result_data.get("lemma_checks", [])
+            suspect_lemmas = [
+                c["lemma_id"] for c in lemma_checks
+                if c.get("numerically_suspect") and c.get("lemma_id")
+            ]
+            if suspect_lemmas:
+                logger.warning(
+                    "Numerically suspect lemmas (violation_rate > 1%%): %s", suspect_lemmas
+                )
+                # Store on bus so gate + writer can surface the warning
+                self.bus.put("numerically_suspect_lemmas", suspect_lemmas)
+
             exp_result = ExperimentResult(
                 session_id=theory_state.session_id,
                 experiment_id=str(uuid.uuid4()),
                 description=result_data.get("summary", ""),
                 code=result_data.get("code", ""),
-                outputs=result_data.get("outputs", {}),
+                outputs={**result_data.get("outputs", {}), "lemma_checks": lemma_checks},
                 bounds=bounds,
                 alignment_score=alignment_score,
                 succeeded=succeeded,
