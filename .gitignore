@@ -1,8 +1,13 @@
 results/
 .env
 .claude/__pycache__/
+__pycache__/
 *.pyc
 *.pyo
 .pytest_cache/
+.mypy_cache/
+.DS_Store
+.venv/
+.eurekaclaw-ui/
 dist/
 *.egg-info/

@@ -163,6 +163,30 @@ def install_skills(force: bool) -> None:
         console.print(f"[dim]Skipped {skipped} already-installed skills (use --force to overwrite)[/dim]")
 
 
+@main.command()
+@click.option("--host", default="127.0.0.1", help="Host to bind the UI server to.")
+@click.option("--port", default=8080, type=int, help="Port to bind the UI server to.")
+@click.option("--open-browser/--no-open-browser", default=False, help="Open the UI in the default browser.")
+def ui(host: str, port: int, open_browser: bool) -> None:
+    """Launch the EurekaClaw browser UI."""
+    import threading
+    import time
+    import webbrowser
+
+    from eurekaclaw.ui.server import serve_ui
+
+    console.print(f"[green]Starting EurekaClaw UI on http://{host}:{port}[/green]")
+
+    if open_browser:
+        def _open() -> None:
+            time.sleep(1.0)
+            webbrowser.open(f"http://{host}:{port}/")
+
+        threading.Thread(target=_open, daemon=True).start()
+
+    serve_ui(host=host, port=port)
+
+
 def _compile_pdf(tex_path: Path) -> None:
     """Run pdflatex twice on tex_path to resolve cross-references."""
     import subprocess

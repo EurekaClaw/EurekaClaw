@@ -159,7 +159,12 @@ class MetaOrchestrator:
                     if result.failed:
                         task.mark_failed(result.error)
             else:
-                task.mark_completed(result.output)
+                task_outputs = dict(result.output)
+                if result.text_summary:
+                    task_outputs["text_summary"] = result.text_summary
+                if result.token_usage:
+                    task_outputs["token_usage"] = result.token_usage
+                task.mark_completed(task_outputs)
                 console.print(f"[green]✓ Done: {task.name}[/green]")
                 if result.text_summary:
                     console.print(f"  {result.text_summary}")
@@ -187,6 +192,7 @@ class MetaOrchestrator:
             domain=spec.domain or "general mathematics",
             query=spec.query or spec.conjecture or spec.domain,
             conjecture=spec.conjecture,
+            selected_skills=spec.selected_skills,
             reference_paper_ids=spec.paper_ids,
         )
 

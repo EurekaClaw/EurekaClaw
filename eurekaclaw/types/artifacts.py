@@ -75,6 +75,7 @@ class ResearchBrief(BaseModel):
     domain: str
     query: str
     conjecture: str | None = None
+    selected_skills: list[str] = Field(default_factory=list)
     reference_paper_ids: list[str] = Field(default_factory=list)
     open_problems: list[str] = Field(default_factory=list)
     key_mathematical_objects: list[str] = Field(default_factory=list)
