@@ -306,13 +306,30 @@ Include all proofs using \\begin{{proof}}...\\end{{proof}}.
 
             if fmt == "markdown":
                 paper_content = self._extract_markdown(text)
+                # If the extracted content is clearly not the paper (LLM spent
+                # all turns on tool calls), request the actual paper body now.
+                if not self._looks_like_paper_markdown(paper_content):
+                    logger.warning("WriterAgent: loop produced no Markdown body — requesting paper now")
+                    text, extra = await self._request_paper_body(task, user_message, fmt)
+                    tokens["input"] += extra.get("input", 0)
+                    tokens["output"] += extra.get("output", 0)
+                    paper_content = self._extract_markdown(text)
                 output_key = "latex_paper"  # reuse existing key for compatibility
             else:
+                latex_body = self._extract_latex(text)
+                # If the body doesn't look like a real paper (LLM used all turns
+                # on citation_manager calls and never wrote the paper), make one
+                # explicit follow-up call with no tools to generate the content.
+                if not self._looks_like_paper_latex(latex_body):
+                    logger.warning("WriterAgent: loop produced no LaTeX body — requesting paper now")
+                    text, extra = await self._request_paper_body(task, user_message, fmt)
+                    tokens["input"] += extra.get("input", 0)
+                    tokens["output"] += extra.get("output", 0)
+                    latex_body = self._extract_latex(text)
                 abstract_text = self._extract_abstract(text) or (
                     f"We present theoretical results in {brief.domain}. "
                     f"Our main contribution is: {theory_state.informal_statement[:200]}"
                 )
-                latex_body = self._extract_latex(text)
                 inline_bib = self._generate_thebibliography(bib.papers if bib else [])
                 paper_content = (
                     LATEX_PREAMBLE % (
@@ -538,6 +555,67 @@ Include all proofs using \\begin{{proof}}...\\end{{proof}}.
         for char, escaped in replacements:
             s = s.replace(char, escaped)
         return s
+
+    @staticmethod
+    def _looks_like_paper_latex(body: str) -> bool:
+        """Return True if *body* contains real paper structure, not just a planning sentence."""
+        markers = (r"\section", r"\begin{theorem}", r"\begin{proof}",
+                   r"\begin{lemma}", r"\begin{abstract}", r"\maketitle")
+        return any(m in body for m in markers)
+
+    @staticmethod
+    def _looks_like_paper_markdown(body: str) -> bool:
+        """Return True if *body* contains real Markdown paper structure."""
+        markers = ("## ", "**Theorem", "**Lemma", "**Proof", "# Introduction")
+        return any(m in body for m in markers)
+
+    async def _request_paper_body(
+        self, task: "Task", original_user_message: str, fmt: str
+    ) -> tuple[str, dict[str, int]]:
+        """Make one final LLM call (no tools) to generate the actual paper body.
+
+        Called when run_agent_loop exhausted its turns doing tool calls and
+        never produced the paper content.  The session history already contains
+        the citation tool results, so we append a follow-up user turn asking
+        the LLM to write the paper now.
+        """
+        from eurekaclaw.config import settings
+
+        follow_up = (
+            "You have now gathered all the citation data you need. "
+            "Write the COMPLETE paper body now — do not call any more tools. "
+        )
+        if fmt == "markdown":
+            follow_up += (
+                "Output the full Markdown document starting with the YAML front matter "
+                "block (---) followed by all sections (## Abstract, ## Introduction, "
+                "## Preliminaries, ## Main Results, ## Experiments, ## Related Work, "
+                "## Conclusion)."
+            )
+        else:
+            follow_up += (
+                "Output the full LaTeX paper body (from \\section{Introduction} through "
+                "\\section{Conclusion}) inside a ```latex code fence. "
+                "Include all theorem environments, proofs, and \\cite{} references."
+            )
+
+        # Append the follow-up to the existing session so the LLM has the tool
+        # results in context, then call without tools.
+        self.session.add_user(follow_up)
+        system = self.build_system_prompt(task)
+        response = await self._call_model(
+            system=system,
+            messages=self.session.get_messages(),
+            tools=None,  # no tools — force a text response
+            max_tokens=settings.max_tokens_agent,
+        )
+        text_parts = [b.text for b in response.content if b.type == "text"]
+        text = " ".join(text_parts)
+        usage = {"input": 0, "output": 0}
+        if response.usage:
+            usage["input"] = response.usage.input_tokens
+            usage["output"] = response.usage.output_tokens
+        return text, usage
 
     def _extract_markdown(self, text: str) -> str:
         """Extract Markdown content, removing code fences if present."""

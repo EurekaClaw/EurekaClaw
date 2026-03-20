@@ -1,13 +1,25 @@
 ---
+agent_roles:
+- writer
+created_at: '2026-03-20T06:30:46.018424'
+description: 'Enforce rigorous proof writing: no skipped logical steps, and every
+  theorem or lemma must either be cited to the literature or proved in full.'
 name: rigorous_proof_citation_discipline
-version: "1.0"
-tags: [writing, proof, rigor, theorem, lemma, citation, latex, paper]
-agent_roles: [writer]
-pipeline_stages: [writing]
-description: "Enforce rigorous proof writing: no skipped logical steps, and every theorem or lemma must either be cited to the literature or proved in full."
+pipeline_stages:
+- writing
 source: seed
-usage_count: 0
-success_rate: null
+success_rate: 1.0
+tags:
+- writing
+- proof
+- rigor
+- theorem
+- lemma
+- citation
+- latex
+- paper
+usage_count: 2
+version: '1.0'
 ---
 
 # Rigorous Proof and Citation Discipline
