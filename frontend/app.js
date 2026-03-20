@@ -32,9 +32,7 @@ const skillSelectedEl = document.getElementById("skill-selected");
 const skillListEl = document.getElementById("skill-list");
 const skillMetaEl = document.getElementById("skill-meta");
 const skillPaginationEl = document.getElementById("skill-pagination");
-const sidebarModeEl = document.getElementById("sidebar-mode");
-const sidebarStageEl = document.getElementById("sidebar-stage");
-const sidebarArtifactsEl = document.getElementById("sidebar-artifacts");
+const sessionListEl = document.getElementById("session-list");
 const artifactDrawerEl = document.getElementById("artifact-drawer");
 const artifactDrawerBackdropEl = document.getElementById("artifact-drawer-backdrop");
 const artifactDrawerTitleEl = document.getElementById("artifact-drawer-title");
@@ -54,6 +52,7 @@ let pollTimer = null;
 let latestArtifacts = null;
 let availableSkills = [];
 let selectedSkills = [];
+let allSessions = [];
 let currentSkillPage = 1;
 const skillsPerPage = 4;
 let currentLogPage = 1;
@@ -66,6 +65,20 @@ function showView(viewName) {
 
   navItems.forEach((item) => {
     item.classList.toggle("is-active", item.dataset.viewTarget === viewName);
+  });
+}
+
+function flashTransitionTo(viewName) {
+  const overlay = document.getElementById("flash-overlay");
+  overlay.classList.remove("flash-in", "flash-out");
+  requestAnimationFrame(() => {
+    overlay.classList.add("flash-in");
+    setTimeout(() => {
+      showView(viewName);
+      overlay.classList.remove("flash-in");
+      overlay.classList.add("flash-out");
+      setTimeout(() => overlay.classList.remove("flash-out"), 380);
+    }, 90);
   });
 }
 
@@ -242,24 +255,6 @@ function escapeHtml(value) {
     .replaceAll("'", "&#39;");
 }
 
-function normalizePathForDisplay(value) {
-  if (!value || typeof value !== "string") {
-    return value;
-  }
-  const homePrefixes = [
-    "/Users/",
-    "/home/"
-  ];
-  if (value.endsWith("/.metaclaw")) {
-    for (const prefix of homePrefixes) {
-      if (value.startsWith(prefix)) {
-        return "~/.metaclaw";
-      }
-    }
-  }
-  return value;
-}
-
 function titleCase(text) {
   return text
     .split("_")
@@ -287,6 +282,49 @@ function formatLocalTimestamp(value) {
     hour: "numeric",
     minute: "2-digit"
   });
+}
+
+function formatRelativeTime(value) {
+  const parsed = parseServerTimestamp(value);
+  if (!parsed) return "--";
+  const diffMin = Math.floor((Date.now() - parsed.getTime()) / 60000);
+  if (diffMin < 1) return "Just now";
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `${diffHr}h ago`;
+  return `${Math.floor(diffHr / 24)}d ago`;
+}
+
+function renderSessionList(sessions) {
+  allSessions = sessions;
+  if (!sessions.length) {
+    sessionListEl.innerHTML = '<p class="session-list-empty">No sessions yet.<br>Launch one to get started.</p>';
+    return;
+  }
+  sessionListEl.innerHTML = sessions.map((s) => {
+    const prompt = s.input_spec?.query || s.input_spec?.domain || "Untitled session";
+    const domain = s.input_spec?.domain || "";
+    const status = s.status || "queued";
+    const time = formatRelativeTime(s.created_at);
+    const isActive = s.run_id === currentRunId;
+    return `<div class="session-item${isActive ? " is-active" : ""}" data-run-id="${escapeHtml(s.run_id)}">
+      <div class="session-item-prompt">${escapeHtml(prompt)}</div>
+      <div class="session-item-meta">
+        <span class="session-status-dot ${status}"></span>
+        <span>${time}</span>
+        ${domain ? `<span>·</span><span>${escapeHtml(domain)}</span>` : ""}
+      </div>
+    </div>`;
+  }).join("");
+}
+
+async function loadSessionList() {
+  try {
+    const data = await apiGet("/api/runs");
+    renderSessionList(data.runs || []);
+  } catch (_) {
+    // Silently fail — don't disrupt the main UX
+  }
 }
 
 function statusClass(status) {
@@ -545,10 +583,16 @@ function renderOutput(run) {
   `;
 }
 
-function updateSidebar(run, tasks) {
-  sidebarModeEl.textContent = run?.input_spec?.mode ? titleCase(run.input_spec.mode) : "Not started";
-  const activeTask = (tasks || []).find((task) => task.status === "in_progress");
-  sidebarStageEl.textContent = activeTask ? titleCase(activeTask.name) : titleCase(run?.status || "idle");
+function updateSidebar(run) {
+  if (!run) return;
+  // Update the status dot for this session in the sidebar list
+  const item = sessionListEl.querySelector(`[data-run-id="${run.run_id}"]`);
+  if (!item) return;
+  const dot = item.querySelector(".session-status-dot");
+  if (dot) dot.className = `session-status-dot ${run.status}`;
+  sessionListEl.querySelectorAll(".session-item").forEach((el) => {
+    el.classList.toggle("is-active", el.dataset.runId === currentRunId);
+  });
 }
 
 async function apiGet(path) {
@@ -746,7 +790,7 @@ ccproxy auth status claude_api</pre>
         project OAuth dependencies.
       </p>
     `;
-    authGuidanceToggleEl.querySelector(".auth-guidance-toggle-label").textContent = title;
+    const _tl = authGuidanceToggleEl.querySelector(".auth-guidance-toggle-label"); if (_tl) _tl.textContent = title;
     return;
   }
 
@@ -781,7 +825,7 @@ ccproxy auth status claude_api</pre>
         </div>
       </div>
     `;
-    authGuidanceToggleEl.querySelector(".auth-guidance-toggle-label").textContent = title;
+    const _tl = authGuidanceToggleEl.querySelector(".auth-guidance-toggle-label"); if (_tl) _tl.textContent = title;
     return;
   }
 
@@ -815,7 +859,8 @@ ccproxy auth status claude_api</pre>
       </div>
     </div>
   `;
-  authGuidanceToggleEl.querySelector(".auth-guidance-toggle-label").textContent = title;
+  const _tl = authGuidanceToggleEl.querySelector(".auth-guidance-toggle-label");
+  if (_tl) _tl.textContent = title;
 }
 
 function normalizeInputSpec() {
@@ -895,7 +940,10 @@ async function loadConfig() {
     Object.entries(data.config).forEach(([key, value]) => {
       const field = configFormEl.elements.namedItem(key);
       if (field) {
-        field.value = key === "metaclaw_dir" ? normalizePathForDisplay(value ?? "") : (value ?? "");
+        field.value = value ?? "";
+        // Sync slider display label if present
+        const label = document.getElementById(`${key}-val`);
+        if (label) label.textContent = value ?? "";
       }
     });
     updateConfigVisibility();
@@ -913,7 +961,7 @@ function renderRun(run) {
   renderLogs(run, tasks);
   renderOutput(run);
   renderTokenUsage(tasks);
-  updateSidebar(run, tasks);
+  updateSidebar(run);
   if (run) {
     setRunStatus(run.status, `Run ${run.run_id.slice(0, 8)} is ${run.status}.`);
   } else {
@@ -1073,6 +1121,7 @@ async function refreshRun(runId) {
 async function loadMostRecentRun() {
   try {
     const data = await apiGet("/api/runs");
+    renderSessionList(data.runs || []);
     const latest = data.runs[0];
     if (latest) {
       currentRunId = latest.run_id;
@@ -1093,6 +1142,7 @@ launchSessionBtn.addEventListener("click", async () => {
     const run = await apiPost("/api/runs", normalizeInputSpec());
     currentRunId = run.run_id;
     currentLogPage = 1;
+    renderSessionList([run, ...allSessions]);
     renderRun(run);
     showView("workspace");
 
@@ -1166,12 +1216,44 @@ logPaginationEl.addEventListener("click", (event) => {
   const action = target.getAttribute("data-log-page");
   if (action === "prev" && currentLogPage > 1) {
     currentLogPage -= 1;
-    refreshRun(currentRunId);
+    if (currentRunId) refreshRun(currentRunId);
   }
   if (action === "next") {
     currentLogPage += 1;
-    refreshRun(currentRunId);
+    if (currentRunId) refreshRun(currentRunId);
   }
+});
+
+document.getElementById("new-session-btn").addEventListener("click", () => {
+  if (pollTimer) {
+    clearInterval(pollTimer);
+    pollTimer = null;
+  }
+  currentRunId = null;
+  currentLogPage = 1;
+  renderRun(null);
+  renderSessionList(allSessions);
+  showView("workspace");
+  inputPromptEl.focus();
+});
+
+sessionListEl.addEventListener("click", (event) => {
+  const item = event.target.closest(".session-item");
+  if (!item) return;
+  const runId = item.dataset.runId;
+  if (!runId || runId === currentRunId) return;
+
+  if (pollTimer) {
+    clearInterval(pollTimer);
+    pollTimer = null;
+  }
+  currentRunId = runId;
+  currentLogPage = 1;
+  renderSessionList(allSessions);
+  showView("workspace");
+  refreshRun(runId);
+  // Restart polling; refreshRun will cancel it if the run is already done
+  pollTimer = setInterval(() => refreshRun(currentRunId), 3000);
 });
 
 closeArtifactDrawerBtn.addEventListener("click", closeArtifactDrawer);
@@ -1270,11 +1352,11 @@ nextStepBtn.addEventListener("click", () => {
     renderWizardStep(currentWizardStep);
     return;
   }
-  showView("workspace");
+  flashTransitionTo("workspace");
 });
 
 renderWizardStep(currentWizardStep);
-showView("workspace");
+showView("onboarding");
 loadCapabilities();
 loadConfig();
 loadMostRecentRun();
