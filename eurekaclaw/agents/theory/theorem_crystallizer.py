@@ -36,6 +36,11 @@ The theorem statement must:
 5. Not overclaim — if the proof establishes a bound with a specific
    constant C, state that constant (or its dependence) explicitly
 
+Length constraint: the theorem block must fit in at most 20 lines of
+LaTeX.  State the main result clearly and completely — do NOT truncate
+or abbreviate mid-formula.  If the bound has multiple terms, write
+each term on its own line inside the display math block.
+
 Do not add content that is not in the proof.
 """
 

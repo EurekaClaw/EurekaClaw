@@ -68,17 +68,36 @@ Output a JSON object with keys:
         query = brief.query or brief.domain
         domain = brief.domain
 
+        ref_ids = brief.reference_paper_ids or []
+        if ref_ids:
+            ref_section = (
+                f"\nReference papers (search for these first by arXiv ID):\n"
+                + "\n".join(f"  - {pid}" for pid in ref_ids)
+                + "\n"
+                "Use these as the anchor of the survey: retrieve their abstracts, "
+                "identify what they establish, then search for related work to map "
+                "the surrounding landscape and gaps.\n"
+            )
+        else:
+            ref_section = ""
+
         user_message = f"""\
 Domain: {domain}
 Research Question: {query}
 Conjecture: {brief.conjecture or "open exploration"}
-
+{ref_section}
 Do 2-3 focused arXiv searches, then return a JSON with:
 papers (5-8), open_problems (3-5), key_mathematical_objects, research_frontier, insights
 """
 
         try:
             from eurekaclaw.config import settings
+
+            # Initialize the bibliography BEFORE the agent loop so it exists
+            # for any tool calls (citation_manager etc.) that run during search.
+            if not self.bus.get_bibliography():
+                self.bus.put_bibliography(Bibliography(session_id=brief.session_id))
+
             text, tokens = await self.run_agent_loop(
                 task, user_message,
                 max_turns=settings.survey_max_turns,
@@ -88,7 +107,10 @@ papers (5-8), open_problems (3-5), key_mathematical_objects, research_frontier, 
             # Try to extract structured data from the response
             survey_data = self._parse_survey_output(text)
 
-            # Update the bibliography on the knowledge bus
+            # Append papers from the parsed output into the already-initialized
+            # bibliography.  append_citations reads the existing bib, adds the
+            # new papers, and writes it back — so papers collected via tool calls
+            # during the loop (e.g. via citation_manager) are preserved.
             papers = [
                 Paper(
                     paper_id=p.get("arxiv_id") or p.get("s2_id") or p.get("title", "")[:20],
@@ -113,10 +135,6 @@ papers (5-8), open_problems (3-5), key_mathematical_objects, research_frontier, 
             brief.open_problems = _to_str_list(survey_data.get("open_problems", []))
             brief.key_mathematical_objects = _to_str_list(survey_data.get("key_mathematical_objects", []))
             self.bus.put_research_brief(brief)
-
-            # Ensure bibliography exists
-            bib = self.bus.get_bibliography() or Bibliography(session_id=brief.session_id)
-            self.bus.put_bibliography(bib)
 
             self.memory.log_event(
                 self.role.value,

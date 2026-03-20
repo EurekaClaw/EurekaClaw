@@ -33,6 +33,11 @@ Your task is to write a complete, self-contained proof that:
 - Uses consistent notation throughout
 - Is written at the level of a top ML theory conference paper
 
+Citation rule: whenever you use a proved lemma, cite it by its identifier
+in square brackets, e.g. "By [arm_pull_count_bound], we have..." or
+"Applying [regret_decomposition] gives...".  Every proved lemma that
+appears in the logical chain MUST be cited at least once by its id.
+
 Do NOT state the main theorem yet.  Just write the proof body.
 The theorem statement will be extracted after from the proof itself.
 """
@@ -66,6 +71,7 @@ class Assembler:
         """Populate state.assembled_proof."""
         known_citations = self._format_known_citations(state)
         proved_lemmas = self._format_proved_lemmas(state)
+        lemma_ids = ", ".join(f"[{lid}]" for lid in state.proven_lemmas) or "(none)"
 
         try:
             response = await self.client.messages.create(

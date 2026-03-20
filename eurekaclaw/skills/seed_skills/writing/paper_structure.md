@@ -1,13 +1,23 @@
 ---
+agent_roles:
+- writer
+created_at: '2026-03-20T00:06:37.961421'
+description: 'Standard structure for a theory paper: abstract, intro, related work,
+  main results, proofs, conclusion.'
 name: paper_structure
-version: "1.0"
-tags: [writing, latex, paper, structure, theorem, proof]
-agent_roles: [writer]
-pipeline_stages: [writing]
-description: "Standard structure for a theory paper: abstract, intro, related work, main results, proofs, conclusion."
+pipeline_stages:
+- writing
 source: seed
-usage_count: 0
-success_rate: null
+success_rate: 1.0
+tags:
+- writing
+- latex
+- paper
+- structure
+- theorem
+- proof
+usage_count: 3
+version: '1.0'
 ---
 
 # Theory Paper Structure
