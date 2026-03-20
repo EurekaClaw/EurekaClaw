@@ -308,6 +308,106 @@ class GateController:
             )
         console.print(Panel("\n".join(lines), title="[cyan]📄 Session Summary[/cyan]", border_style="cyan"))
 
+    def theory_review_prompt(self) -> tuple[bool, str, str]:
+        """Show the numbered lemma chain and ask for approval.
+
+        Returns:
+            (approved, lemma_id_or_number, reason)
+            If approved: (True, "", "")
+            If rejected: (False, "<lemma ref>", "<issue description>")
+        """
+        if not self.bus:
+            return True, "", ""
+
+        state = self.bus.get_theory_state()
+        if not state or not state.proven_lemmas:
+            console.print("[dim]No proof state available — proceeding.[/dim]")
+            return True, "", ""
+
+        # Build numbered lemma list
+        lemma_ids = list(state.proven_lemmas.keys())
+        console.print()
+        console.rule("[bold cyan]Proof Sketch Review[/bold cyan]")
+        console.print(
+            "[dim]The theory agent has finished. Review the proof structure below\n"
+            "before the paper is written.[/dim]\n"
+        )
+
+        for idx, lid in enumerate(lemma_ids, start=1):
+            rec = state.proven_lemmas[lid]
+            node = state.lemma_dag.get(lid)
+            stmt = (node.statement if node else lid)[:140]
+
+            if rec.verified:
+                conf_tag = "[green]✓[/green]"
+                conf_label = "[green]verified[/green]"
+            else:
+                conf_tag = "[yellow]~[/yellow]"
+                conf_label = "[yellow]low confidence[/yellow]"
+
+            console.print(
+                f"  [bold]L{idx}[/bold]  [{conf_tag}] "
+                f"[cyan]{lid}[/cyan]  {conf_label}"
+            )
+            console.print(f"       [dim]{stmt}[/dim]")
+
+        if state.open_goals:
+            console.print()
+            for lid in state.open_goals:
+                node = state.lemma_dag.get(lid)
+                console.print(
+                    f"  [bold yellow]?[/bold yellow]  [cyan]{lid}[/cyan]  "
+                    f"[yellow]unproved[/yellow]"
+                )
+                if node:
+                    console.print(f"       [dim]{node.statement[:140]}[/dim]")
+
+        console.print()
+        console.rule()
+        console.print(
+            "\n[bold]Does this proof sketch look correct?[/bold]\n"
+            "  [green]y[/green]  — Proceed to writing\n"
+            "  [red]n[/red]  — Flag the most logically problematic step\n"
+        )
+
+        try:
+            answer = console.input("→ ").strip().lower()
+        except (KeyboardInterrupt, EOFError):
+            console.print("\n[dim]Input interrupted — proceeding.[/dim]")
+            return True, "", ""
+
+        if answer in ("y", "yes", ""):
+            console.print("[green]Proof approved — proceeding to writer.[/green]\n")
+            return True, "", ""
+
+        # Rejection: ask which lemma and what the issue is
+        console.print()
+        try:
+            lemma_ref = console.input(
+                "[bold]Which step has the most critical logical gap?[/bold]\n"
+                "[dim]Enter lemma number (e.g. L3) or ID:[/dim] → "
+            ).strip()
+            reason = console.input(
+                "\n[bold]Describe the issue[/bold]\n"
+                "[dim](Be specific — the theory agent will retry with your feedback):[/dim] → "
+            ).strip()
+        except (KeyboardInterrupt, EOFError):
+            console.print("\n[dim]Input interrupted — proceeding anyway.[/dim]")
+            return True, "", ""
+
+        # Resolve "L3" → actual lemma id
+        resolved_id = lemma_ref
+        if lemma_ref.upper().startswith("L") and lemma_ref[1:].isdigit():
+            idx = int(lemma_ref[1:]) - 1
+            if 0 <= idx < len(lemma_ids):
+                resolved_id = lemma_ids[idx]
+
+        console.print(
+            f"\n[yellow]Flagged:[/yellow] [cyan]{resolved_id}[/cyan]\n"
+            f"[yellow]Issue:[/yellow] {reason}\n"
+        )
+        return False, resolved_id, reason
+
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------

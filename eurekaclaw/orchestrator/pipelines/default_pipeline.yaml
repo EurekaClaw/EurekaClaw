@@ -46,11 +46,19 @@ stages:
     gate_required: false
     max_retries: 1
 
+  - name: theory_review_gate
+    agent_role: orchestrator
+    description: "Review proof sketch — approve or flag the most problematic lemma"
+    inputs: {}
+    depends_on: [theory]
+    gate_required: false
+    max_retries: 0
+
   - name: experiment
     agent_role: experiment
     description: "Empirical validation of theoretical bounds"
     inputs: {}
-    depends_on: [theory]
+    depends_on: [theory_review_gate]
     gate_required: false
     max_retries: 0
 
@@ -58,8 +66,8 @@ stages:
     agent_role: writer
     description: "Write complete paper from all artifacts"
     inputs: {}
-    # Writer depends on theory, not experiment. Experiment enriches the paper
-    # when applicable, but its failure must never prevent paper writing.
-    depends_on: [theory]
+    # Writer depends on theory_review_gate, not experiment. Experiment enriches
+    # the paper when applicable, but its failure must never prevent paper writing.
+    depends_on: [theory_review_gate]
     gate_required: false
     max_retries: 3

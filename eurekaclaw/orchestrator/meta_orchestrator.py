@@ -123,6 +123,11 @@ class MetaOrchestrator:
             if task.name == "direction_selection_gate":
                 await self._handle_direction_gate(brief)
 
+            # Theory review gate: show proof sketch, ask for approval.
+            # If rejected, inject feedback and re-run theory (once).
+            if task.name == "theory_review_gate":
+                await self._handle_theory_review_gate(pipeline, brief)
+
             # Gate check (human / auto approval)
             if task.gate_required:
                 task.status = TaskStatus.AWAITING_GATE
@@ -264,6 +269,61 @@ class MetaOrchestrator:
             console.print(f"  Hypothesis: {best.hypothesis[:200]}")
         except Exception as e:
             logger.exception("Direction planning failed: %s", e)
+
+    async def _handle_theory_review_gate(
+        self, pipeline: "TaskPipeline", brief: "ResearchBrief"
+    ) -> None:
+        """Show the proof sketch to the user and optionally re-run theory.
+
+        If the user rejects, their feedback (which lemma + what's wrong) is
+        injected into the theory task description and theory is re-executed once.
+        """
+        from eurekaclaw.types.tasks import TaskStatus
+
+        approved, lemma_ref, reason = self.gate.theory_review_prompt()
+        if approved:
+            return
+
+        # Find the theory task and re-queue it with the user's feedback
+        theory_task = next((t for t in pipeline.tasks if t.name == "theory"), None)
+        if theory_task is None:
+            logger.warning("theory_review_gate: no 'theory' task found — proceeding")
+            return
+
+        feedback = (
+            f"The user flagged lemma '{lemma_ref}' as having a critical logical gap.\n"
+            f"Issue: {reason}\n"
+            f"Please re-examine this lemma and fix the logical chain before assembling the proof."
+        )
+        theory_task.description = (theory_task.description or "") + f"\n\n[User feedback]: {feedback}"
+        theory_task.retries = 0
+        theory_task.status = TaskStatus.PENDING
+
+        console.print(f"[yellow]Re-running theory agent with your feedback...[/yellow]\n")
+        agent = self.router.resolve(theory_task)
+
+        from rich.progress import Progress, SpinnerColumn, TextColumn
+        with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), console=console) as progress:
+            prog_task = progress.add_task("theory (revision)...", total=None)
+            result = await agent.execute(theory_task)
+            progress.update(prog_task, completed=True)
+
+        if result.failed:
+            theory_task.mark_failed(result.error)
+            console.print(f"[red]Theory revision failed: {result.error[:100]}[/red]")
+        else:
+            theory_task.mark_completed(dict(result.output))
+            console.print("[green]✓ Theory revision complete.[/green]")
+            self.gate.print_stage_summary("theory")
+
+        self.bus.put_pipeline(pipeline)
+
+        # Show the updated sketch for a second look (no further retry)
+        approved2, _, _ = self.gate.theory_review_prompt()
+        if not approved2:
+            console.print(
+                "[yellow]Sketch still flagged — proceeding to writer anyway.[/yellow]\n"
+            )
 
     def _dependencies_met(self, task: Task, pipeline: TaskPipeline) -> bool:
         for dep_id in task.depends_on:
