@@ -35,7 +35,9 @@ const skillSelectedEl = document.getElementById("skill-selected");
 const skillListEl = document.getElementById("skill-list");
 const skillMetaEl = document.getElementById("skill-meta");
 const skillPaginationEl = document.getElementById("skill-pagination");
-const sessionListEl = document.getElementById("session-list");
+const sidebarModeEl = document.getElementById("sidebar-mode");
+const sidebarStageEl = document.getElementById("sidebar-stage");
+const sidebarArtifactsEl = document.getElementById("sidebar-artifacts");
 const artifactDrawerEl = document.getElementById("artifact-drawer");
 const artifactDrawerBackdropEl = document.getElementById("artifact-drawer-backdrop");
 const artifactDrawerTitleEl = document.getElementById("artifact-drawer-title");
@@ -43,7 +45,7 @@ const artifactDrawerBodyEl = document.getElementById("artifact-drawer-body");
 const closeArtifactDrawerBtn = document.getElementById("close-artifact-drawer-btn");
 
 const wizardStage = document.getElementById("wizard-stage");
-const wizardDotsRow = document.getElementById("wizard-dots-row");
+const wizardContext = document.getElementById("wizard-context");
 const wizardProgressBar = document.getElementById("wizard-progress-bar");
 const wizardStepLabel = document.getElementById("wizard-step-label");
 const prevStepBtn = document.getElementById("prev-step-btn");
@@ -58,7 +60,6 @@ const POLL_MAX_ERRORS = 4;   // show "connection lost" only after 4 consecutive 
 let latestArtifacts = null;
 let availableSkills = [];
 let selectedSkills = [];
-let allSessions = [];
 let currentSkillPage = 1;
 const skillsPerPage = 4;
 let currentLogPage = 1;
@@ -74,162 +75,168 @@ function showView(viewName) {
   });
 }
 
-function flashTransitionTo(viewName) {
-  const overlay = document.getElementById("flash-overlay");
-  overlay.classList.remove("flash-in", "flash-out");
-  requestAnimationFrame(() => {
-    overlay.classList.add("flash-in");
-    setTimeout(() => {
-      showView(viewName);
-      overlay.classList.remove("flash-in");
-      overlay.classList.add("flash-out");
-      setTimeout(() => overlay.classList.remove("flash-out"), 380);
-    }, 90);
-  });
-}
-
 navItems.forEach((item) => {
   item.addEventListener("click", () => showView(item.dataset.viewTarget));
 });
 
 const wizardSteps = [
   {
-    icon: "🦞",
-    title: "Welcome to EurekaClaw",
-    subtitle: "From a question to a publishable paper — autonomously",
-    items: [
-      { label: "Crawls arXiv & Semantic Scholar", note: "Finds, summarizes, and cross-references relevant papers" },
-      { label: "Generates theorems + multi-stage proofs", note: "7-stage bottom-up proof pipeline with lemma verification" },
-      { label: "Runs numerical experiments", note: "Validates theoretical bounds; flags low-confidence lemmas" },
-      { label: "Writes camera-ready LaTeX papers", note: "Full bibliography, theorem environments, and PDF compilation" },
-      { label: "Fully local-first, private by default", note: "Your data never leaves your machine — MIT licensed" }
+    title: "Welcome",
+    copy:
+      "Turn EurekaClaw from a repository into a working research system. The setup should feel guided, not documentation-driven.",
+    context:
+      "This step sets expectations. Users should understand what EurekaClaw does, how long setup takes, and which parts are required versus optional.",
+    bullets: [
+      "Explain that the core system can run before optional tools are installed.",
+      "Make local-first and controllability part of the onboarding tone.",
+      "Offer clear next-step framing instead of dropping users into raw config."
     ],
-    tip: "Setup takes ~5 minutes for the core system. Optional tools (Lean4, LaTeX, Docker) can be added later — EurekaClaw runs in a useful degraded mode without them."
+    cards: [
+      ["Core runtime", "Python + dependencies + model access"],
+      ["Optional depth", "Lean4, LaTeX, Docker, external APIs"]
+    ]
   },
   {
-    icon: "📦",
-    title: "Install EurekaClaw",
-    subtitle: "Python 3.11 or newer required",
-    items: [
-      { label: "Clone the repository", code: "git clone https://github.com/EurekaClaw/EurekaClaw_dev_zero" },
-      { label: "Enter the project directory", code: "cd EurekaClaw_dev_zero" },
-      { label: "Install in editable mode", code: "pip install -e \".\"", note: "Installs the eurekaclaw CLI immediately" },
-      { label: "Copy the environment file", code: "cp .env.example .env", note: "This is where all your keys and settings live" },
-      { label: "Optional extras (OpenRouter / OAuth)", code: "pip install -e \".[openai,oauth]\"" }
+    title: "Environment Detection",
+    copy:
+      "Inspect what is already available on this machine before asking the user to configure anything manually.",
+    context:
+      "The backend now exposes real capability checks. This step should eventually surface live Python, Lean4, LaTeX, Docker, skills directory, and model access status directly in the wizard.",
+    bullets: [
+      "Detect Python version and package availability.",
+      "Detect Lean4, pdflatex, Docker, and writable run directories.",
+      "Surface results as pass, optional, or action-needed states."
     ],
-    tip: "The -e flag installs in editable mode so changes to the source take effect immediately without reinstalling."
+    cards: [
+      ["Runtime", "Live capability data available via /api/capabilities"],
+      ["Optional tools", "Lean4, LaTeX, Docker are inspected individually"]
+    ]
   },
   {
-    icon: "🔑",
-    title: "Connect Your Language Model",
-    subtitle: "Choose how EurekaClaw reaches an AI model",
-    items: [
-      { label: "Option A — Anthropic API key (fastest)", code: "ANTHROPIC_API_KEY=sk-ant-...   # add to .env", note: "Recommended for most users" },
-      { label: "Option B — Claude Pro/Max via OAuth (no API key)", code: "pip install \"eurekaclaw[oauth]\"\nANTHROPIC_AUTH_MODE=oauth   # add to .env", note: "ccproxy auto-reads ~/.claude/.credentials.json" },
-      { label: "Option C — OpenRouter", code: "LLM_BACKEND=openrouter\nOPENAI_COMPAT_API_KEY=sk-or-...   # add to .env" },
-      { label: "Option D — Local model (vLLM / Ollama)", code: "LLM_BACKEND=local   # defaults to http://localhost:8000/v1" }
+    title: "Provider Connection",
+    copy:
+      "Choose how EurekaClaw connects to models without hand-editing environment files on day one.",
+    context:
+      "The systems page now edits live config values that are persisted back to .env, so onboarding can evolve into a real setup wizard rather than a mock flow.",
+    bullets: [
+      "Offer provider presets rather than a blank config screen.",
+      "Show exactly which fields are required for each mode.",
+      "Validate before users move on."
     ],
-    tip: "You can also change backend and API keys in the Settings tab — they write back to .env automatically without manual file editing."
+    cards: [
+      ["Anthropic API", "Fastest default path"],
+      ["OAuth / ccproxy", "For Claude Pro or Max workflows"],
+      ["OpenAI-compatible", "For vLLM, OpenRouter, or custom endpoints"]
+    ]
   },
   {
-    icon: "⚙️",
-    title: "Configure Runtime Settings",
-    subtitle: "Tune key parameters in .env or the Settings tab",
-    items: [
-      { label: "Primary model", code: "EUREKACLAW_MODEL=claude-sonnet-4-6", note: "Fast model defaults to claude-haiku-4-5-20251001" },
-      { label: "Gate mode (human review control)", code: "GATE_MODE=auto", note: "none = fully auto · auto = escalates on low-confidence lemmas · human = pauses at every stage" },
-      { label: "Output format", code: "OUTPUT_FORMAT=latex", note: "latex (default, generates PDF) or markdown" },
-      { label: "Experiment validation", code: "EXPERIMENT_MODE=auto", note: "auto = run when needed · true = always · false = skip" },
-      { label: "Max proof loop iterations", code: "THEORY_MAX_ITERATIONS=10", note: "Increase if proofs are being abandoned prematurely" }
+    title: "Base Configuration",
+    copy:
+      "Translate the most important .env and runtime settings into an understandable control surface.",
+    context:
+      "This is where users manage primary model, fast model, output format, and iteration counts. The systems page already reflects these values from the backend.",
+    bullets: [
+      "Expose model and fast-model choices.",
+      "Let users choose markdown or LaTeX output.",
+      "Explain implications of iteration count and run directories."
     ],
-    tip: "The Settings tab has live sliders for all 7 token-limit knobs (agent, prover, planner, decomposer, formalizer, verifier, compress) — no .env editing required."
+    cards: [
+      ["Config API", "Live read and write support is enabled"],
+      ["Persistence", "Saved values are written back to .env"]
+    ]
   },
   {
-    icon: "🔧",
-    title: "Optional Tools",
-    subtitle: "Each unlocks a meaningful capability — none are blockers",
-    items: [
-      { label: "Lean4 — formal proof verification", code: "curl https://elan.lean-lang.org/elan-init.sh | sh", note: "Lets EurekaClaw formally verify proofs, not just LLM-check them" },
-      { label: "TeX Live / MacTeX — PDF compilation", code: "brew install --cask mactex-no-gui   # macOS", note: "Required for paper.pdf output; paper.tex is always generated" },
-      { label: "Docker — sandboxed code execution", note: "Install from docker.com — enables safe experiment runs" },
-      { label: "Semantic Scholar API key", code: "S2_API_KEY=...   # add to .env", note: "Unlocks citation counts and venue metadata for papers" },
-      { label: "Wolfram Alpha API key", code: "WOLFRAM_APP_ID=...   # add to .env", note: "Enables symbolic computation and formula verification" }
+    title: "Optional Capabilities",
+    copy:
+      "Advanced tools should feel like upgrades, not blockers.",
+    context:
+      "Capability checks now distinguish between available, optional, and missing system features. That makes degraded mode visible and trustworthy.",
+    bullets: [
+      "Group optional capabilities by benefit, not by package name.",
+      "Show users what each capability unlocks.",
+      "Support degraded mode when optional tools are unavailable."
     ],
-    tip: "Missing optional tools appear as warnings (not errors) in the System Health panel under Settings. The system auto-detects what is available on startup."
+    cards: [
+      ["Formal verification", "Lean4"],
+      ["PDF generation", "TeX Live / MacTeX"],
+      ["Sandboxed code", "Docker"],
+      ["Research APIs", "Search, S2, Wolfram"]
+    ]
   },
   {
-    icon: "🧠",
-    title: "Install Built-in Skills",
-    subtitle: "One command adds proof strategies to all agents",
-    items: [
-      { label: "Install seed skills (run once)", code: "eurekaclaw install-skills", note: "Installs to ~/.eurekaclaw/skills/ and persists across sessions" },
-      { label: "Browse all available skills", code: "eurekaclaw skills" },
-      { label: "Theory skills", note: "Induction, contradiction, compactness, concentration inequalities, UCB regret analysis" },
-      { label: "Survey & writing skills", note: "Literature decomposition, gap analysis, paper structure, proof readability rules" },
-      { label: "Add your own custom skills", code: "# Drop any .md file into ~/.eurekaclaw/skills/", note: "EurekaClaw also distills new skills automatically after each successful run" }
+    title: "Skills Installation",
+    copy:
+      "Built-in seed skills should be a one-click enhancement to the system's reasoning quality.",
+    context:
+      "The underlying project already supports `eurekaclaw install-skills`. The UI now has enough backend context to surface skills directory readiness and can grow into a true installer flow next.",
+    bullets: [
+      "Offer install and reinstall actions for seed skills.",
+      "List skill families in human terms: survey, ideation, proof, experiment, writing.",
+      "Show where skills live and whether custom skills already exist."
     ],
-    tip: "After each session, the continual learning loop extracts what worked and distills it into new skills — your system gets better over time automatically."
+    cards: [
+      ["Theory skills", "Induction, contradiction, compactness"],
+      ["Survey skills", "Literature decomposition"],
+      ["Writing skills", "Paper structure"]
+    ]
   },
   {
-    icon: "🚀",
-    title: "Launch Your First Session",
-    subtitle: "Three research modes — pick the one that fits",
-    items: [
-      { label: "Browser UI (this tab)", note: "Click Launch session on the Research tab — live progress, log stream, and results viewer" },
-      { label: "Prove a specific conjecture", code: "eurekaclaw prove \"O(n log n) complexity via sparse attention\" --domain \"ML theory\"" },
-      { label: "Explore a broad research area", code: "eurekaclaw explore \"multi-armed bandit theory\"" },
-      { label: "Start from existing papers", code: "eurekaclaw from-papers 1706.03762 2005.14165 --domain \"attention mechanisms\"" },
-      { label: "Results are saved to", code: "./results/<session_id>/paper.tex  ·  paper.pdf  ·  references.bib", note: "Also: theory_state.json, research_brief.json, experiment_result.json" }
+    title: "Health Check & Next Steps",
+    copy:
+      "End with a capability snapshot and clear launch paths so users feel ready to begin.",
+    context:
+      "The workspace can already launch real sessions through the backend. This final step should summarize what is configured and route users straight into a run.",
+    bullets: [
+      "Run a minimal connectivity and config validation check.",
+      "Show what features are available now versus later.",
+      "Offer direct actions: prove, explore, inspect system."
     ],
-    tip: "Go to Settings → Test connection first to confirm your model is reachable. Use --gate human on your first run to review each stage before it continues."
+    cards: [
+      ["Core run", "The workspace can start real EurekaClaw sessions"],
+      ["Live polling", "Pipeline, artifacts, and outputs are fetched from the backend"]
+    ]
   }
 ];
 
 function renderWizardStep(index) {
   const step = wizardSteps[index];
-  const total = wizardSteps.length;
-  const progress = ((index + 1) / total) * 100;
+  const progress = ((index + 1) / wizardSteps.length) * 100;
 
-  // Dots row
-  wizardDotsRow.innerHTML = wizardSteps.map((_, i) => {
-    const cls = i < index ? "wizard-dot is-done" : i === index ? "wizard-dot is-active" : "wizard-dot";
-    const label = i < index ? "✓" : String(i + 1);
-    return `<span class="${cls}">${label}</span>`;
-  }).join("");
-
-  // Content
   wizardStage.innerHTML = `
-    <div class="wizard-step-header">
-      <div class="wizard-step-icon">${step.icon}</div>
-      <div>
-        <h2 class="wizard-step-title">${step.title}</h2>
-        <p class="wizard-step-subtitle">${step.subtitle}</p>
-      </div>
+    <div>
+      <p class="eyebrow">Installation Flow</p>
+      <h4>${step.title}</h4>
     </div>
-    <div class="wizard-items">
-      ${step.items.map((item, i) => `
-        <div class="wizard-item">
-          <span class="wizard-item-num">${i + 1}</span>
-          <div class="wizard-item-body">
-            <strong>${item.label}</strong>
-            ${item.code ? `<code class="wizard-item-code">${escapeHtml(item.code)}</code>` : ""}
-            ${item.note ? `<span class="wizard-item-note">${item.note}</span>` : ""}
-          </div>
-        </div>
-      `).join("")}
+    <p class="wizard-copy">${step.copy}</p>
+    <ul class="wizard-list">
+      ${step.bullets.map((bullet) => `<li>${bullet}</li>`).join("")}
+    </ul>
+    <div class="wizard-grid">
+      ${step.cards
+        .map(
+          ([title, body]) => `
+            <div class="wizard-card">
+              <strong>${title}</strong>
+              <p>${body}</p>
+            </div>
+          `
+        )
+        .join("")}
     </div>
-    ${step.tip ? `
-      <div class="wizard-tip">
-        <span class="wizard-tip-icon">💡</span>
-        <p>${step.tip}</p>
-      </div>
-    ` : ""}
+  `;
+
+  wizardContext.innerHTML = `
+    <p>${step.context}</p>
+    <p>
+      The setup UI should always answer three questions: what is required, what
+      is optional, and what becomes possible after this step.
+    </p>
   `;
 
   wizardProgressBar.style.width = `${progress}%`;
-  wizardStepLabel.textContent = `Step ${index + 1} of ${total}`;
+  wizardStepLabel.textContent = `Step ${index + 1} of ${wizardSteps.length}`;
   prevStepBtn.disabled = index === 0;
-  nextStepBtn.textContent = index === total - 1 ? "Go to Research →" : "Next →";
+  nextStepBtn.textContent = index === wizardSteps.length - 1 ? "Finish" : "Next";
 }
 
 function escapeHtml(value) {
@@ -239,6 +246,24 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
+}
+
+function normalizePathForDisplay(value) {
+  if (!value || typeof value !== "string") {
+    return value;
+  }
+  const homePrefixes = [
+    "/Users/",
+    "/home/"
+  ];
+  if (value.endsWith("/.eurekaclaw")) {
+    for (const prefix of homePrefixes) {
+      if (value.startsWith(prefix)) {
+        return "~/.eurekaclaw";
+      }
+    }
+  }
+  return value;
 }
 
 function titleCase(text) {
@@ -268,49 +293,6 @@ function formatLocalTimestamp(value) {
     hour: "numeric",
     minute: "2-digit"
   });
-}
-
-function formatRelativeTime(value) {
-  const parsed = parseServerTimestamp(value);
-  if (!parsed) return "--";
-  const diffMin = Math.floor((Date.now() - parsed.getTime()) / 60000);
-  if (diffMin < 1) return "Just now";
-  if (diffMin < 60) return `${diffMin}m ago`;
-  const diffHr = Math.floor(diffMin / 60);
-  if (diffHr < 24) return `${diffHr}h ago`;
-  return `${Math.floor(diffHr / 24)}d ago`;
-}
-
-function renderSessionList(sessions) {
-  allSessions = sessions;
-  if (!sessions.length) {
-    sessionListEl.innerHTML = '<p class="session-list-empty">No sessions yet.<br>Launch one to get started.</p>';
-    return;
-  }
-  sessionListEl.innerHTML = sessions.map((s) => {
-    const prompt = s.input_spec?.query || s.input_spec?.domain || "Untitled session";
-    const domain = s.input_spec?.domain || "";
-    const status = s.status || "queued";
-    const time = formatRelativeTime(s.created_at);
-    const isActive = s.run_id === currentRunId;
-    return `<div class="session-item${isActive ? " is-active" : ""}" data-run-id="${escapeHtml(s.run_id)}">
-      <div class="session-item-prompt">${escapeHtml(prompt)}</div>
-      <div class="session-item-meta">
-        <span class="session-status-dot ${status}"></span>
-        <span>${time}</span>
-        ${domain ? `<span>·</span><span>${escapeHtml(domain)}</span>` : ""}
-      </div>
-    </div>`;
-  }).join("");
-}
-
-async function loadSessionList() {
-  try {
-    const data = await apiGet("/api/runs");
-    renderSessionList(data.runs || []);
-  } catch (_) {
-    // Silently fail — don't disrupt the main UX
-  }
 }
 
 function statusClass(status) {
@@ -592,16 +574,10 @@ function renderOutput(run) {
   `;
 }
 
-function updateSidebar(run) {
-  if (!run) return;
-  // Update the status dot for this session in the sidebar list
-  const item = sessionListEl.querySelector(`[data-run-id="${run.run_id}"]`);
-  if (!item) return;
-  const dot = item.querySelector(".session-status-dot");
-  if (dot) dot.className = `session-status-dot ${run.status}`;
-  sessionListEl.querySelectorAll(".session-item").forEach((el) => {
-    el.classList.toggle("is-active", el.dataset.runId === currentRunId);
-  });
+function updateSidebar(run, tasks) {
+  sidebarModeEl.textContent = run?.input_spec?.mode ? titleCase(run.input_spec.mode) : "Not started";
+  const activeTask = (tasks || []).find((task) => task.status === "in_progress");
+  sidebarStageEl.textContent = activeTask ? titleCase(activeTask.name) : titleCase(run?.status || "idle");
 }
 
 async function apiGet(path) {
@@ -799,7 +775,7 @@ ccproxy auth status claude_api</pre>
         project OAuth dependencies.
       </p>
     `;
-    const _tl = authGuidanceToggleEl.querySelector(".auth-guidance-toggle-label"); if (_tl) _tl.textContent = title;
+    authGuidanceToggleEl.querySelector(".auth-guidance-toggle-label").textContent = title;
     return;
   }
 
@@ -834,7 +810,7 @@ ccproxy auth status claude_api</pre>
         </div>
       </div>
     `;
-    const _tl = authGuidanceToggleEl.querySelector(".auth-guidance-toggle-label"); if (_tl) _tl.textContent = title;
+    authGuidanceToggleEl.querySelector(".auth-guidance-toggle-label").textContent = title;
     return;
   }
 
@@ -868,8 +844,7 @@ ccproxy auth status claude_api</pre>
       </div>
     </div>
   `;
-  const _tl = authGuidanceToggleEl.querySelector(".auth-guidance-toggle-label");
-  if (_tl) _tl.textContent = title;
+  authGuidanceToggleEl.querySelector(".auth-guidance-toggle-label").textContent = title;
 }
 
 const MODE_CONFIG = {
@@ -1004,10 +979,7 @@ async function loadConfig() {
     Object.entries(data.config).forEach(([key, value]) => {
       const field = configFormEl.elements.namedItem(key);
       if (field) {
-        field.value = value ?? "";
-        // Sync slider display label if present
-        const label = document.getElementById(`${key}-val`);
-        if (label) label.textContent = value ?? "";
+        field.value = key === "eurekaclaw_dir" ? normalizePathForDisplay(value ?? "") : (value ?? "");
       }
     });
     updateConfigVisibility();
@@ -1344,11 +1316,11 @@ logPaginationEl.addEventListener("click", (event) => {
   const action = target.getAttribute("data-log-page");
   if (action === "prev" && currentLogPage > 1) {
     currentLogPage -= 1;
-    if (currentRunId) refreshRun(currentRunId);
+    refreshRun(currentRunId);
   }
   if (action === "next") {
     currentLogPage += 1;
-    if (currentRunId) refreshRun(currentRunId);
+    refreshRun(currentRunId);
   }
 });
 
@@ -1478,17 +1450,11 @@ nextStepBtn.addEventListener("click", () => {
     renderWizardStep(currentWizardStep);
     return;
   }
-  flashTransitionTo("workspace");
-});
-
-document.getElementById("tutorial-btn").addEventListener("click", () => {
-  currentWizardStep = 0;
-  renderWizardStep(0);
-  flashTransitionTo("onboarding");
+  showView("workspace");
 });
 
 renderWizardStep(currentWizardStep);
-showView("onboarding");
+showView("workspace");
 loadCapabilities();
 loadConfig();
 loadMostRecentRun();
