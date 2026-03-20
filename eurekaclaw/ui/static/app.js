@@ -40,7 +40,7 @@ const artifactDrawerBodyEl = document.getElementById("artifact-drawer-body");
 const closeArtifactDrawerBtn = document.getElementById("close-artifact-drawer-btn");
 
 const wizardStage = document.getElementById("wizard-stage");
-const wizardContext = document.getElementById("wizard-context");
+const wizardDotsRow = document.getElementById("wizard-dots-row");
 const wizardProgressBar = document.getElementById("wizard-progress-bar");
 const wizardStepLabel = document.getElementById("wizard-step-label");
 const prevStepBtn = document.getElementById("prev-step-btn");
@@ -88,164 +88,142 @@ navItems.forEach((item) => {
 
 const wizardSteps = [
   {
-    title: "Welcome to EurekaClaw 🦞",
-    copy:
-      "EurekaClaw is a multi-agent AI research assistant that goes from a question to a publishable result — autonomously. It crawls arXiv, generates and stress-tests hypotheses, writes LaTeX papers, and runs experiments, all from your browser or terminal.",
-    context:
-      "Setup takes about 5 minutes for the core system. Optional tools (Lean4, LaTeX, Docker) can be added later — EurekaClaw runs in a useful degraded mode without them.",
-    bullets: [
-      "Crawls arXiv & Semantic Scholar, summarizes relevant papers",
-      "Generates novel theorems and constructs multi-stage proofs",
-      "Writes camera-ready LaTeX papers with citations",
-      "Fully local-first — your data never leaves your machine"
+    icon: "🦞",
+    title: "Welcome to EurekaClaw",
+    subtitle: "From a question to a publishable paper — autonomously",
+    items: [
+      { label: "Crawls arXiv & Semantic Scholar", note: "Finds, summarizes, and cross-references relevant papers" },
+      { label: "Generates theorems + multi-stage proofs", note: "7-stage bottom-up proof pipeline with lemma verification" },
+      { label: "Runs numerical experiments", note: "Validates theoretical bounds; flags low-confidence lemmas" },
+      { label: "Writes camera-ready LaTeX papers", note: "Full bibliography, theorem environments, and PDF compilation" },
+      { label: "Fully local-first, private by default", note: "Your data never leaves your machine — MIT licensed" }
     ],
-    cards: [
-      ["Core pipeline", "Survey → Ideation → Theory → Experiment → Write"],
-      ["Browser UI", "Live progress, settings sliders, and results viewer"]
-    ]
+    tip: "Setup takes ~5 minutes for the core system. Optional tools (Lean4, LaTeX, Docker) can be added later — EurekaClaw runs in a useful degraded mode without them."
   },
   {
-    title: "Install Dependencies",
-    copy:
-      "EurekaClaw requires Python 3.11 or newer. Clone the repo, install the package, and copy the example environment file to get started.",
-    context:
-      "The pip install -e command installs EurekaClaw in editable mode so you can run the eurekaclaw CLI immediately. The .env file is where all your keys and settings live.",
-    bullets: [
-      "git clone https://github.com/EurekaClaw/EurekaClaw_dev_zero",
-      "cd EurekaClaw_dev_zero",
-      "pip install -e \".\"",
-      "cp .env.example .env"
+    icon: "📦",
+    title: "Install EurekaClaw",
+    subtitle: "Python 3.11 or newer required",
+    items: [
+      { label: "Clone the repository", code: "git clone https://github.com/EurekaClaw/EurekaClaw_dev_zero" },
+      { label: "Enter the project directory", code: "cd EurekaClaw_dev_zero" },
+      { label: "Install in editable mode", code: "pip install -e \".\"", note: "Installs the eurekaclaw CLI immediately" },
+      { label: "Copy the environment file", code: "cp .env.example .env", note: "This is where all your keys and settings live" },
+      { label: "Optional extras (OpenRouter / OAuth)", code: "pip install -e \".[openai,oauth]\"" }
     ],
-    cards: [
-      ["Required", "Python ≥ 3.11"],
-      ["Optional depth", "Lean4, TeX Live, Docker, external APIs"]
-    ]
+    tip: "The -e flag installs in editable mode so changes to the source take effect immediately without reinstalling."
   },
   {
-    title: "Connect Your LLM Provider",
-    copy:
-      "Choose how EurekaClaw reaches a language model. The fastest path is an Anthropic API key. If you have a Claude Pro or Max subscription, OAuth lets you skip a paid API key entirely.",
-    context:
-      "Set your chosen variables in the .env file, or use the Settings tab in this UI — changes are saved back to .env automatically.",
-    bullets: [
-      "Option A — Anthropic API key: set ANTHROPIC_API_KEY=sk-ant-... in .env",
-      "Option B — OAuth (Claude Pro/Max): leave ANTHROPIC_API_KEY blank; ccproxy auto-reads ~/.claude/.credentials.json",
-      "Option C — OpenRouter: set LLM_BACKEND=openrouter and OPENAI_COMPAT_API_KEY=sk-or-...",
-      "Option D — Local (vLLM / Ollama): set LLM_BACKEND=local (defaults to http://localhost:8000/v1)"
+    icon: "🔑",
+    title: "Connect Your Language Model",
+    subtitle: "Choose how EurekaClaw reaches an AI model",
+    items: [
+      { label: "Option A — Anthropic API key (fastest)", code: "ANTHROPIC_API_KEY=sk-ant-...   # add to .env", note: "Recommended for most users" },
+      { label: "Option B — Claude Pro/Max via OAuth (no API key)", code: "pip install \"eurekaclaw[oauth]\"\nANTHROPIC_AUTH_MODE=oauth   # add to .env", note: "ccproxy auto-reads ~/.claude/.credentials.json" },
+      { label: "Option C — OpenRouter", code: "LLM_BACKEND=openrouter\nOPENAI_COMPAT_API_KEY=sk-or-...   # add to .env" },
+      { label: "Option D — Local model (vLLM / Ollama)", code: "LLM_BACKEND=local   # defaults to http://localhost:8000/v1" }
     ],
-    cards: [
-      ["Anthropic (default)", "ANTHROPIC_API_KEY=sk-ant-..."],
-      ["OAuth / ccproxy", "No API key needed — uses Claude Pro/Max session"],
-      ["OpenRouter / local", "LLM_BACKEND=openrouter or local"]
-    ]
+    tip: "You can also change backend and API keys in the Settings tab — they write back to .env automatically without manual file editing."
   },
   {
+    icon: "⚙️",
     title: "Configure Runtime Settings",
-    copy:
-      "The most important settings are in your .env file. You can also change them any time from the Settings tab — values are written back to .env and take effect on the next run.",
-    context:
-      "GATE_MODE=auto is the recommended default: it lets runs proceed automatically but escalates to human review when lemmas have low confidence. Token limits per call type are new and available as UI sliders in Settings.",
-    bullets: [
-      "EUREKACLAW_MODEL=claude-sonnet-4-6  (main reasoning model)",
-      "GATE_MODE=auto  (none · auto · human)",
-      "OUTPUT_FORMAT=latex  (latex or markdown)",
-      "EXPERIMENT_MODE=auto  (auto · true · false)",
-      "THEORY_MAX_ITERATIONS=10  (max proof loop iterations)"
+    subtitle: "Tune key parameters in .env or the Settings tab",
+    items: [
+      { label: "Primary model", code: "EUREKACLAW_MODEL=claude-sonnet-4-6", note: "Fast model defaults to claude-haiku-4-5-20251001" },
+      { label: "Gate mode (human review control)", code: "GATE_MODE=auto", note: "none = fully auto · auto = escalates on low-confidence lemmas · human = pauses at every stage" },
+      { label: "Output format", code: "OUTPUT_FORMAT=latex", note: "latex (default, generates PDF) or markdown" },
+      { label: "Experiment validation", code: "EXPERIMENT_MODE=auto", note: "auto = run when needed · true = always · false = skip" },
+      { label: "Max proof loop iterations", code: "THEORY_MAX_ITERATIONS=10", note: "Increase if proofs are being abandoned prematurely" }
     ],
-    cards: [
-      ["Settings tab", "Live read/write — changes persist to .env"],
-      ["Token limits", "7 per-call-type sliders: agent, prover, planner, decomposer, formalizer, verifier, compress"]
-    ]
+    tip: "The Settings tab has live sliders for all 7 token-limit knobs (agent, prover, planner, decomposer, formalizer, verifier, compress) — no .env editing required."
   },
   {
-    title: "Optional Capabilities",
-    copy:
-      "EurekaClaw runs without these, but each unlocks a meaningful upgrade. Install what you need and the system auto-detects availability on startup.",
-    context:
-      "Capability status is shown on the System Health card in the Settings tab. Missing optional tools show as warnings, not errors.",
-    bullets: [
-      "Lean4 — formal proof verification (install via elan)",
-      "TeX Live / MacTeX — compile LaTeX to PDF (pdflatex + bibtex)",
-      "Docker — sandboxed code execution for experiments",
-      "Semantic Scholar & Wolfram Alpha API keys — richer literature and computation"
+    icon: "🔧",
+    title: "Optional Tools",
+    subtitle: "Each unlocks a meaningful capability — none are blockers",
+    items: [
+      { label: "Lean4 — formal proof verification", code: "curl https://elan.lean-lang.org/elan-init.sh | sh", note: "Lets EurekaClaw formally verify proofs, not just LLM-check them" },
+      { label: "TeX Live / MacTeX — PDF compilation", code: "brew install --cask mactex-no-gui   # macOS", note: "Required for paper.pdf output; paper.tex is always generated" },
+      { label: "Docker — sandboxed code execution", note: "Install from docker.com — enables safe experiment runs" },
+      { label: "Semantic Scholar API key", code: "S2_API_KEY=...   # add to .env", note: "Unlocks citation counts and venue metadata for papers" },
+      { label: "Wolfram Alpha API key", code: "WOLFRAM_APP_ID=...   # add to .env", note: "Enables symbolic computation and formula verification" }
     ],
-    cards: [
-      ["Formal verification", "Lean4 via elan: curl https://elan.lean-lang.org/elan-init.sh | sh"],
-      ["PDF generation", "macOS: brew install --cask mactex-no-gui"],
-      ["Research APIs", "S2_API_KEY and WOLFRAM_APP_ID in .env"]
-    ]
+    tip: "Missing optional tools appear as warnings (not errors) in the System Health panel under Settings. The system auto-detects what is available on startup."
   },
   {
+    icon: "🧠",
     title: "Install Built-in Skills",
-    copy:
-      "Skills are short strategy guides that EurekaClaw injects into agent prompts. The built-in seed skills cover proof techniques, literature analysis, and paper writing — install them once and they persist across sessions.",
-    context:
-      "Skills live in ~/.eurekaclaw/skills/. You can add your own by dropping a .md file into that directory. The Skills tab in this UI lets you browse and select which skills are active for the next run.",
-    bullets: [
-      "Run: eurekaclaw install-skills",
-      "Theory skills: induction, contradiction, compactness, concentration inequalities",
-      "Survey skills: literature decomposition, gap analysis",
-      "Writing skills: paper structure, proof readability enforcement"
+    subtitle: "One command adds proof strategies to all agents",
+    items: [
+      { label: "Install seed skills (run once)", code: "eurekaclaw install-skills", note: "Installs to ~/.eurekaclaw/skills/ and persists across sessions" },
+      { label: "Browse all available skills", code: "eurekaclaw skills" },
+      { label: "Theory skills", note: "Induction, contradiction, compactness, concentration inequalities, UCB regret analysis" },
+      { label: "Survey & writing skills", note: "Literature decomposition, gap analysis, paper structure, proof readability rules" },
+      { label: "Add your own custom skills", code: "# Drop any .md file into ~/.eurekaclaw/skills/", note: "EurekaClaw also distills new skills automatically after each successful run" }
     ],
-    cards: [
-      ["One-time setup", "eurekaclaw install-skills"],
-      ["Custom skills", "Drop a .md file into ~/.eurekaclaw/skills/"]
-    ]
+    tip: "After each session, the continual learning loop extracts what worked and distills it into new skills — your system gets better over time automatically."
   },
   {
-    title: "Run Your First Session",
-    copy:
-      "Everything is ready. Launch a session from the Research tab, or use the CLI directly. The UI will poll for live progress, show pipeline stage cards, and display the final paper when the run completes.",
-    context:
-      "Use the Settings tab → Test connection to verify your model is reachable before launching a long run. Gate mode auto will pause and ask for feedback if any lemma has low confidence.",
-    bullets: [
-      "Browser: click Launch session on the Research tab",
-      "CLI — prove: eurekaclaw prove \"The sample complexity of transformers is O(L·d·log(d)/ε²)\"",
-      "CLI — explore: eurekaclaw explore \"multi-armed bandit theory\"",
-      "CLI — from papers: eurekaclaw from-papers 1706.03762 2005.14165"
+    icon: "🚀",
+    title: "Launch Your First Session",
+    subtitle: "Three research modes — pick the one that fits",
+    items: [
+      { label: "Browser UI (this tab)", note: "Click Launch session on the Research tab — live progress, log stream, and results viewer" },
+      { label: "Prove a specific conjecture", code: "eurekaclaw prove \"O(n log n) complexity via sparse attention\" --domain \"ML theory\"" },
+      { label: "Explore a broad research area", code: "eurekaclaw explore \"multi-armed bandit theory\"" },
+      { label: "Start from existing papers", code: "eurekaclaw from-papers 1706.03762 2005.14165 --domain \"attention mechanisms\"" },
+      { label: "Results are saved to", code: "./results/<session_id>/paper.tex  ·  paper.pdf  ·  references.bib", note: "Also: theory_state.json, research_brief.json, experiment_result.json" }
     ],
-    cards: [
-      ["Quick test", "Settings → Test connection (checks model access)"],
-      ["Results", "Saved to ./results/<session_id>/paper.tex · paper.pdf · references.bib"]
-    ]
+    tip: "Go to Settings → Test connection first to confirm your model is reachable. Use --gate human on your first run to review each stage before it continues."
   }
 ];
 
 function renderWizardStep(index) {
   const step = wizardSteps[index];
-  const progress = ((index + 1) / wizardSteps.length) * 100;
+  const total = wizardSteps.length;
+  const progress = ((index + 1) / total) * 100;
 
+  // Dots row
+  wizardDotsRow.innerHTML = wizardSteps.map((_, i) => {
+    const cls = i < index ? "wizard-dot is-done" : i === index ? "wizard-dot is-active" : "wizard-dot";
+    const label = i < index ? "✓" : String(i + 1);
+    return `<span class="${cls}">${label}</span>`;
+  }).join("");
+
+  // Content
   wizardStage.innerHTML = `
-    <div>
-      <p class="eyebrow">Installation Flow</p>
-      <h4>${step.title}</h4>
+    <div class="wizard-step-header">
+      <div class="wizard-step-icon">${step.icon}</div>
+      <div>
+        <h2 class="wizard-step-title">${step.title}</h2>
+        <p class="wizard-step-subtitle">${step.subtitle}</p>
+      </div>
     </div>
-    <p class="wizard-copy">${step.copy}</p>
-    <ul class="wizard-list">
-      ${step.bullets.map((bullet) => `<li>${bullet}</li>`).join("")}
-    </ul>
-    <div class="wizard-grid">
-      ${step.cards
-        .map(
-          ([title, body]) => `
-            <div class="wizard-card">
-              <strong>${title}</strong>
-              <p>${body}</p>
-            </div>
-          `
-        )
-        .join("")}
+    <div class="wizard-items">
+      ${step.items.map((item, i) => `
+        <div class="wizard-item">
+          <span class="wizard-item-num">${i + 1}</span>
+          <div class="wizard-item-body">
+            <strong>${item.label}</strong>
+            ${item.code ? `<code class="wizard-item-code">${escapeHtml(item.code)}</code>` : ""}
+            ${item.note ? `<span class="wizard-item-note">${item.note}</span>` : ""}
+          </div>
+        </div>
+      `).join("")}
     </div>
-  `;
-
-  wizardContext.innerHTML = `
-    <p>${step.context}</p>
+    ${step.tip ? `
+      <div class="wizard-tip">
+        <span class="wizard-tip-icon">💡</span>
+        <p>${step.tip}</p>
+      </div>
+    ` : ""}
   `;
 
   wizardProgressBar.style.width = `${progress}%`;
-  wizardStepLabel.textContent = `Step ${index + 1} of ${wizardSteps.length}`;
+  wizardStepLabel.textContent = `Step ${index + 1} of ${total}`;
   prevStepBtn.disabled = index === 0;
-  nextStepBtn.textContent = index === wizardSteps.length - 1 ? "Finish" : "Next";
+  nextStepBtn.textContent = index === total - 1 ? "Go to Research →" : "Next →";
 }
 
 function escapeHtml(value) {

@@ -40,14 +40,6 @@
       </aside>
 
       <main class="main-shell">
-        <button class="tutorial-btn" id="tutorial-btn" title="Setup guide &amp; tutorials" aria-label="Open setup guide">
-          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <circle cx="12" cy="12" r="10"/>
-            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
-            <line x1="12" y1="17" x2="12.01" y2="17"/>
-          </svg>
-          <span>Guide</span>
-        </button>
         <section class="view is-visible" data-view="workspace">
           <div class="workspace-grid">
             <article class="panel session-panel">
@@ -200,34 +192,16 @@
         <section class="view" data-view="onboarding">
           <div class="onboarding-shell">
             <article class="panel wizard-panel">
-              <div class="panel-header">
-                <div>
-                  <p class="eyebrow">Setup</p>
-                  <h3>Get started</h3>
-                </div>
-                <span class="status-pill status-active" id="wizard-step-label">Step 1 of 7</span>
-              </div>
-
-              <div class="wizard-progress" aria-hidden="true">
+              <div class="wizard-dots-row" id="wizard-dots-row" aria-hidden="true"></div>
+              <div class="wizard-progress">
                 <div class="wizard-progress-bar" id="wizard-progress-bar"></div>
               </div>
-
-              <div class="wizard-stage" id="wizard-stage"></div>
-
-              <div class="wizard-actions">
-                <button class="secondary-btn" id="prev-step-btn">Previous</button>
-                <button class="primary-btn" id="next-step-btn">Next</button>
+              <div class="wizard-content" id="wizard-stage"></div>
+              <div class="wizard-footer">
+                <button class="secondary-btn" id="prev-step-btn">← Back</button>
+                <span class="wizard-step-counter" id="wizard-step-label">Step 1 of 7</span>
+                <button class="primary-btn" id="next-step-btn">Next →</button>
               </div>
-            </article>
-
-            <article class="panel helper-panel">
-              <div class="panel-header">
-                <div>
-                  <p class="eyebrow">Why this matters</p>
-                  <h3>Setup guidance</h3>
-                </div>
-              </div>
-              <div id="wizard-context" class="context-copy"></div>
             </article>
           </div>
         </section>
@@ -373,6 +347,14 @@
     </aside>
 
     <div id="flash-overlay" aria-hidden="true"></div>
+    <button class="tutorial-btn" id="tutorial-btn" title="Setup guide &amp; tutorials" aria-label="Open setup guide">
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="10"/>
+        <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+        <line x1="12" y1="17" x2="12.01" y2="17"/>
+      </svg>
+      <span>Guide</span>
+    </button>
     <script src="./app.js"></script>
   </body>
 </html>

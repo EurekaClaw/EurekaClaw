@@ -542,14 +542,14 @@ img {
 
 .main-shell {
   padding: 26px;
-  position: relative;
 }
 
+/* ── Tutorial floating button (fixed to viewport, outside grid) ── */
 .tutorial-btn {
   position: fixed;
-  top: 18px;
-  right: 22px;
-  z-index: 200;
+  top: 16px;
+  right: 20px;
+  z-index: 9999;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -557,17 +557,18 @@ img {
   border-radius: 999px;
   background: var(--surface-strong);
   border: 1px solid var(--line-strong);
-  box-shadow: 0 4px 16px rgba(18, 37, 66, 0.10);
+  box-shadow: 0 4px 16px rgba(18, 37, 66, 0.12);
   color: var(--primary);
-  font-size: 0.8rem;
-  font-weight: 500;
-  transition: background 160ms ease, box-shadow 160ms ease, transform 120ms ease;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  transition: background 150ms ease, box-shadow 150ms ease, transform 120ms ease;
   white-space: nowrap;
 }
 
 .tutorial-btn:hover {
   background: var(--primary-soft);
-  box-shadow: 0 6px 22px rgba(15, 106, 184, 0.18);
+  box-shadow: 0 6px 22px rgba(15, 106, 184, 0.2);
   transform: translateY(-1px);
 }
 
@@ -797,11 +798,8 @@ textarea {
 .artifact-item p,
 .agent-card p,
 .capability-row,
-.context-copy,
 .paper-sheet p,
 .sidebar-card p,
-.wizard-copy,
-.wizard-list,
 .log-line p {
   margin: 0;
   color: var(--muted);
@@ -921,28 +919,69 @@ textarea {
   font-size: 0.85rem;
 }
 
+/* ── Onboarding / Setup Wizard ─────────────────────────────────── */
+
 .onboarding-shell {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 4px 0 24px;
+}
+
+.wizard-panel {
+  width: 100%;
+  max-width: 680px;
+  display: flex;
+  flex-direction: column;
+  height: 660px;        /* fixed height — buttons always at same position */
+}
+
+/* Step dots */
+.wizard-dots-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 14px;
+  flex-shrink: 0;
+}
+
+.wizard-dot {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
   display: grid;
-  grid-template-columns: minmax(0, 1.3fr) minmax(280px, 0.7fr);
-  gap: 18px;
+  place-items: center;
+  font-size: 0.72rem;
+  font-weight: 700;
+  border: 2px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+  transition: background 180ms ease, border-color 180ms ease, color 180ms ease;
+  flex-shrink: 0;
 }
 
-.wizard-panel,
-.helper-panel {
-  min-height: 520px;
+.wizard-dot.is-done {
+  background: var(--primary-soft);
+  border-color: var(--primary);
+  color: var(--primary);
 }
 
-.config-panel {
-  min-width: 0;
+.wizard-dot.is-active {
+  background: linear-gradient(135deg, var(--primary), var(--primary-strong));
+  border-color: var(--primary-strong);
+  color: #fff;
+  box-shadow: 0 3px 10px rgba(15, 106, 184, 0.35);
 }
 
+/* Progress bar */
 .wizard-progress {
   width: 100%;
-  height: 10px;
+  height: 4px;
   border-radius: 999px;
   background: rgba(35, 54, 73, 0.08);
   overflow: hidden;
-  margin-bottom: 20px;
+  margin-bottom: 22px;
+  flex-shrink: 0;
 }
 
 .wizard-progress-bar {
@@ -950,56 +989,170 @@ textarea {
   width: 0;
   border-radius: 999px;
   background: linear-gradient(90deg, var(--primary), var(--accent));
-  transition: width 220ms ease;
+  transition: width 260ms ease;
 }
 
-.wizard-stage {
-  min-height: 340px;
-  display: grid;
-  align-content: start;
+/* Scrollable content area — fills available space */
+.wizard-content {
+  flex: 1;
+  overflow-y: auto;
+  padding-right: 4px;
+  display: flex;
+  flex-direction: column;
   gap: 18px;
 }
 
-.wizard-stage h4 {
+.wizard-content::-webkit-scrollbar {
+  width: 4px;
+}
+
+.wizard-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.wizard-content::-webkit-scrollbar-thumb {
+  background: var(--line-strong);
+  border-radius: 99px;
+}
+
+/* Step header */
+.wizard-step-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.wizard-step-icon {
+  font-size: 2.4rem;
+  line-height: 1;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.wizard-step-title {
+  margin: 0 0 4px;
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.wizard-step-subtitle {
   margin: 0;
-  font-size: 1.4rem;
+  font-size: 0.9rem;
+  color: var(--muted);
+  line-height: 1.5;
 }
 
-.wizard-copy {
-  font-size: 1rem;
+/* Instruction items */
+.wizard-items {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
-.wizard-list {
-  padding-left: 18px;
-}
-
-.wizard-list li + li {
-  margin-top: 8px;
-}
-
-.wizard-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+.wizard-item {
+  display: flex;
   gap: 12px;
-}
-
-.wizard-card {
-  padding: 14px;
+  align-items: flex-start;
+  padding: 12px 14px;
   border-radius: var(--radius-md);
+  background: var(--bg-soft);
   border: 1px solid var(--line);
-  background: rgba(255, 255, 255, 0.68);
 }
 
-.wizard-actions {
+.wizard-item-num {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-size: 0.72rem;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.wizard-item-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.wizard-item-body strong {
+  display: block;
+  font-size: 0.88rem;
+  font-weight: 600;
+  margin-bottom: 4px;
+  color: var(--text);
+}
+
+.wizard-item-code {
+  display: block;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.78rem;
+  background: rgba(18, 37, 66, 0.05);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 6px 10px;
+  color: var(--primary-strong);
+  word-break: break-all;
+  margin-top: 4px;
+  white-space: pre-wrap;
+}
+
+.wizard-item-note {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin-top: 4px;
+  line-height: 1.45;
+}
+
+/* Tip box */
+.wizard-tip {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  background: rgba(185, 120, 59, 0.07);
+  border: 1px solid rgba(185, 120, 59, 0.22);
+}
+
+.wizard-tip-icon {
+  font-size: 1rem;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.wizard-tip p {
+  margin: 0;
+  font-size: 0.84rem;
+  color: var(--warn);
+  line-height: 1.5;
+}
+
+/* Footer — always at bottom, buttons in same position every step */
+.wizard-footer {
   display: flex;
   justify-content: space-between;
-  gap: 12px;
-  margin-top: 18px;
+  align-items: center;
+  padding-top: 18px;
+  margin-top: 0;
+  border-top: 1px solid var(--line);
+  flex-shrink: 0;
 }
 
-.context-copy {
-  display: grid;
-  gap: 14px;
+.wizard-step-counter {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--muted);
+  letter-spacing: 0.02em;
+}
+
+.config-panel {
+  min-width: 0;
 }
 
 .diagram-grid {
@@ -1238,8 +1391,7 @@ textarea {
 @media (max-width: 1180px) {
   .workspace-grid,
   .systems-grid,
-  .skills-shell,
-  .onboarding-shell {
+  .skills-shell {
     grid-template-columns: 1fr;
   }
 
@@ -1281,8 +1433,12 @@ textarea {
 }
 
 @media (max-width: 640px) {
-  .action-row,
-  .wizard-actions {
+  .wizard-panel {
+    height: auto;
+    min-height: 640px;
+  }
+
+  .action-row {
     flex-direction: column;
   }
 
