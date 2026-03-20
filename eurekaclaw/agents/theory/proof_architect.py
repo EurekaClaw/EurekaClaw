@@ -83,6 +83,40 @@ Design a proof plan for the above gap.
 Return ONLY valid JSON with a "lemmas" array.
 """
 
+# ── Simplified fallback prompt: exactly 3 lemmas ──────────────────────────────
+
+ARCHITECT_SYSTEM_SIMPLE = """\
+You are a proof architect. Given a theorem to prove, design a minimal but complete
+3-step proof plan.
+
+The 3 lemmas must be:
+1. A foundational lemma — a key intermediate result or a known cited result
+2. A central bound lemma — the main technical step (can cite known results)
+3. The main result — combines lemma_1 and lemma_2 to state the final bound
+
+For each lemma specify:
+- "id": short snake_case identifier (e.g. "regret_decomposition")
+- "statement": the mathematical statement in LaTeX
+- "informal": one plain-English sentence
+- "provenance": "known" | "adapted" | "new"
+- "source": paper/theorem if known/adapted, else ""
+- "adaptation_note": what is changed if adapted, else ""
+- "dependencies": list of lemma ids this lemma depends on
+
+Return JSON: {"lemmas": [...]}
+"""
+
+ARCHITECT_USER_SIMPLE = """\
+Theorem to prove (informal):
+{informal_statement}
+
+Research gap context:
+{research_gap}
+
+Design a minimal 3-lemma proof plan covering all essential steps.
+Return ONLY valid JSON.
+"""
+
 
 class ProofArchitect:
     """Stage 3: plan a provenance-annotated proof structure."""
@@ -91,13 +125,70 @@ class ProofArchitect:
         self.client: LLMClient = client or create_client()
 
     async def run(self, state: TheoryState, domain: str = "") -> TheoryState:
-        """Populate state.proof_plan and state.lemma_dag / state.open_goals."""
+        """Populate state.proof_plan and state.lemma_dag / state.open_goals.
+
+        Tries in order:
+          1. Full plan (4-10 lemmas, provenance-annotated)
+          2. Simplified 3-lemma plan (if full plan fails)
+          3. Single main_result fallback (if both fail)
+        """
         if not state.research_gap:
             logger.warning("ProofArchitect: no research_gap set — falling back to informal statement")
             state.research_gap = state.informal_statement
 
         known_summary = self._format_known(state)
 
+        # ── Attempt 1: full provenance-annotated plan ──────────────────────
+        lemmas_data = await self._attempt_full_plan(state, known_summary)
+        if lemmas_data:
+            state = self._apply_plan(state, lemmas_data)
+            logger.info(
+                "ProofArchitect: plan with %d lemmas (%d known, %d adapted, %d new)",
+                len(state.proof_plan),
+                sum(1 for p in state.proof_plan if p.provenance == "known"),
+                sum(1 for p in state.proof_plan if p.provenance == "adapted"),
+                sum(1 for p in state.proof_plan if p.provenance == "new"),
+            )
+            return state
+
+        # ── Attempt 2: simplified 3-lemma plan ────────────────────────────
+        logger.info("ProofArchitect: full plan failed — retrying with 3-lemma prompt")
+        lemmas_data = await self._attempt_simple_plan(state)
+        if lemmas_data:
+            state = self._apply_plan(state, lemmas_data)
+            logger.info(
+                "ProofArchitect: simplified plan with %d lemmas (%d new)",
+                len(state.proof_plan),
+                sum(1 for p in state.proof_plan if p.provenance == "new"),
+            )
+            return state
+
+        # ── Fallback: single monolithic goal ──────────────────────────────
+        logger.warning("ProofArchitect: both plans failed — single main_result fallback")
+        fallback_id = "main_result"
+        fallback_stmt = state.informal_statement or state.research_gap[:300]
+        state.proof_plan = [
+            ProofPlan(
+                lemma_id=fallback_id,
+                statement=fallback_stmt,
+                informal=fallback_stmt,
+                provenance="new",
+                dependencies=[],
+            )
+        ]
+        state.lemma_dag[fallback_id] = LemmaNode(
+            lemma_id=fallback_id,
+            statement=fallback_stmt,
+            informal=fallback_stmt,
+            dependencies=[],
+        )
+        state.open_goals = [fallback_id]
+        return state
+
+    async def _attempt_full_plan(
+        self, state: TheoryState, known_summary: str
+    ) -> list[dict] | None:
+        """Try the full provenance-annotated plan. Returns lemma list or None."""
         try:
             response = await self.client.messages.create(
                 model=settings.eurekaclaw_model,
@@ -118,40 +209,32 @@ class ProofArchitect:
             )
             text = response.content[0].text
             lemmas_data = self._parse_lemmas(text)
-            if lemmas_data:
-                state = self._apply_plan(state, lemmas_data)
-                logger.info(
-                    "ProofArchitect: plan with %d lemmas (%d known, %d adapted, %d new)",
-                    len(state.proof_plan),
-                    sum(1 for p in state.proof_plan if p.provenance == "known"),
-                    sum(1 for p in state.proof_plan if p.provenance == "adapted"),
-                    sum(1 for p in state.proof_plan if p.provenance == "new"),
-                )
-            else:
-                raise ValueError("Parsed zero lemmas from architect response")
-
+            return lemmas_data if lemmas_data else None
         except Exception as e:
-            logger.exception("ProofArchitect failed: %s", e)
-            # Fallback: single new lemma representing the whole gap
-            fallback_id = "main_result"
-            state.proof_plan = [
-                ProofPlan(
-                    lemma_id=fallback_id,
-                    statement=state.research_gap[:300],
-                    informal=state.informal_statement,
-                    provenance="new",
-                    dependencies=[],
-                )
-            ]
-            state.lemma_dag[fallback_id] = LemmaNode(
-                lemma_id=fallback_id,
-                statement=state.research_gap[:300],
-                informal=state.informal_statement,
-                dependencies=[],
-            )
-            state.open_goals = [fallback_id]
+            logger.warning("ProofArchitect full plan attempt failed: %s", e)
+            return None
 
-        return state
+    async def _attempt_simple_plan(self, state: TheoryState) -> list[dict] | None:
+        """Try the simplified 3-lemma plan. Returns lemma list or None."""
+        try:
+            response = await self.client.messages.create(
+                model=settings.eurekaclaw_model,
+                max_tokens=1500,
+                system=ARCHITECT_SYSTEM_SIMPLE,
+                messages=[{
+                    "role": "user",
+                    "content": ARCHITECT_USER_SIMPLE.format(
+                        informal_statement=state.informal_statement or state.research_gap[:200],
+                        research_gap=state.research_gap[:600],
+                    ),
+                }],
+            )
+            text = response.content[0].text
+            lemmas_data = self._parse_lemmas(text)
+            return lemmas_data if lemmas_data else None
+        except Exception as e:
+            logger.warning("ProofArchitect simple plan attempt failed: %s", e)
+            return None
 
     # ------------------------------------------------------------------
 
@@ -241,7 +324,7 @@ class ProofArchitect:
                     statement=item.get("statement", ""),
                     informal=item.get("informal", ""),
                     provenance=provenance,
-                    source=item.get("source", ""),
+                    source=item.get("source") or "",
                     adaptation_note=item.get("adaptation_note") or "",
                     dependencies=item.get("dependencies", []),
                 )

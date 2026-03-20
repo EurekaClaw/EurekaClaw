@@ -113,6 +113,14 @@ for each open_goal:
 
 **Auto-verify:** Proofs with confidence ≥ `AUTO_VERIFY_CONFIDENCE` (default 0.85) are accepted without an LLM verifier call.
 
+**ProofArchitect retry policy:** If the full provenance-annotated plan fails (e.g. the LLM returns a field as `null`), the architect retries with a simplified 3-lemma prompt (foundational → central bound → main result). Only if both attempts fail does it fall back to a single `main_result` goal.
+
+**Outer iteration loop:** After the Assembler runs, `TheoremCrystallizer` + `ConsistencyChecker` iterate up to `theory_max_iterations` times. If the consistency check fails due to **uncited lemmas** (the assembled proof does not reference a proved lemma by its `[lemma_id]`), the `Assembler` is re-run as well — not just the Crystallizer. Other failures only trigger re-crystallization.
+
+**Citation convention:** The Assembler is instructed to cite every proved lemma by its identifier in square brackets, e.g. `By [arm_pull_count_bound], ...`. The ConsistencyChecker verifies that all proved lemma IDs appear in the assembled proof and flags any that are missing.
+
+**Knowledge Graph writes:** Lemma nodes and dependency edges are written to the Tier 3 KG whenever lemmas are proved, regardless of whether the final consistency check passes. This preserves the lemma-level graph even when the theorem statement crystallization fails.
+
 ---
 
 ## ExperimentAgent

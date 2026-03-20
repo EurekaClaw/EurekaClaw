@@ -68,11 +68,24 @@ Output a JSON object with keys:
         query = brief.query or brief.domain
         domain = brief.domain
 
+        ref_ids = brief.reference_paper_ids or []
+        if ref_ids:
+            ref_section = (
+                f"\nReference papers (search for these first by arXiv ID):\n"
+                + "\n".join(f"  - {pid}" for pid in ref_ids)
+                + "\n"
+                "Use these as the anchor of the survey: retrieve their abstracts, "
+                "identify what they establish, then search for related work to map "
+                "the surrounding landscape and gaps.\n"
+            )
+        else:
+            ref_section = ""
+
         user_message = f"""\
 Domain: {domain}
 Research Question: {query}
 Conjecture: {brief.conjecture or "open exploration"}
-
+{ref_section}
 Do 2-3 focused arXiv searches, then return a JSON with:
 papers (5-8), open_problems (3-5), key_mathematical_objects, research_frontier, insights
 """

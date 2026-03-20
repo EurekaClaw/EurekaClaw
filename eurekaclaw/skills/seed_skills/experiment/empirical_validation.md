@@ -1,13 +1,22 @@
 ---
+agent_roles:
+- experiment
+created_at: '2026-03-20T00:06:37.960352'
+description: 'Validate theoretical bounds empirically: verify the bound holds and
+  is tight.'
 name: empirical_validation
-version: "1.0"
-tags: [experiment, validation, numerical, bounds, ablation]
-agent_roles: [experiment]
-pipeline_stages: [experiment]
-description: "Validate theoretical bounds empirically: verify the bound holds and is tight."
+pipeline_stages:
+- experiment
 source: seed
-usage_count: 0
-success_rate: null
+success_rate: 1.0
+tags:
+- experiment
+- validation
+- numerical
+- bounds
+- ablation
+usage_count: 3
+version: '1.0'
 ---
 
 # Empirical Validation of Theoretical Bounds
