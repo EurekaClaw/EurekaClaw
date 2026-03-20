@@ -29,7 +29,7 @@ from eurekaclaw.skills.registry import SkillRegistry
 from eurekaclaw.tools.registry import ToolRegistry, build_default_registry
 from eurekaclaw.types.agents import AgentRole
 from eurekaclaw.types.artifacts import ResearchBrief
-from eurekaclaw.types.tasks import InputSpec, ResearchOutput, Task, TaskStatus
+from eurekaclaw.types.tasks import InputSpec, ResearchOutput, Task, TaskPipeline, TaskStatus
 
 logger = logging.getLogger(__name__)
 console = Console()
@@ -266,8 +266,7 @@ class MetaOrchestrator:
         except Exception as e:
             logger.exception("Direction planning failed: %s", e)
 
-    def _dependencies_met(self, task: Task, pipeline: "TaskPipeline") -> bool:
-        from eurekaclaw.types.tasks import TaskPipeline, TaskStatus
+    def _dependencies_met(self, task: Task, pipeline: TaskPipeline) -> bool:
         for dep_id in task.depends_on:
             dep = pipeline.get_task(dep_id)
             if dep is None:
