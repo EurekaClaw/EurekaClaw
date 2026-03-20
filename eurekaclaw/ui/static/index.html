@@ -19,71 +19,27 @@
           <div class="brand-mark" aria-hidden="true">
             <img src="./logo-claw.png" alt="" class="brand-mark-image" />
           </div>
-          <div>
-            <p class="eyebrow">Local-First Research Workspace</p>
-            <h1>EurekaClaw</h1>
-          </div>
+          <h1>EurekaClaw</h1>
         </div>
 
         <nav class="nav-stack" aria-label="Primary">
-          <button class="nav-item is-active" data-view-target="workspace">
-            <span>Research Workspace</span>
-            <small>Sessions, pipeline, artifacts</small>
-          </button>
-          <button class="nav-item" data-view-target="skills">
-            <span>Skill Library</span>
-            <small>Search, select, and curate research skills</small>
-          </button>
-          <button class="nav-item" data-view-target="onboarding">
-            <span>Guided Setup</span>
-            <small>Environment, models, health checks</small>
-          </button>
-          <button class="nav-item" data-view-target="systems">
-            <span>System Status</span>
-            <small>Capabilities, tools, skills</small>
-          </button>
+          <button class="nav-item is-active" data-view-target="workspace">Research</button>
+          <button class="nav-item" data-view-target="skills">Skills</button>
         </nav>
 
-        <section class="sidebar-card">
-          <p class="sidebar-title">Current Session</p>
-          <div class="metric-row">
-            <span>Mode</span>
-            <strong id="sidebar-mode">Not started</strong>
+        <section class="session-list-shell">
+          <div class="session-list-header">
+            <p class="sidebar-title">Sessions</p>
+            <button class="ghost-btn" id="new-session-btn">+ New</button>
           </div>
-          <div class="metric-row">
-            <span>Active stage</span>
-            <strong id="sidebar-stage">Idle</strong>
-          </div>
-          <div class="metric-row">
-            <span>Artifacts</span>
-            <strong id="sidebar-artifacts">0</strong>
-          </div>
+          <div class="session-list" id="session-list"></div>
         </section>
+
+        <hr class="nav-divider sidebar-bottom-divider" />
+        <button class="nav-item nav-item--settings" data-view-target="systems">Settings</button>
       </aside>
 
       <main class="main-shell">
-        <section class="hero">
-          <div>
-            <p class="eyebrow">Research Operating Surface</p>
-            <h2>The AI that catches your Eureka moments, end to end</h2>
-            <p class="hero-copy">
-              A calm scholarly workspace for literature scanning, direction
-              selection, theorem work, experiments, and paper assembly,
-              designed to turn research momentum into visible artifacts instead
-              of another generic dashboard.
-            </p>
-          </div>
-
-          <div class="hero-actions">
-            <button class="primary-btn" data-view-target="onboarding">
-              Run guided setup
-            </button>
-            <button class="secondary-btn" data-view-target="workspace">
-              Open workspace
-            </button>
-          </div>
-        </section>
-
         <section class="view is-visible" data-view="workspace">
           <div class="workspace-grid">
             <article class="panel session-panel">
@@ -152,8 +108,8 @@
             <article class="panel agent-panel">
               <div class="panel-header">
                 <div>
-                  <p class="eyebrow">Agent Surfaces</p>
-                  <h3>Active roles and responsibilities</h3>
+                  <p class="eyebrow">Agents</p>
+                  <h3>Active agents</h3>
                 </div>
               </div>
 
@@ -174,8 +130,8 @@
             <article class="panel log-panel">
               <div class="panel-header">
                 <div>
-                  <p class="eyebrow">Logs & Evidence</p>
-                  <h3>Execution trail and evidence</h3>
+                  <p class="eyebrow">Logs</p>
+                  <h3>Execution log</h3>
                 </div>
               </div>
 
@@ -186,8 +142,8 @@
             <article class="panel output-panel">
               <div class="panel-header">
                 <div>
-                  <p class="eyebrow">Output Surface</p>
-                  <h3>Draft and run summary</h3>
+                  <p class="eyebrow">Output</p>
+                  <h3>Results</h3>
                 </div>
                 <span class="status-pill status-idle" id="output-status-pill">Waiting</span>
               </div>
@@ -236,34 +192,16 @@
         <section class="view" data-view="onboarding">
           <div class="onboarding-shell">
             <article class="panel wizard-panel">
-              <div class="panel-header">
-                <div>
-                  <p class="eyebrow">Guided Setup</p>
-                  <h3>Productized installation flow</h3>
-                </div>
-                <span class="status-pill status-active" id="wizard-step-label">Step 1 of 7</span>
-              </div>
-
-              <div class="wizard-progress" aria-hidden="true">
+              <div class="wizard-dots-row" id="wizard-dots-row" aria-hidden="true"></div>
+              <div class="wizard-progress">
                 <div class="wizard-progress-bar" id="wizard-progress-bar"></div>
               </div>
-
-              <div class="wizard-stage" id="wizard-stage"></div>
-
-              <div class="wizard-actions">
-                <button class="secondary-btn" id="prev-step-btn">Previous</button>
-                <button class="primary-btn" id="next-step-btn">Next</button>
+              <div class="wizard-content" id="wizard-stage"></div>
+              <div class="wizard-footer">
+                <button class="secondary-btn" id="prev-step-btn">← Back</button>
+                <span class="wizard-step-counter" id="wizard-step-label">Step 1 of 7</span>
+                <button class="primary-btn" id="next-step-btn">Next →</button>
               </div>
-            </article>
-
-            <article class="panel helper-panel">
-              <div class="panel-header">
-                <div>
-                  <p class="eyebrow">Why this matters</p>
-                  <h3>Setup guidance</h3>
-                </div>
-              </div>
-              <div id="wizard-context" class="context-copy"></div>
             </article>
           </div>
         </section>
@@ -273,8 +211,8 @@
             <article class="panel">
               <div class="panel-header">
                 <div>
-                  <p class="eyebrow">System Health</p>
-                  <h3>Current capabilities</h3>
+                  <p class="eyebrow">Health</p>
+                  <h3>System status</h3>
                 </div>
               </div>
               <div class="capability-list" id="capability-list"></div>
@@ -283,8 +221,8 @@
             <article class="panel config-panel">
               <div class="panel-header">
                 <div>
-                  <p class="eyebrow">Configuration Model</p>
-                  <h3>Live configuration</h3>
+                  <p class="eyebrow">Configuration</p>
+                  <h3>Settings</h3>
                 </div>
               </div>
               <form class="config-form" id="config-form">
@@ -374,7 +312,7 @@
                 </label>
                 <label class="full-width" data-config-show="always">
                   <span>EurekaClaw directory</span>
-                  <input type="text" name="eurekaclaw_dir" />
+                  <input type="text" name="eurekaclaw_dir" placeholder="~/.eurekaclaw" />
                 </label>
                 <div class="action-row full-width">
                   <button class="secondary-btn" type="button" id="test-connection-btn">Test connection</button>
@@ -408,6 +346,15 @@
       <div class="artifact-drawer-body" id="artifact-drawer-body"></div>
     </aside>
 
+    <div id="flash-overlay" aria-hidden="true"></div>
+    <button class="tutorial-btn" id="tutorial-btn" title="Setup guide &amp; tutorials" aria-label="Open setup guide">
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="10"/>
+        <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+        <line x1="12" y1="17" x2="12.01" y2="17"/>
+      </svg>
+      <span>Guide</span>
+    </button>
     <script src="./app.js"></script>
   </body>
 </html>
