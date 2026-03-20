@@ -49,6 +49,7 @@ coverage.xml
 *.synctex.gz
 *.toc
 *.xdv
+required_sty/
 
 # ── Pipeline outputs (generated, not source) ──────────────────────────────────
 outputs/

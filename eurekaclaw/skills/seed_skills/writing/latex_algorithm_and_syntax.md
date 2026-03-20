@@ -1,13 +1,24 @@
 ---
+agent_roles:
+- writer
+created_at: '2026-03-20T06:30:46.018152'
+description: When writing LaTeX papers, place algorithms in proper LaTeX algorithm
+  environments and perform a syntax sanity check before finalizing the output.
 name: latex_algorithm_and_syntax
-version: "1.0"
-tags: [writing, latex, algorithm, pseudocode, syntax, compilation, paper]
-agent_roles: [writer]
-pipeline_stages: [writing]
-description: "When writing LaTeX papers, place algorithms in proper LaTeX algorithm environments and perform a syntax sanity check before finalizing the output."
+pipeline_stages:
+- writing
 source: seed
-usage_count: 0
-success_rate: null
+success_rate: 1.0
+tags:
+- writing
+- latex
+- algorithm
+- pseudocode
+- syntax
+- compilation
+- paper
+usage_count: 2
+version: '1.0'
 ---
 
 # LaTeX Algorithms and Syntax Sanity
