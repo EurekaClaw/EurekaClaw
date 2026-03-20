@@ -611,6 +611,13 @@ textarea {
   line-height: 1.55;
 }
 
+.field-note {
+  font-size: 0.78rem;
+  font-weight: 400;
+  color: var(--muted);
+  margin-left: 4px;
+}
+
 .mono-label,
 .step-index {
   font-family: "IBM Plex Mono", monospace;
