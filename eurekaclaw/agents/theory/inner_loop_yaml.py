@@ -37,6 +37,7 @@ from eurekaclaw.agents.theory.analysis_stages import (
     ProofSkeletonBuilder,
     TemplateSelector,
 )
+from eurekaclaw.agents.theory.checkpoint import ProofCheckpoint, ProofPausedException
 from eurekaclaw.agents.theory.consistency_checker import ConsistencyChecker
 from eurekaclaw.agents.theory.counterexample import CounterexampleSearcher
 from eurekaclaw.agents.theory.gap_analyst import GapAnalyst
@@ -125,6 +126,7 @@ class LemmaDeveloper:
         max_iterations: int,
         stagnation_window: int,
         domain: str = "",
+        checkpoint: ProofCheckpoint | None = None,
     ) -> TheoryState:
         """Drive the iterative proof loop for all open goals."""
         # First: auto-record all "known" lemmas as proven-by-citation
@@ -302,6 +304,13 @@ class LemmaDeveloper:
                     state.open_goals.remove(lemma_id)
                     self.bus.put_theory_state(state)
 
+                # --- Lemma-level pause check ---
+                # Check after every lemma (proved or accepted) so the user
+                # can pause between lemma attempts without losing progress.
+                # The caller's run() will save the checkpoint and raise.
+                if checkpoint and checkpoint.is_pause_requested():
+                    return state
+
             if goal_proved and not state.open_goals and state.proven_lemmas:
                 state.status = "proved"
                 logger.info("All lemmas proved!")
@@ -444,24 +453,86 @@ class TheoryInnerLoopYaml:
         return cls()
 
     async def run(self, session_id: str, domain: str = "") -> TheoryState:
-        """Execute the proof pipeline from start to completion."""
+        """Execute the proof pipeline, with checkpoint-based pause/resume.
+
+        Pause:
+            Touch  ~/.eurekaclaw/sessions/<session_id>/pause.flag
+            (Ctrl+C in the CLI does this automatically.)
+            The pipeline will pause at the next stage or lemma boundary,
+            serialize state, and raise ProofPausedException.
+
+        Resume:
+            eurekaclaw resume <session_id>
+            Loads the checkpoint and continues from the saved position.
+        """
+        cp = ProofCheckpoint(session_id)
+
         state = self.bus.get_theory_state()
         if not state:
             raise ValueError(
                 "No TheoryState on KnowledgeBus. Initialize it before calling run()."
             )
 
+        # --- Resume detection ---
+        original_spec = list(self._spec)
+        current_spec = original_spec
+        start_outer = 0
+        start_stage: str | None = None
+
+        if cp.exists():
+            saved_state, meta = cp.load()
+            start_outer = meta["outer_iter"]
+            start_stage = meta["next_stage"]
+            current_spec = meta["current_spec"]
+            original_spec = meta["original_spec"]
+            self.bus.put_theory_state(saved_state)
+            state = saved_state
+            cp.clear_pause_flag()
+            logger.info(
+                "Resuming from checkpoint: stage='%s' outer_iter=%d "
+                "proven=%d open=%d",
+                start_stage, start_outer,
+                len(state.proven_lemmas), len(state.open_goals),
+            )
+
+        # Snapshot the ResearchBrief for checkpoint saving (may be None for
+        # sessions that skipped survey/ideation when resumed standalone).
+        brief = self.bus.get_research_brief()
+        brief_json = brief.model_dump_json() if brief else "{}"
+
         state.status = "in_progress"
         self.bus.put_theory_state(state)
 
-        # Outer iteration: the consistency_checker may fail and require
-        # re-running TheoremCrystallizer.  We loop at most max_outer times.
         max_outer = settings.theory_max_iterations
-        for outer_iter in range(max_outer):
+        for outer_iter in range(start_outer, max_outer):
             logger.info("=== Proof pipeline outer iteration %d/%d ===", outer_iter + 1, max_outer)
 
-            for stage_spec in self._spec:
+            # On the first outer iteration when resuming, skip stages that
+            # already completed.  On subsequent iterations use full spec.
+            skip_until: str | None = start_stage if outer_iter == start_outer else None
+
+            for idx, stage_spec in enumerate(current_spec):
                 name = stage_spec["name"]
+
+                # Skip already-completed stages on resume
+                if skip_until:
+                    if name != skip_until:
+                        continue
+                    skip_until = None  # found the resume point — stop skipping
+
+                # ---- Pause check BEFORE starting this stage ----
+                if cp.is_pause_requested():
+                    cp.save(
+                        state,
+                        next_stage=name,
+                        outer_iter=outer_iter,
+                        current_spec=current_spec[idx:],
+                        original_spec=original_spec,
+                        domain=domain,
+                        research_brief_json=brief_json,
+                    )
+                    raise ProofPausedException(session_id, name)
+
                 class_name = stage_spec["class"]
                 mode = stage_spec.get("mode", "once")
                 description = stage_spec.get("description", name)
@@ -477,12 +548,49 @@ class TheoryInnerLoopYaml:
                         max_iterations=max_iter,
                         stagnation_window=stagnation,
                         domain=domain,
+                        checkpoint=cp,
                     )
                 else:
                     max_retries = int(stage_spec.get("max_retries", 1))
                     state = await self._run_once(instance, state, domain, max_retries)
 
                 self.bus.put_theory_state(state)
+
+                # Determine which stage comes next (for checkpoint metadata)
+                next_name = (
+                    current_spec[idx + 1]["name"]
+                    if idx + 1 < len(current_spec)
+                    else "__next_outer__"
+                )
+
+                # Save checkpoint after every stage so any crash is recoverable
+                cp.save(
+                    state,
+                    next_stage=next_name,
+                    outer_iter=outer_iter,
+                    current_spec=current_spec[idx + 1:],
+                    original_spec=original_spec,
+                    domain=domain,
+                    research_brief_json=brief_json,
+                )
+
+                # ---- Pause check AFTER stage (catches mid-iterative pauses) ----
+                # For iterative stages (lemma_developer), a pause mid-loop
+                # returns early with partial proven_lemmas.  We checkpoint with
+                # next_stage=name so resume re-runs that stage — open_goals
+                # will naturally contain only unproved lemmas.
+                if cp.is_pause_requested():
+                    if mode == "iterative":
+                        cp.save(
+                            state,
+                            next_stage=name,
+                            outer_iter=outer_iter,
+                            current_spec=current_spec[idx:],
+                            original_spec=original_spec,
+                            domain=domain,
+                            research_brief_json=brief_json,
+                        )
+                    raise ProofPausedException(session_id, name)
 
                 # Early exit if the proof loop was abandoned or refuted
                 if state.status in ("abandoned", "refuted"):
@@ -491,34 +599,31 @@ class TheoryInnerLoopYaml:
                     )
                     return state
 
-            # After a full pass: if consistency_checker set status=in_progress,
-            # we need another outer iteration (only for theorem_crystallizer + checker).
-            # If status=proved, we're done.
+            # After a full pass: if proved, we're done.
             if state.status == "proved":
+                cp.delete()
                 logger.info("Pipeline complete: theorem proved and consistent.")
                 break
 
             # On retry: decide which stages to re-run based on the failure type.
-            # Uncited-lemma failures require re-running the assembler (it needs to
-            # add [lemma_id] citations); other failures only need re-crystallization.
             last_failure = state.failed_attempts[-1] if state.failed_attempts else None
             uncited_issue = last_failure and any(
                 kw in last_failure.failure_reason.lower()
                 for kw in ("never cited", "uncited", "missing citation", "not cited")
             )
             if uncited_issue:
-                retry_stages = ("assembler", "theorem_crystallizer", "consistency_checker")
+                retry_stage_names = ("assembler", "theorem_crystallizer", "consistency_checker")
                 logger.info(
                     "Consistency check failed (uncited lemmas) — re-running assembler + crystallizer (outer iter %d)",
                     outer_iter + 1,
                 )
             else:
-                retry_stages = ("theorem_crystallizer", "consistency_checker")
+                retry_stage_names = ("theorem_crystallizer", "consistency_checker")
                 logger.info(
                     "Consistency check failed — re-running crystallizer (outer iter %d)",
                     outer_iter + 1,
                 )
-            self._spec = [s for s in self._spec if s["name"] in retry_stages]
+            current_spec = [s for s in original_spec if s["name"] in retry_stage_names]
         else:
             if state.status != "proved":
                 state.status = "abandoned"
@@ -539,6 +644,8 @@ class TheoryInnerLoopYaml:
             try:
                 return await instance.run(state, domain=domain)
             except Exception as e:
+                if isinstance(e, ProofPausedException):
+                    raise
                 logger.warning(
                     "Stage %s attempt %d/%d failed: %s",
                     type(instance).__name__, attempt + 1, max_retries + 1, e,

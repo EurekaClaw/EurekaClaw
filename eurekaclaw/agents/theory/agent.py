@@ -150,5 +150,8 @@ The proof pipeline is specified by the YAML file loaded by TheoryInnerLoopYaml.
             )
 
         except Exception as e:
+            from eurekaclaw.agents.theory.checkpoint import ProofPausedException
+            if isinstance(e, ProofPausedException):
+                raise
             logger.exception("Theory agent failed")
             return self._make_result(task, False, {}, error=str(e))
