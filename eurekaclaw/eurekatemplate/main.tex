@@ -1,0 +1,61 @@
+\documentclass[]{eureka}
+\makeatletter
+\def\input@path{{content/}}
+\makeatother
+\graphicspath{{content/}}
+\usepackage[toc,page,header]{appendix}
+\usepackage{natbib}
+\usepackage{xargs}  
+\usepackage{multirow}
+\usepackage{cleveref}
+\usepackage{amsmath}
+\usepackage{tabularx}
+% You can add more usepackage here, especially when compile is error
+
+\setleftheadercontent{%
+  \headerlogospace{1.6mm}%
+  \adjustbox{valign=c}{\raisebox{0.15mm}{\includegraphics[height=15.2mm]{logo-claw.png}}}%
+}
+\setrightheadericon{%
+}
+\setrunningheadericon{%
+  
+}
+\setheadergroupname{}
+
+\title{% TITLE here
+}
+
+\setfrontauthors{%
+  \authorrow{%
+    \authorentry{EurekaClaw}{}}
+}
+\usecustomauthorlayout
+
+\abstract{
+% ABSTRACT here
+}
+
+\begin{document}
+
+\maketitle
+% LATEX here
+
+\clearpage
+\bibliographystyle{plainnat}
+\begin{thebibliography}{99}
+% If there is bibliography, consider compile more times and/or use bibtex to show correctly 
+% If use bibliography, please generate as the following format here
+% \bibitem{% YOUR_CITE_LABLE %}
+% % AUTHOR_LIST %
+% \newblock % PAPER_TITLE %
+% \newblock {\em arXiv preprint arXiv:xxxx.xxxxx}, % YEAR %. (if formally published, replace arxiv with the journal/conference)
+% end your bib here
+\end{thebibliography}
+
+% If there is appendix
+% \clearpage
+% \beginappendix
+% ANY APPENDIX HERE
+
+\end{document}
