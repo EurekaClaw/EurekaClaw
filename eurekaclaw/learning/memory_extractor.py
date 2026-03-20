@@ -1,7 +1,7 @@
 """SessionMemoryExtractor — extract and persist cross-session domain insights.
 
 After each session, an LLM analyzes what happened and saves structured
-memories to ~/.metaclaw/memories/. Future sessions load relevant memories
+memories to ~/.eurekaclaw/memories/. Future sessions load relevant memories
 for context injection.
 
 Memory categories:
@@ -11,7 +11,7 @@ Memory categories:
   - pitfalls         : approaches that looked promising but didn't work
 
 Storage layout:
-  ~/.metaclaw/memories/
+  ~/.eurekaclaw/memories/
     <domain>/
       <YYYYMMDD>_<slug>.md    ← one file per insight
     _index.json               ← dedup fingerprints (sha256 of content)
@@ -87,7 +87,7 @@ class SessionMemoryExtractor:
 
     def __init__(self, client: LLMClient | None = None) -> None:
         self.client: LLMClient = client or create_client()
-        self._base_dir = settings.metaclaw_dir / "memories"
+        self._base_dir = settings.eurekaclaw_dir / "memories"
         self._base_dir.mkdir(parents=True, exist_ok=True)
         self._index_path = self._base_dir / "_index.json"
         self._fingerprints: set[str] = self._load_index()

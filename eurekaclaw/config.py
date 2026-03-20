@@ -25,6 +25,7 @@ class Config(BaseSettings):
     anthropic_auth_mode: Literal["api_key", "oauth"] = Field(
         default="api_key", alias="ANTHROPIC_AUTH_MODE"
     )
+    anthropic_base_url: str = Field(default="", alias="ANTHROPIC_BASE_URL")
     ccproxy_port: int = Field(default=8000, alias="CCPROXY_PORT")
 
     # Anthropic native
@@ -91,11 +92,11 @@ class Config(BaseSettings):
     enforce_proof_style: bool = Field(default=True, alias="ENFORCE_PROOF_STYLE")
 
     # ---- Paths -------------------------------------------------------------
-    metaclaw_dir: Path = Field(default=Path.home() / ".metaclaw", alias="METACLAW_DIR")
+    eurekaclaw_dir: Path = Field(default=Path.home() / ".eurekaclaw", alias="EUREKACLAW_DIR")
     lean4_bin: str = Field(default="lean", alias="LEAN4_BIN")
     latex_bin: str = Field(default="pdflatex", alias="LATEX_BIN")
 
-    @field_validator("metaclaw_dir", mode="before")
+    @field_validator("eurekaclaw_dir", mode="before")
     @classmethod
     def expand_home(cls, v: str | Path) -> Path:
         return Path(v).expanduser()
@@ -113,15 +114,15 @@ class Config(BaseSettings):
 
     @property
     def skills_dir(self) -> Path:
-        return self.metaclaw_dir / "skills"
+        return self.eurekaclaw_dir / "skills"
 
     @property
     def memory_dir(self) -> Path:
-        return self.metaclaw_dir / "memory"
+        return self.eurekaclaw_dir / "memory"
 
     @property
     def runs_dir(self) -> Path:
-        return self.metaclaw_dir / "runs"
+        return self.eurekaclaw_dir / "runs"
 
     def ensure_dirs(self) -> None:
         for d in (self.skills_dir, self.memory_dir, self.runs_dir):

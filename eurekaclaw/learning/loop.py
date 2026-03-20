@@ -1,5 +1,6 @@
 """ContinualLearningLoop — cross-run improvement via skill distillation and memory.
 
+
 Three modes:
 - skills_only: skill distillation only (default, no GPU needed)
 - rl: skills + PRM scoring + async cloud LoRA (GRPO)

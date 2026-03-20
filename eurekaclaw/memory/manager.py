@@ -7,7 +7,7 @@ Four tiers:
   4. DomainMemories — per-domain markdown insights extracted after each session
                       (used for prompt injection in future runs)
 
-All tiers live under ~/.metaclaw/:
+All tiers live under ~/.eurekaclaw/:
   memory/persistent.json       ← tier 2
   memory/knowledge_graph.json  ← tier 3
   memories/<domain>/<date>.md  ← tier 4  (written by SessionMemoryExtractor)
@@ -78,7 +78,7 @@ class MemoryManager:
         """Load top-k domain memories as a formatted block for prompt injection.
 
         Delegates to SessionMemoryExtractor which manages the markdown files
-        at ~/.metaclaw/memories/<domain>/. Returns empty string if none exist.
+        at ~/.eurekaclaw/memories/<domain>/. Returns empty string if none exist.
         This is the canonical way for injectors/agents to access cross-session
         memories — no code outside memory/ should import SessionMemoryExtractor.
         """

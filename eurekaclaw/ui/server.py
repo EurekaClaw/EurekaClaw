@@ -47,7 +47,7 @@ _CONFIG_FIELDS: dict[str, str] = {
     "ccproxy_port": "CCPROXY_PORT",
     "theory_max_iterations": "THEORY_MAX_ITERATIONS",
     "output_format": "OUTPUT_FORMAT",
-    "metaclaw_dir": "METACLAW_DIR",
+    "eurekaclaw_dir": "EUREKACLAW_DIR",
     # Token limits
     "max_tokens_agent": "MAX_TOKENS_AGENT",
     "max_tokens_prover": "MAX_TOKENS_PROVER",

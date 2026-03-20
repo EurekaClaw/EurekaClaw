@@ -172,11 +172,7 @@ class TheoryState(BaseModel):
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
     def is_complete(self) -> bool:
-        return (
-            len(self.open_goals) == 0
-            and len(self.proven_lemmas) > 0
-            and self.status == "proved"
-        )
+        return len(self.open_goals) == 0 and self.status == "proved"
 
 
 # ---------------------------------------------------------------------------

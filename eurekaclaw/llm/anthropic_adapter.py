@@ -47,7 +47,9 @@ class AnthropicAdapter(LLMClient):
                 "ANTHROPIC_API_KEY is not set. Either add it to .env, "
                 "run ccproxy (ANTHROPIC_AUTH_MODE=oauth), or log in to Claude Code."
             )
-        self._client = anthropic.AsyncAnthropic(api_key=effective_key)
+        from eurekaclaw.config import settings
+        base_url = os.environ.get("ANTHROPIC_BASE_URL") or settings.anthropic_base_url or None
+        self._client = anthropic.AsyncAnthropic(api_key=effective_key, base_url=base_url)
 
     async def _create(
         self,

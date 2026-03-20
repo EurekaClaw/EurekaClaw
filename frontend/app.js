@@ -250,10 +250,10 @@ function normalizePathForDisplay(value) {
     "/Users/",
     "/home/"
   ];
-  if (value.endsWith("/.metaclaw")) {
+  if (value.endsWith("/.eurekaclaw")) {
     for (const prefix of homePrefixes) {
       if (value.startsWith(prefix)) {
-        return "~/.metaclaw";
+        return "~/.eurekaclaw";
       }
     }
   }
@@ -895,7 +895,7 @@ async function loadConfig() {
     Object.entries(data.config).forEach(([key, value]) => {
       const field = configFormEl.elements.namedItem(key);
       if (field) {
-        field.value = key === "metaclaw_dir" ? normalizePathForDisplay(value ?? "") : (value ?? "");
+        field.value = key === "eurekaclaw_dir" ? normalizePathForDisplay(value ?? "") : (value ?? "");
       }
     });
     updateConfigVisibility();

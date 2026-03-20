@@ -293,7 +293,7 @@ These techniques were integrated based on research into high-efficiency agentic 
 | **theory/counterexample.py** | Proof text 2000 $\rightarrow$ 500 chars; require $\ge 2$ signal matches (was 1) | ScienceClaw selective preservation |
 | **theory/inner_loop.py** | Stagnation detection (forced refinement); skip low-conf verifier; 20s timeout | ClawTeam "kill idle agents" |
 | **orchestrator/planner.py** | Compact direction format in converge call (120+80 chars vs. full text) | AI-Researcher hierarchical distillation |
-| **learning/loop.py** | Deduplicate failures; compress success proofs to 300 chars; skip low-novelty distillation | MetaClaw session-to-skills |
+| **learning/loop.py** | Deduplicate failures; compress success proofs to 300 chars; skip low-novelty distillation | Session-to-skills |
 
 
 ### Experiment skip
