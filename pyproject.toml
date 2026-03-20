@@ -18,26 +18,34 @@ dependencies = [
     "httpx>=0.27",
     "networkx>=3.3",
     "click>=8.0",
-    "python-frontmatter>=1.1",
-    "sentence-transformers>=3.0",
-    "docker>=7.0",
-    "bibtexparser",
     "rich>=13.0",
+    "python-frontmatter>=1.1",
+    "PyYAML>=6.0",
     "tenacity>=8.0",
-    "aiofiles>=23.0",
     "numpy>=1.26",
     "arxiv>=2.1",
-    "PyYAML>=6.0",
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0", "pytest-asyncio>=0.23", "pytest-mock>=3.12", "mypy>=1.10"]
-# Required for LLM_BACKEND=openai_compat (OpenRouter, vLLM, SGLang, LM Studio…)
+# Semantic skill retrieval (falls back to tag-based retrieval if absent)
+embeddings = ["sentence-transformers>=3.0"]
+# Sandboxed code execution via Docker (falls back to local subprocess if absent)
+docker = ["docker>=7.0"]
+# OpenAI-compatible backend (OpenRouter, vLLM, SGLang, LM Studio…)
 openai = ["openai>=1.30"]
-# Required for ANTHROPIC_AUTH_MODE=oauth (Claude Pro/Max via Claude Code's OAuth tokens)
+# Claude Pro/Max via Claude Code OAuth tokens
 oauth = ["ccproxy-api>=0.2.4"]
-lean4 = []  # Lean4 must be installed separately: https://leanprover.github.io/lean4/doc/setup.html
-coq = []    # Coq must be installed separately: https://coq.inria.fr/download
+# Development & testing
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "pytest-mock>=3.12",
+    "mypy>=1.10",
+]
+# Install everything at once (except system-level Lean4/Coq)
+all = [
+    "eurekaclaw[embeddings,docker,openai]",
+]
 
 [project.scripts]
 eurekaclaw = "eurekaclaw.cli:main"
