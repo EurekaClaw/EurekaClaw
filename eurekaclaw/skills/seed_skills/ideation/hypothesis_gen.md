@@ -1,13 +1,22 @@
 ---
+agent_roles:
+- ideation
+created_at: '2026-03-20T00:06:37.960518'
+description: Generate novel research hypotheses by combining cross-domain insights
+  and unexplored gaps.
 name: hypothesis_gen
-version: "1.0"
-tags: [ideation, hypothesis, novelty, cross-domain, divergent-thinking]
-agent_roles: [ideation]
-pipeline_stages: [ideation]
-description: "Generate novel research hypotheses by combining cross-domain insights and unexplored gaps."
+pipeline_stages:
+- ideation
 source: seed
-usage_count: 0
-success_rate: null
+success_rate: 0.7899999999999999
+tags:
+- ideation
+- hypothesis
+- novelty
+- cross-domain
+- divergent-thinking
+usage_count: 4
+version: '1.0'
 ---
 
 # Hypothesis Generation

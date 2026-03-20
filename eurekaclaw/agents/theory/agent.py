@@ -90,8 +90,12 @@ The proof pipeline is specified by the YAML file loaded by TheoryInnerLoopYaml.
                 f"Theory loop: {final_state.status}, {proven_count} lemmas proved, {open_count} open",
             )
 
-            # Add proven theorems to knowledge graph (Tier 3)
-            if success:
+            # Add proven theorems to knowledge graph (Tier 3).
+            # Write KG nodes whenever lemmas were proved, even if the
+            # consistency check didn't fully pass — the lemma-level work
+            # is valuable regardless of whether the theorem statement was
+            # successfully crystallized.
+            if proven_count > 0:
                 # Register each proven lemma as a node and link dependencies
                 lemma_node_ids: dict[str, str] = {}
                 for lemma_id, record in final_state.proven_lemmas.items():
