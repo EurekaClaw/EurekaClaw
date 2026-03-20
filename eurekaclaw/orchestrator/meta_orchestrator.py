@@ -199,10 +199,9 @@ class MetaOrchestrator:
         return output
 
     def _init_brief(self, spec: InputSpec) -> ResearchBrief:
-        import uuid
         from eurekaclaw.types.artifacts import ResearchBrief
         return ResearchBrief(
-            session_id=str(uuid.uuid4()),
+            session_id=self.bus.session_id,  # reuse the outer session ID so pause/resume flags align
             input_mode=spec.mode,
             domain=spec.domain,  # always set by EurekaSession.run() before reaching here
             query=spec.query or spec.conjecture or spec.domain,

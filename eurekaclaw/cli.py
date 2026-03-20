@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import signal
 import sys
 from pathlib import Path
 
@@ -46,6 +47,10 @@ def prove(conjecture: str, domain: str, mode: str, gate: str, output: str) -> No
     """Level 1: Prove a specific conjecture.
 
     Example: eurekaclaw prove "The sample complexity of transformers is O(L*d*log(d)/eps^2)"
+
+    Press Ctrl+C at any time to pause.  The pipeline will finish the
+    current lemma and save a checkpoint.  Resume with:
+        eurekaclaw resume <session-id>
     """
     _run_session(
         mode="detailed",
@@ -105,6 +110,86 @@ def from_papers(paper_ids: tuple[str, ...], query: str, domain: str, mode: str, 
         gate=gate,
         output_dir=output,
     )
+
+
+@main.command()
+@click.argument("session_id")
+def pause(session_id: str) -> None:
+    """Request pause for a running proof session.
+
+    Example: eurekaclaw pause abc12345-...
+    """
+    from eurekaclaw.agents.theory.checkpoint import ProofCheckpoint
+    cp = ProofCheckpoint(session_id)
+    cp.request_pause()
+    console.print(
+        f"\n[yellow]Pause requested for session [cyan]{session_id[:8]}[/cyan].[/yellow]"
+        "\nThe proof will stop at the next stage boundary."
+        f"\nResume with:  [bold]eurekaclaw resume {session_id}[/bold]\n"
+    )
+
+
+@main.command()
+@click.argument("session_id")
+def resume(session_id: str) -> None:
+    """Resume a paused proof session.
+
+    Example: eurekaclaw resume abc12345-...
+    """
+    from eurekaclaw.agents.theory.checkpoint import ProofCheckpoint, ProofPausedException
+    from eurekaclaw.agents.theory.inner_loop_yaml import TheoryInnerLoopYaml
+    from eurekaclaw.knowledge_bus.bus import KnowledgeBus
+    from eurekaclaw.memory.manager import MemoryManager
+    from eurekaclaw.skills.injector import SkillInjector
+    from eurekaclaw.types.artifacts import ResearchBrief
+
+    cp = ProofCheckpoint(session_id)
+    if not cp.exists():
+        console.print(f"[red]No checkpoint found for session '{session_id}'.[/red]")
+        console.print(
+            f"[dim]Expected location: {cp.checkpoint_path}[/dim]"
+        )
+        sys.exit(1)
+
+    state, meta = cp.load()
+    domain = meta.get("domain", "")
+    brief_raw = meta.get("research_brief", {})
+    next_stage = meta.get("next_stage", "?")
+
+    console.print(
+        f"\n[bold green]Resuming session[/bold green] [cyan]{session_id[:8]}[/cyan]"
+        f"  stage=[yellow]{next_stage}[/yellow]"
+        f"  proven={len(state.proven_lemmas)}"
+        f"  open={len(state.open_goals)}\n"
+    )
+
+    bus = KnowledgeBus(session_id)
+    bus.put_theory_state(state)
+    if brief_raw:
+        try:
+            bus.put_research_brief(ResearchBrief.model_validate(brief_raw))
+        except Exception:
+            pass  # Non-fatal: brief is used only for KG tagging
+
+    from eurekaclaw.skills.registry import SkillRegistry
+    memory = MemoryManager(session_id=session_id)
+    skill_injector = SkillInjector(SkillRegistry())
+    inner_loop = TheoryInnerLoopYaml(
+        bus=bus, skill_injector=skill_injector, memory=memory
+    )
+
+    _install_pause_handler(cp)
+
+    try:
+        final_state = asyncio.run(inner_loop.run(session_id, domain=domain))
+        _print_proof_result(final_state)
+    except ProofPausedException as exc:
+        console.print(
+            f"\n[yellow]Paused again before stage '{exc.paused_before_stage}'.[/yellow]"
+            f"\nResume with:  [bold]eurekaclaw resume {session_id}[/bold]\n"
+        )
+    except KeyboardInterrupt:
+        console.print("\n[yellow]Interrupted.[/yellow]")
 
 
 @main.command()
@@ -200,6 +285,33 @@ def ui(host: str, port: int, open_browser: bool) -> None:
         threading.Thread(target=_open, daemon=True).start()
 
     serve_ui(host=host, port=port)
+
+
+def _install_pause_handler(cp: "ProofCheckpoint") -> None:  # type: ignore[name-defined]
+    """Replace SIGINT with a graceful pause-flag writer.
+
+    On Ctrl+C the handler writes the pause flag and prints a message.
+    The pipeline polls this flag at every stage/lemma boundary and
+    saves a checkpoint before raising ProofPausedException.
+    """
+    def _handler(signum: int, frame: object) -> None:
+        cp.request_pause()
+        console.print(
+            "\n[yellow]Pause requested — finishing current lemma, then saving checkpoint...[/yellow]"
+        )
+
+    signal.signal(signal.SIGINT, _handler)
+
+
+def _print_proof_result(state: "TheoryState") -> None:  # type: ignore[name-defined]
+    from rich.table import Table
+    tbl = Table(show_header=True)
+    tbl.add_column("Field", style="bold")
+    tbl.add_column("Value")
+    tbl.add_row("Status", state.status)
+    tbl.add_row("Proven lemmas", str(len(state.proven_lemmas)))
+    tbl.add_row("Open goals", str(len(state.open_goals)))
+    console.print(tbl)
 
 
 def _compile_pdf(tex_path: Path) -> None:
@@ -312,7 +424,26 @@ def _run_session(
     )
 
     session = EurekaSession()
-    result = asyncio.run(session.run(spec))
+
+    # Install Ctrl+C → graceful pause handler.
+    # We need the session_id before run() so we can hand the checkpoint to
+    # the SIGINT handler; EurekaSession exposes it immediately after __init__.
+    from eurekaclaw.agents.theory.checkpoint import ProofCheckpoint, ProofPausedException
+    _install_pause_handler(ProofCheckpoint(session.session_id))
+
+    console.print(
+        f"[dim]Session ID: [cyan]{session.session_id}[/cyan]"
+        "  (use this to resume if paused)[/dim]"
+    )
+
+    try:
+        result = asyncio.run(session.run(spec))
+    except ProofPausedException as exc:
+        console.print(
+            f"\n[yellow]Proof paused before stage '{exc.paused_before_stage}'.[/yellow]"
+            f"\nResume with:  [bold]eurekaclaw resume {exc.session_id}[/bold]\n"
+        )
+        return
 
     out = save_artifacts(result, output_dir or "./results")
     console.print(f"[green]Artifacts saved to {out}[/green]")
