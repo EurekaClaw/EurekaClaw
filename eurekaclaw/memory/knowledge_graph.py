@@ -88,6 +88,9 @@ class KnowledgeGraph:
     def search_by_tag(self, tag: str) -> list[KnowledgeNode]:
         return [n for n in self._nodes.values() if tag in n.tags]
 
+    def all_nodes(self) -> list[KnowledgeNode]:
+        return list(self._nodes.values())
+
     def to_networkx(self) -> Any:
         try:
             import networkx as nx  # type: ignore

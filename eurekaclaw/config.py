@@ -55,6 +55,9 @@ class Config(BaseSettings):
     gate_mode: Literal["auto", "human", "none"] = Field(
         default="auto", alias="GATE_MODE"
     )
+    theory_pipeline: Literal["default", "memory_guided"] = Field(
+        default="default", alias="THEORY_PIPELINE"
+    )
     theory_max_iterations: int = Field(default=10, alias="THEORY_MAX_ITERATIONS")
     use_docker_sandbox: bool = Field(default=False, alias="USE_DOCKER_SANDBOX")
     # Output format for the generated paper: "latex" (default) or "markdown"
@@ -62,7 +65,8 @@ class Config(BaseSettings):
 
     # ---- Token-efficiency knobs --------------------------------------------
     context_compress_after_turns: int = Field(default=6, alias="CONTEXT_COMPRESS_AFTER_TURNS")
-    auto_verify_confidence: float = Field(default=0.85, alias="AUTO_VERIFY_CONFIDENCE")
+    auto_verify_confidence: float = Field(default=0.95, alias="AUTO_VERIFY_CONFIDENCE")
+    verifier_pass_confidence: float = Field(default=0.90, alias="VERIFIER_PASS_CONFIDENCE")
     stagnation_window: int = Field(default=3, alias="STAGNATION_WINDOW")
     experiment_mode: Literal["auto", "true", "false"] = Field(
         default="auto", alias="EXPERIMENT_MODE"

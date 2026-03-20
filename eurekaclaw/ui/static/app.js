@@ -962,7 +962,17 @@ function renderArtifactSummary(key, artifact) {
         <div class="artifact-kv">
           <div class="artifact-kv-row"><strong>Status</strong><span>${escapeHtml(artifact.status || "")}</span></div>
           <div class="artifact-kv-row"><strong>Iteration</strong><span>${escapeHtml(String(artifact.iteration ?? 0))}</span></div>
+          <div class="artifact-kv-row"><strong>Problem type</strong><span>${escapeHtml(artifact.problem_type || "—")}</span></div>
+          <div class="artifact-kv-row"><strong>Template</strong><span>${escapeHtml(artifact.proof_template || "—")}</span></div>
           <div class="artifact-kv-row"><strong>Formal statement</strong><span>${escapeHtml(artifact.formal_statement || "—")}</span></div>
+        </div>
+      </section>
+      <section class="artifact-section">
+        <h4>Analysis & Skeleton</h4>
+        <div class="artifact-kv">
+          <div class="artifact-kv-row"><strong>Memory theorems</strong><span>${escapeHtml(String((artifact.memory_theorems || []).length))}</span></div>
+          <div class="artifact-kv-row"><strong>Analysis notes</strong><span>${escapeHtml((artifact.analysis_notes || "—").slice(0, 320))}</span></div>
+          <div class="artifact-kv-row"><strong>Proof skeleton</strong><span>${escapeHtml((artifact.proof_skeleton || "—").slice(0, 320))}</span></div>
         </div>
       </section>
       <section class="artifact-section">

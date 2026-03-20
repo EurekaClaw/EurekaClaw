@@ -315,8 +315,23 @@
                   <input type="text" name="eurekaclaw_fast_model" />
                 </label>
                 <label data-config-show="always">
+                  <span>Theory pipeline</span>
+                  <select name="theory_pipeline">
+                    <option value="default">default</option>
+                    <option value="memory_guided">memory_guided</option>
+                  </select>
+                </label>
+                <label data-config-show="always">
                   <span>Theory iterations</span>
                   <input type="number" name="theory_max_iterations" min="1" />
+                </label>
+                <label data-config-show="always">
+                  <span>Auto verify confidence</span>
+                  <input type="number" name="auto_verify_confidence" min="0" max="1" step="0.01" />
+                </label>
+                <label data-config-show="always">
+                  <span>Verifier pass confidence</span>
+                  <input type="number" name="verifier_pass_confidence" min="0" max="1" step="0.01" />
                 </label>
                 <fieldset class="token-limits-group full-width" data-config-show="always">
                   <legend>Token limits per call type</legend>

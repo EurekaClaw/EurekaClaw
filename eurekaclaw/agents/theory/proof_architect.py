@@ -45,7 +45,10 @@ main result.  For each lemma you must specify:
 
 Rules:
 - Order lemmas topologically (dependencies before dependents)
-- 4-10 lemmas total
+- For general proof plans, 4-10 lemmas is typical.
+- When a proof skeleton or decomposition is already available, do NOT force a
+  large lemma DAG. A compact plan with only the genuinely nontrivial bottleneck
+  lemmas plus the final result is preferred.
 - Known lemmas should use results from the provided known-results list
 - Adapted/new lemmas should identify exactly what is novel
 - The final lemma should be the main result (provenance "new")
@@ -60,6 +63,21 @@ Research gap:
 
 Available known results (cite these where possible):
 {known_results}
+
+Relevant prior theorems / lemmas from memory:
+{memory_theorems}
+
+Problem type:
+{problem_type}
+
+Preferred proof template:
+{proof_template}
+
+Analysis notes:
+{analysis_notes}
+
+Proof skeleton:
+{proof_skeleton}
 
 Design a proof plan for the above gap.
 Return ONLY valid JSON with a "lemmas" array.
@@ -181,6 +199,11 @@ class ProofArchitect:
                     "content": ARCHITECT_USER.format(
                         research_gap=state.research_gap[:1200],
                         known_results=known_summary,
+                        memory_theorems="\n".join(state.memory_theorems[:5]) or "(none)",
+                        problem_type=state.problem_type[:200] or "(unspecified)",
+                        proof_template=state.proof_template[:200] or "(unspecified)",
+                        analysis_notes=state.analysis_notes[:1600] or "(none)",
+                        proof_skeleton=state.proof_skeleton[:1600] or "(none)",
                     ),
                 }],
             )

@@ -45,7 +45,10 @@ _CONFIG_FIELDS: dict[str, str] = {
     "eurekaclaw_mode": "EUREKACLAW_MODE",
     "gate_mode": "GATE_MODE",
     "ccproxy_port": "CCPROXY_PORT",
+    "theory_pipeline": "THEORY_PIPELINE",
     "theory_max_iterations": "THEORY_MAX_ITERATIONS",
+    "auto_verify_confidence": "AUTO_VERIFY_CONFIDENCE",
+    "verifier_pass_confidence": "VERIFIER_PASS_CONFIDENCE",
     "output_format": "OUTPUT_FORMAT",
     "eurekaclaw_dir": "EUREKACLAW_DIR",
     # Token limits

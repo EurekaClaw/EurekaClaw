@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from dataclasses import dataclass
 
 from eurekaclaw.config import settings
@@ -28,8 +29,7 @@ logger = logging.getLogger(__name__)
 CHECK_SYSTEM = """\
 You are a rigorous mathematical reviewer.  You will be given:
 1. A theorem statement
-2. An assembled proof that was intended to prove it (may be excerpted if long)
-3. A list of lemma identifiers that must each be explicitly cited in the proof
+2. A structured proof context distilled from the proof artifacts
 
 Check whether the proof actually establishes the stated theorem.
 Look for:
@@ -60,7 +60,7 @@ CHECK_USER = """\
 Theorem statement:
 {theorem}
 
-Assembled proof (excerpt):
+Structured proof context:
 {proof_excerpt}
 
 Required lemma identifiers (each must appear as [lemma_id] in the proof):
@@ -124,21 +124,12 @@ class ConsistencyChecker:
 
         return state
 
-    async def _check(
-        self, state: TheoryState, required_lemma_ids: list[str]
-    ) -> ConsistencyResult:
-        proof_excerpt = state.assembled_proof
-        if len(proof_excerpt) > 5000:
-            proof_excerpt = (
-                proof_excerpt[:2500]
-                + "\n... [compressed] ...\n"
-                + proof_excerpt[-1500:]
-            )
-        ids_str = ", ".join(f"[{lid}]" for lid in required_lemma_ids) or "(none)"
+    async def _check(self, state: TheoryState) -> ConsistencyResult:
+        proof_excerpt = self._build_proof_context(state)
         try:
             response = await self.client.messages.create(
                 model=settings.fast_model,
-                max_tokens=600,
+                max_tokens=700,
                 system=CHECK_SYSTEM,
                 messages=[{
                     "role": "user",
@@ -180,3 +171,43 @@ class ConsistencyChecker:
             except (json.JSONDecodeError, ValueError):
                 continue
         return {"consistent": True, "confidence": 0.5, "issues": [], "notes": text[:200]}
+
+    def _build_proof_context(self, state: TheoryState) -> str:
+        """Build a structured proof context instead of naive head/tail truncation."""
+        sections: list[str] = []
+
+        if state.proof_skeleton:
+            sections.append("=== Proof Skeleton ===\n" + state.proof_skeleton[:1800])
+
+        if state.proof_plan:
+            plan_lines = []
+            for plan in state.proof_plan[:8]:
+                plan_lines.append(
+                    f"- [{plan.lemma_id}] provenance={plan.provenance} statement={plan.statement[:220]}"
+                )
+            sections.append("=== Planned Key Lemmas ===\n" + "\n".join(plan_lines))
+
+        if state.proven_lemmas:
+            proven_lines = []
+            for lemma_id, record in list(state.proven_lemmas.items())[:8]:
+                node = state.lemma_dag.get(lemma_id)
+                stmt = node.statement if node else lemma_id
+                proven_lines.append(
+                    f"- [{lemma_id}] {stmt[:220]} (verified={record.verified}, method={record.verification_method})"
+                )
+            sections.append("=== Proven Lemmas ===\n" + "\n".join(proven_lines))
+
+        body = state.assembled_proof
+        sections.append("=== Proof Overview ===\n" + body[:1600])
+
+        middle_hits = re.findall(
+            r"(?is)(lemma\s+\d+.*?(?:proof\.|qed|\\end\{lemma\}|\\end\{proof\}))",
+            body,
+        )
+        if middle_hits:
+            sections.append(
+                "=== Key Middle Excerpts ===\n" + "\n\n".join(hit[:800] for hit in middle_hits[:3])
+            )
+
+        sections.append("=== Proof Conclusion ===\n" + body[-1400:])
+        return "\n\n".join(section for section in sections if section).strip()[:6500]

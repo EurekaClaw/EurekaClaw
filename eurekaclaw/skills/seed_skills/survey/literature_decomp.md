@@ -8,7 +8,7 @@ name: literature_decomp
 pipeline_stages:
 - survey
 source: seed
-success_rate: 0.5498999999999999
+success_rate: 0.3
 tags:
 - survey
 - literature
@@ -16,7 +16,7 @@ tags:
 - insight
 - gaps
 - open-problems
-usage_count: 5
+usage_count: 2
 version: '1.0'
 ---
 
