@@ -66,16 +66,42 @@ class TaskPipeline(BaseModel):
 
 
 class InputSpec(BaseModel):
-    """User-provided input at the start of a research session."""
+    """User-provided input at the start of a research session.
+
+    Three mutually exclusive modes control which pipeline stages are active:
+
+    ``"detailed"`` — Level 1: Prove a specific conjecture.
+        The user supplies a precise mathematical statement in ``conjecture``.
+        The IdeationAgent's direction-generation step is bypassed entirely;
+        the conjecture is used verbatim as the theorem to prove.
+        Required field: ``conjecture``.
+
+    ``"reference"`` — Level 2: Explore gaps around known papers.
+        The user supplies one or more paper identifiers in ``paper_ids``
+        (arXiv IDs or Semantic Scholar IDs) and/or raw texts in
+        ``paper_texts``.  The SurveyAgent fetches and analyses those
+        papers, then the IdeationAgent identifies research gaps and
+        generates novel hypotheses before selecting the best direction.
+        Required field: ``paper_ids`` or ``paper_texts`` (at least one).
+
+    ``"exploration"`` — Level 3: Open-ended domain exploration.
+        The user specifies only a research domain in ``domain`` and an
+        optional guiding ``query``.  The system autonomously surveys the
+        frontier, identifies open problems, proposes five research
+        directions, and selects the most promising one before proceeding
+        to the theory and writing stages.
+        Required field: ``domain``.
+    """
+
     mode: Literal["detailed", "reference", "exploration"]
-    # Level 1: detailed idea
+    # Level 1: detailed conjecture
     conjecture: str | None = None
-    # Level 2: reference-based
+    # Level 2: reference-based (paper IDs or raw texts)
     paper_ids: list[str] = Field(default_factory=list)
     paper_texts: list[str] = Field(default_factory=list)
     # Level 3: open exploration
     domain: str = ""
-    # Shared
+    # Shared across all modes
     query: str = ""
     additional_context: str = ""
     selected_skills: list[str] = Field(default_factory=list)

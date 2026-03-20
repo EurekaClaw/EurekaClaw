@@ -15,9 +15,9 @@ logger = logging.getLogger(__name__)
 
 
 def _compute_cite_keys(papers: list) -> list[str]:
-    """Generate BibTeX cite keys using the same algorithm as main._generate_bibtex.
+    """Generate cite keys using the same algorithm as _generate_thebibliography.
 
-    Must stay in sync with _generate_bibtex in eurekaclaw/main.py.
+    Must stay in sync with _generate_thebibliography below.
     """
     keys: list[str] = []
     seen: set[str] = set()
@@ -36,15 +36,23 @@ def _compute_cite_keys(papers: list) -> list[str]:
     return keys
 
 
+# ---------------------------------------------------------------------------
+# EurekaTemplate-based LaTeX preamble
+# ---------------------------------------------------------------------------
+# Uses the eureka.cls custom class (copied to output dir by save_artifacts).
+# %%  →  literal % in LaTeX output (LaTeX line-continuation comments)
+# %s  →  replaced at runtime with (title, abstract)
+# ---------------------------------------------------------------------------
 LATEX_PREAMBLE = r"""\nonstopmode
-\documentclass[12pt]{article}
-\usepackage{amsmath, amssymb, amsthm}
-\usepackage{xcolor}
-\usepackage{hyperref}
-\usepackage{natbib}
-\usepackage{geometry}
-\geometry{margin=1in}
+\documentclass[]{eureka}
 
+%% Additional packages not already loaded by eureka.cls
+\usepackage{amsthm}
+\usepackage{xargs}
+\usepackage{tabularx}
+\usepackage[toc,page,header]{appendix}
+
+%% Theorem environments (eureka.cls does not define these)
 \newtheorem{theorem}{Theorem}
 \newtheorem{lemma}[theorem]{Lemma}
 \newtheorem{corollary}[theorem]{Corollary}
@@ -58,22 +66,45 @@ LATEX_PREAMBLE = r"""\nonstopmode
 \newtheorem{observation}[theorem]{Observation}
 \newtheorem{maintheorem}[theorem]{Main Theorem}
 \newtheorem{remark}{Remark}
+\newtheorem{auxlemma}[theorem]{Lemma}
+
+%% Common math macros
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\N}{\mathbb{N}}
+\newcommand{\Z}{\mathbb{Z}}
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\Prob}{\mathbb{P}}
+\DeclareMathOperator{\softmax}{softmax}
+\DeclareMathOperator{\Att}{Att}
+\DeclareMathOperator*{\argmax}{arg\,max}
+\DeclareMathOperator*{\argmin}{arg\,min}
+\newcommand{\norm}[1]{\left\lVert#1\right\rVert}
+\newcommand{\abs}[1]{\left|#1\right|}
+\newcommand{\inner}[2]{\langle #1, #2 \rangle}
+
+%% Header: EurekaClaw logo on the first page
+\setleftheadercontent{%%
+  \headerlogospace{1.6mm}%%
+  \adjustbox{valign=c}{\raisebox{0.15mm}{\includegraphics[height=15.2mm]{logo-claw.png}}}%%
+}
+\setrightheadericon{}
+\setrunningheadericon{}
+\setheadergroupname{}
 
 \title{%s}
-\author{EurekaClaw Autonomous Research System}
-\date{\today}
+\setfrontauthors{%%
+  \authorrow{%%
+    \authorentry{EurekaClaw Autonomous Research System}{}}%%
+}
+\usecustomauthorlayout
+
+\abstract{%s}
 
 \begin{document}
 \maketitle
-\begin{abstract}
-%s
-\end{abstract}
-
 """
 
 LATEX_END = r"""
-\bibliographystyle{plainnat}
-\bibliography{references}
 \end{document}
 """
 
@@ -269,13 +300,19 @@ Include all proofs using \\begin{{proof}}...\\end{{proof}}.
                 paper_content = self._extract_markdown(text)
                 output_key = "latex_paper"  # reuse existing key for compatibility
             else:
+                abstract_text = self._extract_abstract(text) or (
+                    f"We present theoretical results in {brief.domain}. "
+                    f"Our main contribution is: {theory_state.informal_statement[:200]}"
+                )
                 latex_body = self._extract_latex(text)
+                inline_bib = self._generate_thebibliography(bib.papers if bib else [])
                 paper_content = (
                     LATEX_PREAMBLE % (
                         self._escape_latex(title),
-                        f"We present results in {self._escape_latex(brief.domain)}.",
+                        abstract_text,
                     )
                     + latex_body
+                    + ("\n\\clearpage\n" + inline_bib if inline_bib else "")
                     + LATEX_END
                 )
                 output_key = "latex_paper"
@@ -408,6 +445,71 @@ Include all proofs using \\begin{{proof}}...\\end{{proof}}.
         # Append missing \end{} in reverse stack order
         closing = "\n".join(r"\end{" + env + "}" for env in reversed(stack))
         return text + "\n" + closing
+
+    @staticmethod
+    def _extract_abstract(text: str) -> str:
+        """Pull the content of \\begin{abstract}...\\end{abstract} from LLM output.
+
+        Returns empty string if not found; used to populate \\abstract{} in the
+        eureka.cls preamble rather than leaving it as a placeholder.
+        """
+        m = re.search(r"\\begin\{abstract\}(.*?)\\end\{abstract\}", text, re.DOTALL)
+        if m:
+            return m.group(1).strip()
+        return ""
+
+    @staticmethod
+    def _generate_thebibliography(papers: list) -> str:
+        """Generate an inline \\begin{thebibliography}...\\end{thebibliography} block.
+
+        Uses the same key-generation algorithm as _compute_cite_keys so that
+        \\bibitem{key} entries exactly match the \\cite{key} commands the LLM
+        was told to use.  natbib (loaded by eureka.cls with [numbers]) renders
+        these as [1], [2], ... in the text.
+        """
+        if not papers:
+            return ""
+
+        lines = [r"\bibliographystyle{plainnat}", r"\begin{thebibliography}{99}"]
+        seen: set[str] = set()
+
+        for p in papers:
+            authors = getattr(p, "authors", None) or []
+            year = getattr(p, "year", None) or ""
+            venue = getattr(p, "venue", None) or ""
+            arxiv_id = getattr(p, "arxiv_id", None) or ""
+            title = getattr(p, "title", None) or ""
+
+            # Key generation — must match _compute_cite_keys exactly
+            first_author = (authors[0].split()[-1] if authors else "unknown").lower()
+            base = re.sub(r"[^a-z0-9]", "", first_author) + str(year)
+            key = base
+            suffix = 1
+            while key in seen:
+                key = f"{base}{chr(ord('a') + suffix - 1)}"
+                suffix += 1
+            seen.add(key)
+
+            # Author string — up to 5 authors then "et al."
+            author_str = ", ".join(authors[:5])
+            if len(authors) > 5:
+                author_str += " et~al."
+
+            lines.append(f"\\bibitem{{{key}}}")
+            lines.append(author_str)
+            lines.append(f"\\newblock {title}")
+            if arxiv_id:
+                lines.append(
+                    f"\\newblock {{\\em arXiv preprint arXiv:{arxiv_id}}}, {year}."
+                )
+            elif venue:
+                lines.append(f"\\newblock {{\\em {venue}}}, {year}.")
+            else:
+                lines.append(f"\\newblock {year}.")
+            lines.append("")  # blank line between entries
+
+        lines.append(r"\end{thebibliography}")
+        return "\n".join(lines)
 
     @staticmethod
     def _escape_latex(s: str) -> str:
