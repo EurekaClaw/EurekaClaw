@@ -52,6 +52,9 @@ const nextStepBtn = document.getElementById("next-step-btn");
 let currentWizardStep = 0;
 let currentRunId = null;
 let pollTimer = null;
+let pollErrors = 0;
+const POLL_INTERVAL_MS = 2000;
+const POLL_MAX_ERRORS = 4;   // show "connection lost" only after 4 consecutive failures
 let latestArtifacts = null;
 let availableSkills = [];
 let selectedSkills = [];
@@ -329,9 +332,31 @@ function statusClass(status) {
 function setRunStatus(status, detail) {
   runStatusPillEl.className = `status-pill ${statusClass(status)}`;
   runStatusPillEl.textContent = titleCase(status);
-  if (detail) {
+  if (detail !== undefined) {
     runMetaEl.textContent = detail;
+    runMetaEl.style.color = "";
   }
+}
+
+function liveStatusDetail(run) {
+  if (!run) return "Launch a session from the form above.";
+  if (run.status === "queued") return "Session queued — waiting to start…";
+  if (run.status === "running") {
+    const activeTasks = (run.pipeline || []).filter((t) => t.status === "in_progress");
+    if (activeTasks.length) {
+      return `Running: ${activeTasks.map((t) => titleCase(t.name)).join(", ")}`;
+    }
+    const elapsed = run.started_at
+      ? Math.floor((Date.now() - new Date(run.started_at).getTime()) / 1000)
+      : 0;
+    return `Running${elapsed ? ` · ${elapsed}s elapsed` : ""}`;
+  }
+  if (run.status === "completed") {
+    const dir = run.output_dir ? ` → ${run.output_dir}` : "";
+    return `Completed${dir}`;
+  }
+  if (run.status === "failed") return `Failed: ${run.error || "unknown error"}`;
+  return `Run ${run.run_id.slice(0, 8)}`;
 }
 
 function renderTokenUsage(tasks) {
@@ -420,7 +445,8 @@ function renderArtifacts(artifacts) {
     ["resource_analysis", "Resource analysis"]
   ].filter(([key]) => artifacts && artifacts[key]);
 
-  sidebarArtifactsEl.textContent = String(entries.length);
+  const sidebarArtifactsEl = document.getElementById("sidebar-artifacts");
+  if (sidebarArtifactsEl) sidebarArtifactsEl.textContent = String(entries.length);
 
   if (!entries.length) {
     artifactListEl.innerHTML = `
@@ -1000,11 +1026,7 @@ function renderRun(run) {
   renderOutput(run);
   renderTokenUsage(tasks);
   updateSidebar(run);
-  if (run) {
-    setRunStatus(run.status, `Run ${run.run_id.slice(0, 8)} is ${run.status}.`);
-  } else {
-    setRunStatus("idle", "The UI is connected. Launch a session to start the pipeline.");
-  }
+  setRunStatus(run ? run.status : "idle", liveStatusDetail(run));
 }
 
 function renderArtifactSummary(key, artifact) {
@@ -1142,34 +1164,90 @@ function closeArtifactDrawer() {
   artifactDrawerBackdropEl.hidden = true;
 }
 
+// ── Polling engine ──────────────────────────────────────────────────────────
+
+function startPolling(runId) {
+  stopPolling();
+  currentRunId = runId;
+  pollErrors = 0;
+  // First tick immediately, then on interval
+  _pollTick();
+  pollTimer = setInterval(_pollTick, POLL_INTERVAL_MS);
+}
+
+function stopPolling() {
+  if (pollTimer) {
+    clearInterval(pollTimer);
+    pollTimer = null;
+  }
+  pollErrors = 0;
+}
+
+async function _pollTick() {
+  if (!currentRunId) return;
+  try {
+    // Fetch both the active run and the full sessions list in parallel
+    const [run, sessionsData] = await Promise.all([
+      apiGet(`/api/runs/${currentRunId}`),
+      apiGet("/api/runs"),
+    ]);
+
+    pollErrors = 0;
+
+    // Update session list (sidebar dots reflect live status)
+    allSessions = sessionsData.runs || [];
+    renderSessionList(allSessions);
+
+    // Update main panel only if this is still the displayed run
+    if (run.run_id === currentRunId) {
+      renderRun(run);
+    }
+
+    // Stop polling when the run reaches a terminal state
+    if (run.status === "completed" || run.status === "failed") {
+      stopPolling();
+    }
+  } catch (_err) {
+    pollErrors += 1;
+    if (pollErrors >= POLL_MAX_ERRORS) {
+      setRunStatus("missing", "Backend not responding — check that `eurekaclaw ui` is running.");
+    }
+    // Keep polling — transient errors auto-recover
+  }
+}
+
 async function refreshRun(runId) {
+  // One-shot fetch without touching the poll timer
   try {
     const run = await apiGet(`/api/runs/${runId}`);
-    currentRunId = run.run_id;
-    renderRun(run);
-    if (run.status === "completed" || run.status === "failed") {
-      clearInterval(pollTimer);
-      pollTimer = null;
+    if (run.run_id === currentRunId) {
+      renderRun(run);
     }
-  } catch (error) {
-    setRunStatus("missing", `Unable to refresh the run: ${error.message}`);
+  } catch (_err) {
+    // Silently ignore — polling will surface persistent errors
   }
 }
 
 async function loadMostRecentRun() {
   try {
     const data = await apiGet("/api/runs");
-    renderSessionList(data.runs || []);
-    const latest = data.runs[0];
+    allSessions = data.runs || [];
+    renderSessionList(allSessions);
+    const latest = allSessions[0];
     if (latest) {
       currentRunId = latest.run_id;
       currentLogPage = 1;
       renderRun(latest);
+      // Resume polling if the run is still live
+      if (latest.status === "running" || latest.status === "queued") {
+        startPolling(latest.run_id);
+      }
     } else {
       renderRun(null);
     }
-  } catch (error) {
-    setRunStatus("missing", `Unable to load runs: ${error.message}`);
+  } catch (_err) {
+    // Don't flash "missing" on startup — backend may just be starting up
+    renderRun(null);
   }
 }
 
@@ -1179,24 +1257,26 @@ updateModeUI();
 launchSessionBtn.addEventListener("click", async () => {
   const validationError = validateInputSpec();
   if (validationError) {
-    setRunStatus("failed", validationError);
+    // Show inline validation message without marking any run as "failed"
+    runMetaEl.textContent = validationError;
+    runMetaEl.style.color = "var(--warn)";
+    setTimeout(() => { runMetaEl.style.color = ""; }, 4000);
     return;
   }
 
   launchSessionBtn.disabled = true;
-  setRunStatus("running", "Creating a new EurekaClaw session...");
+  runMetaEl.style.color = "";
+  setRunStatus("running", "Creating session...");
   try {
     const run = await apiPost("/api/runs", normalizeInputSpec());
+    // Keep allSessions in sync immediately (no waiting for next poll)
+    allSessions = [run, ...allSessions.filter((s) => s.run_id !== run.run_id)];
     currentRunId = run.run_id;
     currentLogPage = 1;
-    renderSessionList([run, ...allSessions]);
+    renderSessionList(allSessions);
     renderRun(run);
     showView("workspace");
-
-    if (pollTimer) {
-      clearInterval(pollTimer);
-    }
-    pollTimer = setInterval(() => refreshRun(currentRunId), 3000);
+    startPolling(run.run_id);
   } catch (error) {
     setRunStatus("failed", `Could not start session: ${error.message}`);
   } finally {
@@ -1273,10 +1353,7 @@ logPaginationEl.addEventListener("click", (event) => {
 });
 
 document.getElementById("new-session-btn").addEventListener("click", () => {
-  if (pollTimer) {
-    clearInterval(pollTimer);
-    pollTimer = null;
-  }
+  stopPolling();
   currentRunId = null;
   currentLogPage = 1;
   renderRun(null);
@@ -1291,17 +1368,18 @@ sessionListEl.addEventListener("click", (event) => {
   const runId = item.dataset.runId;
   if (!runId || runId === currentRunId) return;
 
-  if (pollTimer) {
-    clearInterval(pollTimer);
-    pollTimer = null;
-  }
+  stopPolling();
   currentRunId = runId;
   currentLogPage = 1;
   renderSessionList(allSessions);
   showView("workspace");
   refreshRun(runId);
-  // Restart polling; refreshRun will cancel it if the run is already done
-  pollTimer = setInterval(() => refreshRun(currentRunId), 3000);
+
+  // Resume live polling only if the session is still active
+  const session = allSessions.find((s) => s.run_id === runId);
+  if (session && (session.status === "running" || session.status === "queued")) {
+    startPolling(runId);
+  }
 });
 
 closeArtifactDrawerBtn.addEventListener("click", closeArtifactDrawer);
