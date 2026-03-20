@@ -88,119 +88,125 @@ navItems.forEach((item) => {
 
 const wizardSteps = [
   {
-    title: "Welcome",
+    title: "Welcome to EurekaClaw 🦞",
     copy:
-      "Turn EurekaClaw from a repository into a working research system. The setup should feel guided, not documentation-driven.",
+      "EurekaClaw is a multi-agent AI research assistant that goes from a question to a publishable result — autonomously. It crawls arXiv, generates and stress-tests hypotheses, writes LaTeX papers, and runs experiments, all from your browser or terminal.",
     context:
-      "This step sets expectations. Users should understand what EurekaClaw does, how long setup takes, and which parts are required versus optional.",
+      "Setup takes about 5 minutes for the core system. Optional tools (Lean4, LaTeX, Docker) can be added later — EurekaClaw runs in a useful degraded mode without them.",
     bullets: [
-      "Explain that the core system can run before optional tools are installed.",
-      "Make local-first and controllability part of the onboarding tone.",
-      "Offer clear next-step framing instead of dropping users into raw config."
+      "Crawls arXiv & Semantic Scholar, summarizes relevant papers",
+      "Generates novel theorems and constructs multi-stage proofs",
+      "Writes camera-ready LaTeX papers with citations",
+      "Fully local-first — your data never leaves your machine"
     ],
     cards: [
-      ["Core runtime", "Python + dependencies + model access"],
-      ["Optional depth", "Lean4, LaTeX, Docker, external APIs"]
+      ["Core pipeline", "Survey → Ideation → Theory → Experiment → Write"],
+      ["Browser UI", "Live progress, settings sliders, and results viewer"]
     ]
   },
   {
-    title: "Environment Detection",
+    title: "Install Dependencies",
     copy:
-      "Inspect what is already available on this machine before asking the user to configure anything manually.",
+      "EurekaClaw requires Python 3.11 or newer. Clone the repo, install the package, and copy the example environment file to get started.",
     context:
-      "The backend now exposes real capability checks. This step should eventually surface live Python, Lean4, LaTeX, Docker, skills directory, and model access status directly in the wizard.",
+      "The pip install -e command installs EurekaClaw in editable mode so you can run the eurekaclaw CLI immediately. The .env file is where all your keys and settings live.",
     bullets: [
-      "Detect Python version and package availability.",
-      "Detect Lean4, pdflatex, Docker, and writable run directories.",
-      "Surface results as pass, optional, or action-needed states."
+      "git clone https://github.com/EurekaClaw/EurekaClaw_dev_zero",
+      "cd EurekaClaw_dev_zero",
+      "pip install -e \".\"",
+      "cp .env.example .env"
     ],
     cards: [
-      ["Runtime", "Live capability data available via /api/capabilities"],
-      ["Optional tools", "Lean4, LaTeX, Docker are inspected individually"]
+      ["Required", "Python ≥ 3.11"],
+      ["Optional depth", "Lean4, TeX Live, Docker, external APIs"]
     ]
   },
   {
-    title: "Provider Connection",
+    title: "Connect Your LLM Provider",
     copy:
-      "Choose how EurekaClaw connects to models without hand-editing environment files on day one.",
+      "Choose how EurekaClaw reaches a language model. The fastest path is an Anthropic API key. If you have a Claude Pro or Max subscription, OAuth lets you skip a paid API key entirely.",
     context:
-      "The systems page now edits live config values that are persisted back to .env, so onboarding can evolve into a real setup wizard rather than a mock flow.",
+      "Set your chosen variables in the .env file, or use the Settings tab in this UI — changes are saved back to .env automatically.",
     bullets: [
-      "Offer provider presets rather than a blank config screen.",
-      "Show exactly which fields are required for each mode.",
-      "Validate before users move on."
+      "Option A — Anthropic API key: set ANTHROPIC_API_KEY=sk-ant-... in .env",
+      "Option B — OAuth (Claude Pro/Max): leave ANTHROPIC_API_KEY blank; ccproxy auto-reads ~/.claude/.credentials.json",
+      "Option C — OpenRouter: set LLM_BACKEND=openrouter and OPENAI_COMPAT_API_KEY=sk-or-...",
+      "Option D — Local (vLLM / Ollama): set LLM_BACKEND=local (defaults to http://localhost:8000/v1)"
     ],
     cards: [
-      ["Anthropic API", "Fastest default path"],
-      ["OAuth / ccproxy", "For Claude Pro or Max workflows"],
-      ["OpenAI-compatible", "For vLLM, OpenRouter, or custom endpoints"]
+      ["Anthropic (default)", "ANTHROPIC_API_KEY=sk-ant-..."],
+      ["OAuth / ccproxy", "No API key needed — uses Claude Pro/Max session"],
+      ["OpenRouter / local", "LLM_BACKEND=openrouter or local"]
     ]
   },
   {
-    title: "Base Configuration",
+    title: "Configure Runtime Settings",
     copy:
-      "Translate the most important .env and runtime settings into an understandable control surface.",
+      "The most important settings are in your .env file. You can also change them any time from the Settings tab — values are written back to .env and take effect on the next run.",
     context:
-      "This is where users manage primary model, fast model, output format, and iteration counts. The systems page already reflects these values from the backend.",
+      "GATE_MODE=auto is the recommended default: it lets runs proceed automatically but escalates to human review when lemmas have low confidence. Token limits per call type are new and available as UI sliders in Settings.",
     bullets: [
-      "Expose model and fast-model choices.",
-      "Let users choose markdown or LaTeX output.",
-      "Explain implications of iteration count and run directories."
+      "EUREKACLAW_MODEL=claude-sonnet-4-6  (main reasoning model)",
+      "GATE_MODE=auto  (none · auto · human)",
+      "OUTPUT_FORMAT=latex  (latex or markdown)",
+      "EXPERIMENT_MODE=auto  (auto · true · false)",
+      "THEORY_MAX_ITERATIONS=10  (max proof loop iterations)"
     ],
     cards: [
-      ["Config API", "Live read and write support is enabled"],
-      ["Persistence", "Saved values are written back to .env"]
+      ["Settings tab", "Live read/write — changes persist to .env"],
+      ["Token limits", "7 per-call-type sliders: agent, prover, planner, decomposer, formalizer, verifier, compress"]
     ]
   },
   {
     title: "Optional Capabilities",
     copy:
-      "Advanced tools should feel like upgrades, not blockers.",
+      "EurekaClaw runs without these, but each unlocks a meaningful upgrade. Install what you need and the system auto-detects availability on startup.",
     context:
-      "Capability checks now distinguish between available, optional, and missing system features. That makes degraded mode visible and trustworthy.",
+      "Capability status is shown on the System Health card in the Settings tab. Missing optional tools show as warnings, not errors.",
     bullets: [
-      "Group optional capabilities by benefit, not by package name.",
-      "Show users what each capability unlocks.",
-      "Support degraded mode when optional tools are unavailable."
+      "Lean4 — formal proof verification (install via elan)",
+      "TeX Live / MacTeX — compile LaTeX to PDF (pdflatex + bibtex)",
+      "Docker — sandboxed code execution for experiments",
+      "Semantic Scholar & Wolfram Alpha API keys — richer literature and computation"
     ],
     cards: [
-      ["Formal verification", "Lean4"],
-      ["PDF generation", "TeX Live / MacTeX"],
-      ["Sandboxed code", "Docker"],
-      ["Research APIs", "Search, S2, Wolfram"]
+      ["Formal verification", "Lean4 via elan: curl https://elan.lean-lang.org/elan-init.sh | sh"],
+      ["PDF generation", "macOS: brew install --cask mactex-no-gui"],
+      ["Research APIs", "S2_API_KEY and WOLFRAM_APP_ID in .env"]
     ]
   },
   {
-    title: "Skills Installation",
+    title: "Install Built-in Skills",
     copy:
-      "Built-in seed skills should be a one-click enhancement to the system's reasoning quality.",
+      "Skills are short strategy guides that EurekaClaw injects into agent prompts. The built-in seed skills cover proof techniques, literature analysis, and paper writing — install them once and they persist across sessions.",
     context:
-      "The underlying project already supports `eurekaclaw install-skills`. The UI now has enough backend context to surface skills directory readiness and can grow into a true installer flow next.",
+      "Skills live in ~/.eurekaclaw/skills/. You can add your own by dropping a .md file into that directory. The Skills tab in this UI lets you browse and select which skills are active for the next run.",
     bullets: [
-      "Offer install and reinstall actions for seed skills.",
-      "List skill families in human terms: survey, ideation, proof, experiment, writing.",
-      "Show where skills live and whether custom skills already exist."
+      "Run: eurekaclaw install-skills",
+      "Theory skills: induction, contradiction, compactness, concentration inequalities",
+      "Survey skills: literature decomposition, gap analysis",
+      "Writing skills: paper structure, proof readability enforcement"
     ],
     cards: [
-      ["Theory skills", "Induction, contradiction, compactness"],
-      ["Survey skills", "Literature decomposition"],
-      ["Writing skills", "Paper structure"]
+      ["One-time setup", "eurekaclaw install-skills"],
+      ["Custom skills", "Drop a .md file into ~/.eurekaclaw/skills/"]
     ]
   },
   {
-    title: "Health Check & Next Steps",
+    title: "Run Your First Session",
     copy:
-      "End with a capability snapshot and clear launch paths so users feel ready to begin.",
+      "Everything is ready. Launch a session from the Research tab, or use the CLI directly. The UI will poll for live progress, show pipeline stage cards, and display the final paper when the run completes.",
     context:
-      "The workspace can already launch real sessions through the backend. This final step should summarize what is configured and route users straight into a run.",
+      "Use the Settings tab → Test connection to verify your model is reachable before launching a long run. Gate mode auto will pause and ask for feedback if any lemma has low confidence.",
     bullets: [
-      "Run a minimal connectivity and config validation check.",
-      "Show what features are available now versus later.",
-      "Offer direct actions: prove, explore, inspect system."
+      "Browser: click Launch session on the Research tab",
+      "CLI — prove: eurekaclaw prove \"The sample complexity of transformers is O(L·d·log(d)/ε²)\"",
+      "CLI — explore: eurekaclaw explore \"multi-armed bandit theory\"",
+      "CLI — from papers: eurekaclaw from-papers 1706.03762 2005.14165"
     ],
     cards: [
-      ["Core run", "The workspace can start real EurekaClaw sessions"],
-      ["Live polling", "Pipeline, artifacts, and outputs are fetched from the backend"]
+      ["Quick test", "Settings → Test connection (checks model access)"],
+      ["Results", "Saved to ./results/<session_id>/paper.tex · paper.pdf · references.bib"]
     ]
   }
 ];
@@ -234,10 +240,6 @@ function renderWizardStep(index) {
 
   wizardContext.innerHTML = `
     <p>${step.context}</p>
-    <p>
-      The setup UI should always answer three questions: what is required, what
-      is optional, and what becomes possible after this step.
-    </p>
   `;
 
   wizardProgressBar.style.width = `${progress}%`;
@@ -1353,6 +1355,12 @@ nextStepBtn.addEventListener("click", () => {
     return;
   }
   flashTransitionTo("workspace");
+});
+
+document.getElementById("tutorial-btn").addEventListener("click", () => {
+  currentWizardStep = 0;
+  renderWizardStep(0);
+  flashTransitionTo("onboarding");
 });
 
 renderWizardStep(currentWizardStep);

@@ -542,6 +542,37 @@ img {
 
 .main-shell {
   padding: 26px;
+  position: relative;
+}
+
+.tutorial-btn {
+  position: fixed;
+  top: 18px;
+  right: 22px;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px 8px 10px;
+  border-radius: 999px;
+  background: var(--surface-strong);
+  border: 1px solid var(--line-strong);
+  box-shadow: 0 4px 16px rgba(18, 37, 66, 0.10);
+  color: var(--primary);
+  font-size: 0.8rem;
+  font-weight: 500;
+  transition: background 160ms ease, box-shadow 160ms ease, transform 120ms ease;
+  white-space: nowrap;
+}
+
+.tutorial-btn:hover {
+  background: var(--primary-soft);
+  box-shadow: 0 6px 22px rgba(15, 106, 184, 0.18);
+  transform: translateY(-1px);
+}
+
+.tutorial-btn:active {
+  transform: translateY(0);
 }
 
 
