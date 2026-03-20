@@ -24,6 +24,7 @@ dependencies = [
     "tenacity>=8.0",
     "numpy>=1.26",
     "arxiv>=2.1",
+    "bibtexparser>=1.4",
 ]
 
 [project.optional-dependencies]

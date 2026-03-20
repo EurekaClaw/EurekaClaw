@@ -1,7 +1,6 @@
 # ── Environment & secrets ─────────────────────────────────────────────────────
 .env
 !.env.example
-.history/
 
 # ── Python ────────────────────────────────────────────────────────────────────
 __pycache__/
@@ -49,6 +48,7 @@ coverage.xml
 *.synctex.gz
 *.toc
 *.xdv
+required_sty/
 
 # ── Pipeline outputs (generated, not source) ──────────────────────────────────
 outputs/

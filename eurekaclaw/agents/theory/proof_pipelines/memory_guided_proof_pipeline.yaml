@@ -1,0 +1,68 @@
+# EurekaClaw memory-guided proof pipeline
+#
+# Philosophy:
+#   The system should analyze the target first, use prior memory to avoid
+#   stale routes, select a proof template, and build a proof skeleton before
+#   extracting only the truly hard lemmas.
+
+stages:
+  - name: paper_reader
+    class: PaperReader
+    description: "Extract known results from surveyed papers"
+    mode: once
+    max_retries: 1
+
+  - name: gap_analyst
+    class: GapAnalyst
+    description: "Identify the main theoretical gap"
+    mode: once
+    max_retries: 2
+
+  - name: memory_guided_analyzer
+    class: MemoryGuidedAnalyzer
+    description: "Summarize reusable strategies and pitfalls from existing memory"
+    mode: once
+    max_retries: 1
+
+  - name: template_selector
+    class: TemplateSelector
+    description: "Classify the proof task and select an analytical template"
+    mode: once
+    max_retries: 2
+
+  - name: proof_skeleton_builder
+    class: ProofSkeletonBuilder
+    description: "Build a decomposition-first proof skeleton before lemma extraction"
+    mode: once
+    max_retries: 2
+
+  - name: key_lemma_extractor
+    class: KeyLemmaExtractor
+    description: "Extract only the genuinely necessary technical lemmas from the proof skeleton"
+    mode: once
+    max_retries: 2
+
+  - name: lemma_developer
+    class: LemmaDeveloper
+    description: "Develop proofs for the key new and adapted lemmas"
+    mode: iterative
+    max_iterations: 10
+    stagnation_window: 3
+
+  - name: assembler
+    class: Assembler
+    description: "Assemble skeleton, citations, and key lemmas into a coherent proof narrative"
+    mode: once
+    max_retries: 1
+
+  - name: theorem_crystallizer
+    class: TheoremCrystallizer
+    description: "Derive the final formal theorem statement from the assembled proof"
+    mode: once
+    max_retries: 3
+
+  - name: consistency_checker
+    class: ConsistencyChecker
+    description: "Verify that the theorem statement remains consistent with the proof"
+    mode: once
+    max_retries: 0

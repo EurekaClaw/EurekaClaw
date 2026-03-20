@@ -21,10 +21,12 @@ logger = logging.getLogger(__name__)
 ASSEMBLE_SYSTEM = """\
 You are a mathematical writer assembling a rigorous research paper proof.
 You have been given:
-1. A set of known lemmas (cited from existing papers, no reproving needed)
-2. A set of newly proved lemmas (with full proof texts)
+1. A proof skeleton describing the overall argument
+2. A set of known lemmas (cited from existing papers, no reproving needed)
+3. A set of newly proved lemmas (with full proof texts, possibly empty)
 
 Your task is to write a complete, self-contained proof that:
+- Uses the proof skeleton as the primary organizing structure when it is available
 - Cites known results by paper and theorem number (use the source information)
 - Presents adapted and new results with their full proofs
 - Flows logically from base lemmas to the main result
@@ -50,13 +52,12 @@ Known results (to be cited, not reproved):
 Newly proved lemmas (in proof order):
 {proved_lemmas}
 
-Proved lemma identifiers that MUST each appear at least once in your proof \
-(cite as [lemma_id]):
-{lemma_ids}
+Proof skeleton:
+{proof_skeleton}
 
 Write the complete assembled proof.  Use LaTeX notation.
-Begin with a proof overview paragraph, then present each lemma
-and the main argument in logical order.
+Begin with a proof overview paragraph. If the proof skeleton is substantive, follow it
+as the main spine of the argument, inserting lemma proofs only where they are actually needed.
 """
 
 
@@ -83,7 +84,7 @@ class Assembler:
                         research_gap=state.research_gap[:800],
                         known_citations=known_citations,
                         proved_lemmas=proved_lemmas,
-                        lemma_ids=lemma_ids,
+                        proof_skeleton=state.proof_skeleton[:1600] or "(none)",
                     ),
                 }],
             )
@@ -91,12 +92,15 @@ class Assembler:
             logger.info("Assembler: assembled proof (%d chars)", len(state.assembled_proof))
         except Exception as e:
             logger.exception("Assembler failed: %s", e)
-            # Fallback: concatenate raw proof texts
-            parts = [
+            # Fallback: prefer the proof skeleton, then append raw proofs if any exist.
+            parts = []
+            if state.proof_skeleton:
+                parts.append("=== Proof Skeleton ===\n" + state.proof_skeleton)
+            parts.extend(
                 f"=== {lid} ===\n{rec.proof_text}"
                 for lid, rec in state.proven_lemmas.items()
-            ]
-            state.assembled_proof = "\n\n".join(parts)
+            )
+            state.assembled_proof = "\n\n".join(parts) or state.research_gap
 
         return state
 

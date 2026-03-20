@@ -156,6 +156,11 @@ class TheoryState(BaseModel):
     theorem_id: str
     informal_statement: str = ""
     formal_statement: str = ""    # LaTeX / Lean4 notation — set by TheoremCrystallizer
+    memory_theorems: list[str] = Field(default_factory=list)
+    problem_type: str = ""
+    analysis_notes: str = ""
+    proof_template: str = ""
+    proof_skeleton: str = ""
     # --- bottom-up proof pipeline fields ---
     known_results: list[KnownResult] = Field(default_factory=list)
     research_gap: str = ""          # output of GapAnalyst

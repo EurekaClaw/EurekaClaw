@@ -1,7 +1,7 @@
 ---
 agent_roles:
 - ideation
-created_at: '2026-03-20T00:06:37.960518'
+created_at: '2026-03-20T03:24:14.077445'
 description: Generate novel research hypotheses by combining cross-domain insights
   and unexplored gaps.
 name: hypothesis_gen

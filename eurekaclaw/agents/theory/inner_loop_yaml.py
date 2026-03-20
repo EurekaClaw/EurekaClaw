@@ -32,10 +32,16 @@ from typing import Any
 import yaml  # type: ignore[import-untyped]
 
 from eurekaclaw.agents.theory.assembler import Assembler
+from eurekaclaw.agents.theory.analysis_stages import (
+    MemoryGuidedAnalyzer,
+    ProofSkeletonBuilder,
+    TemplateSelector,
+)
 from eurekaclaw.agents.theory.checkpoint import ProofCheckpoint, ProofPausedException
 from eurekaclaw.agents.theory.consistency_checker import ConsistencyChecker
 from eurekaclaw.agents.theory.counterexample import CounterexampleSearcher
 from eurekaclaw.agents.theory.gap_analyst import GapAnalyst
+from eurekaclaw.agents.theory.key_lemma_extractor import KeyLemmaExtractor
 from eurekaclaw.agents.theory.paper_reader import PaperReader
 from eurekaclaw.agents.theory.proof_architect import ProofArchitect
 from eurekaclaw.agents.theory.prover import Prover
@@ -55,9 +61,12 @@ from eurekaclaw.types.artifacts import (
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_SPEC = (
-    Path(__file__).parent / "proof_pipelines" / "default_proof_pipeline.yaml"
-)
+_PIPELINE_DIR = Path(__file__).parent / "proof_pipelines"
+_DEFAULT_SPEC = _PIPELINE_DIR / "default_proof_pipeline.yaml"
+_SPEC_BY_NAME = {
+    "default": _PIPELINE_DIR / "default_proof_pipeline.yaml",
+    "memory_guided": _PIPELINE_DIR / "memory_guided_proof_pipeline.yaml",
+}
 
 # ---------------------------------------------------------------------------
 # Stage registry — maps YAML "class" names to Python classes
@@ -136,8 +145,13 @@ class LemmaDeveloper:
             state.iteration = iteration
 
             if not state.open_goals:
-                state.status = "proved"
-                logger.info("No open goals — all lemmas proved.")
+                if state.proven_lemmas:
+                    state.status = "proved"
+                    logger.info("No open goals — all extracted lemmas proved.")
+                else:
+                    logger.info(
+                        "No open goals — continuing with skeleton-driven assembly without independent lemmas."
+                    )
                 break
 
             goal_proved = True
@@ -351,6 +365,10 @@ class LemmaDeveloper:
 STAGE_REGISTRY = {
     "PaperReader": PaperReader,
     "GapAnalyst": GapAnalyst,
+    "MemoryGuidedAnalyzer": MemoryGuidedAnalyzer,
+    "TemplateSelector": TemplateSelector,
+    "ProofSkeletonBuilder": ProofSkeletonBuilder,
+    "KeyLemmaExtractor": KeyLemmaExtractor,
     "ProofArchitect": ProofArchitect,
     "LemmaDeveloper": LemmaDeveloper,
     "Assembler": Assembler,
@@ -382,7 +400,7 @@ class TheoryInnerLoopYaml:
         memory: MemoryManager | None = None,
     ) -> None:
         self.bus = bus
-        self.spec_path = spec_path or _DEFAULT_SPEC
+        self.spec_path = spec_path or _SPEC_BY_NAME.get(settings.theory_pipeline, _DEFAULT_SPEC)
         self._spec: list[dict] = self._load_spec()
         self._skill_injector = skill_injector
         self._memory = memory
@@ -414,6 +432,14 @@ class TheoryInnerLoopYaml:
             return PaperReader(bus=self.bus)
         if cls is GapAnalyst:
             return GapAnalyst(bus=self.bus)
+        if cls is MemoryGuidedAnalyzer:
+            return MemoryGuidedAnalyzer(memory=self._memory)
+        if cls is TemplateSelector:
+            return TemplateSelector()
+        if cls is ProofSkeletonBuilder:
+            return ProofSkeletonBuilder()
+        if cls is KeyLemmaExtractor:
+            return KeyLemmaExtractor()
         if cls is LemmaDeveloper:
             return LemmaDeveloper(
                 bus=self.bus,
