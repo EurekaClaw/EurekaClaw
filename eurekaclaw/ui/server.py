@@ -548,9 +548,9 @@ class UIRequestHandler(SimpleHTTPRequestHandler):
         self._send_json({"error": "Not found"}, status=HTTPStatus.NOT_FOUND)
 
     def log_message(self, format: str, *args: Any) -> None:
-        # Silence noisy polling GETs to /api/runs/<id> (status-check endpoint)
+        # Silence noisy polling GETs to /api/runs and /api/runs/<id>
         msg = format % args
-        if '"GET /api/runs/' in msg and '" 200 -' in msg:
+        if '"GET /api/runs' in msg and '" 200 -' in msg:
             logger.debug("UI %s", msg)
             return
         logger.info("UI %s", msg)

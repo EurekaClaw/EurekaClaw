@@ -347,7 +347,7 @@ function liveStatusDetail(run) {
       return `Running: ${activeTasks.map((t) => titleCase(t.name)).join(", ")}`;
     }
     const elapsed = run.started_at
-      ? Math.floor((Date.now() - new Date(run.started_at).getTime()) / 1000)
+      ? Math.floor((Date.now() - (parseServerTimestamp(run.started_at)?.getTime() ?? Date.now())) / 1000)
       : 0;
     return `Running${elapsed ? ` · ${elapsed}s elapsed` : ""}`;
   }
