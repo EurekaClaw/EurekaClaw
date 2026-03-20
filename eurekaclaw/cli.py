@@ -425,6 +425,13 @@ def _run_session(
 
     session = EurekaSession()
 
+    # --- Proof sketch gate (only for prove/conjecture mode) ------------------
+    if conjecture:
+        approved = asyncio.run(_proof_sketch_gate(conjecture, domain or ""))
+        if not approved:
+            console.print("[yellow]Proof sketch rejected. Exiting.[/yellow]")
+            return
+
     # Install Ctrl+C → graceful pause handler.
     # We need the session_id before run() so we can hand the checkpoint to
     # the SIGINT handler; EurekaSession exposes it immediately after __init__.
@@ -447,6 +454,59 @@ def _run_session(
 
     out = save_artifacts(result, output_dir or "./results")
     console.print(f"[green]Artifacts saved to {out}[/green]")
+
+
+async def _proof_sketch_gate(conjecture: str, domain: str) -> bool:
+    """Generate a proof sketch, show it to the user, and ask for approval.
+
+    Returns True if the user approves (full pipeline should run).
+    Returns False if the user rejects after MAX_ROUNDS rounds.
+    """
+    from eurekaclaw.agents.theory.sketch_generator import ProofSketchGenerator, MAX_ROUNDS
+
+    gen = ProofSketchGenerator()
+    sketch: str = ""
+    feedback: str = ""
+
+    for round_num in range(MAX_ROUNDS):
+        with console.status("[cyan]Generating proof sketch...[/cyan]"):
+            if round_num == 0:
+                sketch = await gen.generate(conjecture, domain)
+            else:
+                sketch = await gen.refine(conjecture, domain, sketch, feedback)
+
+        console.print()
+        console.print(
+            f"[bold cyan]Proof Sketch[/bold cyan]"
+            + (f" [dim](revision {round_num})[/dim]" if round_num > 0 else "")
+        )
+        console.rule()
+        console.print(sketch)
+        console.rule()
+        console.print()
+
+        answer = console.input(
+            "[bold]Proceed with this sketch?[/bold] "
+            "[[green]y[/green]/[red]n[/red]] → "
+        ).strip().lower()
+
+        if answer in ("y", "yes", ""):
+            console.print("[green]Sketch approved — starting full pipeline.[/green]\n")
+            return True
+
+        if round_num < MAX_ROUNDS - 1:
+            feedback = console.input(
+                "[dim]Reason / what to change:[/dim] "
+            ).strip()
+            if not feedback:
+                feedback = "Please revise the sketch."
+            console.print()
+        else:
+            console.print(
+                f"[yellow]Sketch rejected after {MAX_ROUNDS} rounds.[/yellow]"
+            )
+
+    return False
 
 
 if __name__ == "__main__":
