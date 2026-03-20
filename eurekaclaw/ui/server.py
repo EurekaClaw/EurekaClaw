@@ -501,7 +501,7 @@ class UIRequestHandler(SimpleHTTPRequestHandler):
                 input_spec = InputSpec.model_validate(payload)
             except Exception as exc:
                 self._send_json(
-                    {"error": f"Invalid request: {exc}"},
+                    {"error": f"Invalid session parameters: {exc}"},
                     status=HTTPStatus.BAD_REQUEST,
                 )
                 return
