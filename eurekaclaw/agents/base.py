@@ -99,10 +99,19 @@ class BaseAgent(ABC):
                 break
 
         skill_block = self.skill_injector.render_for_prompt(skills)
+        # Record injected skill names on bus so learning loop can update stats
+        if skills:
+            existing: set = self.bus.get("injected_skills") or set()
+            existing.update(s.meta.name for s in skills)
+            self.bus.put("injected_skills", existing)
         base = self._role_system_prompt(task)
+        parts = [base]
         if skill_block:
-            return f"{base}\n\n{skill_block}"
-        return base
+            parts.append(skill_block)
+        workflow_hint: str = self.bus.get("domain_workflow_hint") or ""
+        if workflow_hint:
+            parts.append(f"<domain_guidance>\n{workflow_hint}\n</domain_guidance>")
+        return "\n\n".join(parts)
 
     @abstractmethod
     def _role_system_prompt(self, task: Task) -> str:

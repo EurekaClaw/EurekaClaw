@@ -203,6 +203,7 @@ class ProofArchitect:
                     return data[key]
         return None
 
+
     def _apply_plan(self, state: TheoryState, lemmas_data: list[dict]) -> TheoryState:
         """Populate proof_plan, lemma_dag, and open_goals from parsed data."""
         plan: list[ProofPlan] = []
@@ -218,7 +219,7 @@ class ProofArchitect:
                     informal=item.get("informal", ""),
                     provenance=provenance,
                     source=item.get("source", ""),
-                    adaptation_note=item.get("adaptation_note", ""),
+                    adaptation_note=item.get("adaptation_note") or "",
                     dependencies=item.get("dependencies", []),
                 )
             )

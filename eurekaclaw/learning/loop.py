@@ -1,4 +1,5 @@
-"""ContinualLearningLoop: cross-run improvement.
+"""ContinualLearningLoop — cross-run improvement via skill distillation and memory.
+
 
 Three modes:
 - skills_only: skill distillation only (default, no GPU needed)
@@ -15,7 +16,9 @@ from eurekaclaw.llm import LLMClient, create_client
 
 from eurekaclaw.config import settings
 from eurekaclaw.learning.failure_capture import FailureCapturer
+from eurekaclaw.learning.memory_extractor import SessionMemoryExtractor
 from eurekaclaw.learning.prm_scorer import ProcessRewardModel
+from eurekaclaw.learning.tool_pattern_extractor import ToolPatternExtractor
 from eurekaclaw.skills.evolver import SkillEvolver
 from eurekaclaw.skills.registry import SkillRegistry
 from eurekaclaw.types.artifacts import FailedAttempt, ProofRecord
@@ -30,9 +33,9 @@ _MIN_NOVEL_FAILURES = 2
 def _deduplicate_failures(failures: list[FailedAttempt]) -> list[FailedAttempt]:
     """Return only unique failure instances (by lemma_id + first 80 chars of reason).
 
-    EurekaClaw / ScienceClaw pattern: pass only novel signal to the skill
-    evolver rather than every raw failure.  Repetitive failures with the same
-    reason add no new information and waste evolver tokens.
+    Pass only novel signal to the skill evolver rather than every raw failure.
+    Repetitive failures with the same reason add no new information and waste
+    evolver tokens.
     """
     seen: set[str] = set()
     unique: list[FailedAttempt] = []
@@ -75,9 +78,11 @@ class ContinualLearningLoop:
     ) -> None:
         self.mode = mode
         self.client: LLMClient = client or create_client()
-        _registry = skill_registry or SkillRegistry()
+        self._registry = skill_registry or SkillRegistry()
         self.failure_capture = FailureCapturer()
-        self.skill_evolver = SkillEvolver(registry=_registry, client=self.client)
+        self.skill_evolver = SkillEvolver(registry=self._registry, client=self.client)
+        self.memory_extractor = SessionMemoryExtractor(client=self.client)
+        self.tool_pattern_extractor = ToolPatternExtractor(client=self.client)
         self.prm = ProcessRewardModel(client=self.client) if mode in ("rl", "madmax") else None
 
     async def post_run(self, pipeline: "TaskPipeline", bus: "KnowledgeBus") -> None:  # type: ignore[name-defined]
@@ -92,7 +97,18 @@ class ContinualLearningLoop:
         raw_failures: list[FailedAttempt] = theory_state.failed_attempts if theory_state else []
         raw_successes: list[ProofRecord] = list(theory_state.proven_lemmas.values()) if theory_state else []
 
-        # --- Deduplicate failures (EurekaClaw pattern: only novel signal) ---
+        # --- Update skill stats based on session outcome ---
+        session_succeeded = theory_state.status == "proved" if theory_state else False
+        injected_skills: set[str] = bus.get("injected_skills") or set()
+        for skill_name in injected_skills:
+            self._registry.update_stats(skill_name, success=session_succeeded)
+        if injected_skills:
+            logger.info(
+                "Updated stats for %d injected skill(s) (success=%s)",
+                len(injected_skills), session_succeeded,
+            )
+
+        # --- Deduplicate failures ---
         failures = _deduplicate_failures(raw_failures)
         novel_count = len(failures)
         if novel_count < len(raw_failures):
@@ -119,6 +135,28 @@ class ContinualLearningLoop:
                 "(threshold: %d failures or 5 successes)",
                 novel_count, len(successes), _MIN_NOVEL_FAILURES,
             )
+
+        # --- Extract session memories + tool patterns ---
+        domain = getattr(bus, "domain", "") or ""
+        try:
+            memories = await self.memory_extractor.extract_and_save(bus, domain=domain)
+            if memories:
+                logger.info(
+                    "SessionMemoryExtractor: saved %d new memories across categories: %s",
+                    len(memories),
+                    ", ".join(set(m["category"] for m in memories)),
+                )
+        except Exception as e:
+            logger.warning("Memory extraction failed (non-fatal): %s", e)
+
+        try:
+            tool_skills = await self.tool_pattern_extractor.extract_and_save(bus, domain=domain)
+            if tool_skills:
+                logger.info(
+                    "ToolPatternExtractor: generated %d tool-pattern skill(s)", len(tool_skills)
+                )
+        except Exception as e:
+            logger.warning("Tool pattern extraction failed (non-fatal): %s", e)
 
         # RL mode: PRM scoring — only for proved or novel-failure trajectories
         if self.mode in ("rl", "madmax") and self.prm:
