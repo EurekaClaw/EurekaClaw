@@ -204,7 +204,7 @@ class MetaOrchestrator:
         return ResearchBrief(
             session_id=str(uuid.uuid4()),
             input_mode=spec.mode,
-            domain=spec.domain or "general mathematics",
+            domain=spec.domain,  # always set by EurekaSession.run() before reaching here
             query=spec.query or spec.conjecture or spec.domain,
             conjecture=spec.conjecture,
             selected_skills=spec.selected_skills,

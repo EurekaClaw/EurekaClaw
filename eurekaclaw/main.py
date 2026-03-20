@@ -44,9 +44,17 @@ class EurekaSession:
 
     async def run(self, input_spec: InputSpec) -> ResearchOutput:
         """Run a complete research session from an InputSpec."""
-        # Build orchestrator with domain plugin resolved from the spec's domain
+        # Infer domain from conjecture/query when the caller left it empty.
+        # This ensures resolve_domain() can match a domain plugin (e.g. MABDomainPlugin)
+        # regardless of which entry point (CLI, Python API, UI) was used.
+        if not input_spec.domain:
+            text = input_spec.conjecture or input_spec.query or ""
+            inferred = _infer_domain(text)
+            input_spec = input_spec.model_copy(update={"domain": inferred})
+            logger.info("Domain inferred from query: %r → %r", text[:60], inferred)
+
         if not self._orchestrator:
-            self._orchestrator = self._make_orchestrator(input_spec.domain or "")
+            self._orchestrator = self._make_orchestrator(input_spec.domain)
         return await self._orchestrator.run(input_spec)
 
     async def run_detailed(self, conjecture: str, domain: str = "") -> ResearchOutput:
