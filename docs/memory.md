@@ -1,31 +1,38 @@
 # Memory System
 
-EurekaClaw uses a three-tier memory system managed by `MemoryManager`.
+EurekaClaw uses a **four-tier memory system** managed by `MemoryManager`.
 
 ```
 eurekaclaw/memory/
-├── manager.py       MemoryManager (main interface)
-├── episodic.py      EpisodicMemory (in-RAM ring buffer)
-├── persistent.py    PersistentMemory (cross-run JSON file)
-└── graph.py         KnowledgeGraph (theorem dependency network)
+├── manager.py          MemoryManager (main interface)
+├── episodic.py         EpisodicMemory (in-RAM ring buffer)
+├── persistent.py       PersistentMemory (cross-run JSON file)
+└── knowledge_graph.py  KnowledgeGraph (theorem dependency network)
+
+eurekaclaw/learning/
+└── memory_extractor.py  SessionMemoryExtractor (Tier 4: domain markdown insights)
+```
+
+Storage layout under `~/.eurekaclaw/` (configurable via `EUREKACLAW_DIR`):
+
+```
+~/.eurekaclaw/
+├── memory/
+│   ├── persistent.json        ← Tier 2: cross-run key-value store
+│   └── knowledge_graph.json   ← Tier 3: theorem dependency graph
+├── memories/
+│   └── <domain>/
+│       └── YYYYMMDD_<slug>.md ← Tier 4: per-domain insight files
+└── skills/                    ← skill files updated by ContinualLearningLoop
 ```
 
 ---
 
-## MemoryManager
+## Tier 1 — Episodic Memory (session-scoped)
 
-**File:** `eurekaclaw/memory/manager.py`
+**File:** `eurekaclaw/memory/episodic.py`
 
-The single interface for all memory operations. Created once per session by `MetaOrchestrator`.
-
-```python
-class MemoryManager:
-    def __init__(self, session_id: str, memory_dir: Path | None = None) -> None
-```
-
-### Episodic Memory (session-scoped)
-
-Records events within the current session. Stored in RAM only; lost when the process ends.
+In-RAM ring buffer (max 500 entries). Records agent events during the current session. Lost when the process ends — never persisted to disk.
 
 ```python
 def log_event(
@@ -34,7 +41,7 @@ def log_event(
     metadata: dict | None = None
 ) -> EpisodicEntry
 ```
-Log a structured event (tool call, result, decision, error) from an agent.
+Log a structured event (tool call, result, decision, error) from an agent. Called automatically by `BaseAgent` after each tool call.
 
 ```python
 def recent_events(
@@ -44,9 +51,14 @@ def recent_events(
 ```
 Return the N most recent events, optionally filtered by agent role.
 
-### Persistent Memory (cross-run)
+---
 
-Stores key-value records that survive across sessions. Backed by a JSON file at `EUREKACLAW_DIR/memory/persistent.json`.
+## Tier 2 — Persistent Memory (cross-run key-value)
+
+**File:** `eurekaclaw/memory/persistent.py`
+**Storage:** `~/.eurekaclaw/memory/persistent.json`
+
+Stores arbitrary JSON-serializable key-value records that survive across sessions.
 
 ```python
 def remember(
@@ -68,9 +80,14 @@ def recall_by_tag(tag: str) -> list[CrossRunRecord]
 ```
 Return all records that include the given tag.
 
-### Knowledge Graph
+---
 
-Tracks proven theorems and their dependencies across sessions. Backed by `EUREKACLAW_DIR/memory/knowledge_graph.json`.
+## Tier 3 — Knowledge Graph (theorem dependency network)
+
+**File:** `eurekaclaw/memory/knowledge_graph.py`
+**Storage:** `~/.eurekaclaw/memory/knowledge_graph.json`
+
+A directed graph that tracks proven theorems and their dependencies across all sessions. Exportable to networkx for analysis.
 
 ```python
 def add_theorem(
@@ -86,12 +103,64 @@ Register a newly proved theorem.
 ```python
 def link_theorems(from_id: str, to_id: str, relation: str = "uses") -> None
 ```
-Record a dependency between two theorems (e.g., theorem A uses lemma B).
+Record a dependency between two theorems. Relation types: `"uses"`, `"generalizes"`, `"specializes"`, `"contradicts"`.
 
 ```python
 def find_related_theorems(node_id: str, depth: int = 2) -> list[KnowledgeNode]
 ```
-Return theorems within `depth` hops of `node_id` in the dependency graph.
+BFS traversal — returns theorems within `depth` hops of `node_id`.
+
+---
+
+## Tier 4 — Domain Memories (cross-session markdown insights)
+
+**File:** `eurekaclaw/learning/memory_extractor.py`
+**Storage:** `~/.eurekaclaw/memories/<domain>/YYYYMMDD_<slug>.md`
+
+The primary mechanism for cross-session learning. After each session, `SessionMemoryExtractor` uses the fast model to analyse `TheoryState` and extract structured insights in four categories:
+
+| Category | What gets saved |
+|---|---|
+| `domain_knowledge` | New facts, lemmas, theorems discovered or confirmed |
+| `proof_strategy` | Proof techniques that worked (or failed) in this domain |
+| `open_problems` | Conjectures raised but not resolved |
+| `pitfalls` | Approaches that looked promising but failed, with root cause |
+
+Only entries with `confidence >= 0.5` are saved. A sha256 fingerprint index (`_index.json`) deduplicates exact matches. Near-duplicates (keyword overlap > 40%) are checked by the LLM and merged when redundant.
+
+### Injection into future sessions
+
+At the start of each session, `BaseAgent.build_system_prompt()` calls:
+
+```python
+memory.load_for_injection(domain, k=4)
+```
+
+This loads the 4 most recent high-confidence `.md` files for the domain, strips frontmatter, and injects the content into the system prompt as `<memories>...</memories>`.
+
+---
+
+## Lifecycle
+
+```
+During session
+  BaseAgent.execute() → memory.log_event() → Tier 1 (RAM only)
+
+After session (ContinualLearningLoop.post_run())
+  SessionMemoryExtractor.extract_and_save()
+    → LLM analysis of TheoryState (proven lemmas + failed attempts)
+    → write ~/.eurekaclaw/memories/<domain>/YYYYMMDD_<slug>.md  [Tier 4]
+
+  ToolPatternExtractor.extract_and_save()
+    → analyse tool-call patterns → generate new Skill files
+
+  SkillRegistry.update_stats()
+    → EMA α=0.3 update on success_rate for all injected skills
+
+Next session startup
+  MetaOrchestrator → MemoryManager.load_for_injection(domain)
+    → top-4 Tier 4 files → injected into agent system prompts
+```
 
 ---
 
@@ -133,22 +202,9 @@ class KnowledgeNode(BaseModel):
     formal_statement: str
     domain: str = ""
     session_id: str = ""  # session that proved this theorem
-    related_to: list[str] = []  # node_ids of related/dependent theorems
     tags: list[str] = []
     created_at: datetime
 ```
-
----
-
-## Current Integration Status
-
-The three-tier memory infrastructure is fully implemented, but **agent integration is a work in progress**:
-
-- **Episodic memory** — logged by `MetaOrchestrator` at each pipeline stage
-- **Knowledge graph** — `add_theorem()` is called when `TheoryState.status == "proved"`
-- **Persistent memory** — infrastructure exists but `remember()` / `recall()` are not yet called from individual agents (planned for a future update)
-
-Cross-session learning currently operates through the [Skills](skills.md) system (`ContinualLearningLoop`), which distills successful proof strategies into reusable skill files.
 
 ---
 
@@ -156,7 +212,8 @@ Cross-session learning currently operates through the [Skills](skills.md) system
 
 | Tier | Storage | Location |
 |---|---|---|
-| Episodic | RAM (process lifetime) | — |
-| Persistent | JSON file | `~/.eurekaclaw/memory/persistent.json` |
-| Knowledge graph | JSON file | `~/.eurekaclaw/memory/knowledge_graph.json` |
+| Tier 1: Episodic | RAM (process lifetime) | — |
+| Tier 2: Persistent | JSON file | `~/.eurekaclaw/memory/persistent.json` |
+| Tier 3: Knowledge graph | JSON file | `~/.eurekaclaw/memory/knowledge_graph.json` |
+| Tier 4: Domain insights | Markdown files | `~/.eurekaclaw/memories/<domain>/` |
 | Run artifacts | Per-session JSON | `~/.eurekaclaw/runs/<session_id>/` |

@@ -17,6 +17,8 @@ class SkillInjector:
 
     def __init__(self, registry: SkillRegistry) -> None:
         self.registry = registry
+        # Track which skill names were injected this session for stats update
+        self._injected: set[str] = set()
 
     def top_k(
         self,
@@ -81,14 +83,27 @@ class SkillInjector:
             return len(query_words & skill_words)
         return sorted(candidates, key=score, reverse=True)[:k]
 
-    def render_for_prompt(self, skills: list[SkillRecord]) -> str:
-        """Format skills for system prompt injection as an XML block."""
-        if not skills:
-            return ""
-        parts = ["<skills>"]
-        for skill in skills:
-            parts.append(f"<skill name=\"{skill.meta.name}\">")
-            parts.append(skill.content.strip())
-            parts.append("</skill>")
-        parts.append("</skills>")
+    def render_for_prompt(self, skills: list[SkillRecord], domain: str = "") -> str:
+        """Format skills + cross-session memories for system prompt injection."""
+        parts: list[str] = []
+
+        if skills:
+            parts.append("<skills>")
+            for skill in skills:
+                parts.append(f"<skill name=\"{skill.meta.name}\">")
+                parts.append(skill.content.strip())
+                parts.append("</skill>")
+                self._injected.add(skill.meta.name)
+            parts.append("</skills>")
+
+        # Inject cross-session domain memories via MemoryManager (tier 4)
+        if domain:
+            try:
+                from eurekaclaw.memory.manager import MemoryManager
+                memories_block = MemoryManager(session_id="injector").load_for_injection(domain, k=4)
+                if memories_block:
+                    parts.append(memories_block)
+            except Exception:
+                pass  # Never block on memory loading failure
+
         return "\n".join(parts)

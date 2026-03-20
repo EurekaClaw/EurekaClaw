@@ -1,4 +1,4 @@
-"""ResourceAnalyst — math decomposer and bidirectional math↔code mapping (AI-Researcher pattern)."""
+"""ResourceAnalyst — math decomposer and bidirectional math↔code mapping."""
 
 from __future__ import annotations
 
