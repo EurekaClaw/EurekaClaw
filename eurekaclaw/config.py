@@ -25,11 +25,12 @@ class Config(BaseSettings):
     anthropic_auth_mode: Literal["api_key", "oauth"] = Field(
         default="api_key", alias="ANTHROPIC_AUTH_MODE"
     )
+    anthropic_base_url: str = Field(default="", alias="ANTHROPIC_BASE_URL")
     ccproxy_port: int = Field(default=8000, alias="CCPROXY_PORT")
 
     # Anthropic native
     anthropic_api_key: str = Field(default="", alias="ANTHROPIC_API_KEY")
-    eurekaclaw_model: str = Field(default="claude-opus-4-6", alias="EUREKACLAW_MODEL")
+    eurekaclaw_model: str = Field(default="claude-sonnet-4-6", alias="EUREKACLAW_MODEL")
     eurekaclaw_fast_model: str = Field(
         default="claude-haiku-4-5-20251001", alias="EUREKACLAW_FAST_MODEL"
     )
@@ -52,7 +53,7 @@ class Config(BaseSettings):
         default="skills_only", alias="EUREKACLAW_MODE"
     )
     gate_mode: Literal["auto", "human", "none"] = Field(
-        default="none", alias="GATE_MODE"
+        default="auto", alias="GATE_MODE"
     )
     theory_max_iterations: int = Field(default=10, alias="THEORY_MAX_ITERATIONS")
     use_docker_sandbox: bool = Field(default=False, alias="USE_DOCKER_SANDBOX")
@@ -60,45 +61,42 @@ class Config(BaseSettings):
     output_format: str = Field(default="latex", alias="OUTPUT_FORMAT")
 
     # ---- Token-efficiency knobs --------------------------------------------
-    # Compress the agent loop's conversation history after this many tool-use
-    # turns.  Set to 0 to disable compression entirely.
     context_compress_after_turns: int = Field(default=6, alias="CONTEXT_COMPRESS_AFTER_TURNS")
-    # Auto-accept a proof without LLM peer-review when the prover's confidence
-    # meets or exceeds this threshold and no explicit [GAP:...] flags exist.
     auto_verify_confidence: float = Field(default=0.85, alias="AUTO_VERIFY_CONFIDENCE")
-    # If the same lemma fails this many consecutive times with similar error
-    # signatures, treat it as stagnant and force a conjecture refinement.
     stagnation_window: int = Field(default=3, alias="STAGNATION_WINDOW")
-    # Whether to run the experiment stage:
-    #   "auto"  — run only when the theorem has measurable numerical bounds (default)
-    #   "true"  — always run experiments
-    #   "false" — always skip experiments
     experiment_mode: Literal["auto", "true", "false"] = Field(
         default="auto", alias="EXPERIMENT_MODE"
     )
 
     # ---- Token limits per call type ----------------------------------------
-    # Main agent loop: max tokens per LLM turn in run_agent_loop()
     max_tokens_agent: int = Field(default=8192, alias="MAX_TOKENS_AGENT")
-    # Proof generation (prover): longer proofs need more room
     max_tokens_prover: int = Field(default=4096, alias="MAX_TOKENS_PROVER")
-    # Research direction planner (diverge + converge calls)
     max_tokens_planner: int = Field(default=4096, alias="MAX_TOKENS_PLANNER")
-    # Lemma decomposition
     max_tokens_decomposer: int = Field(default=2048, alias="MAX_TOKENS_DECOMPOSER")
-    # Theorem formalization, refiner, counterexample, resource analyst
     max_tokens_formalizer: int = Field(default=2048, alias="MAX_TOKENS_FORMALIZER")
-    # Proof verification
     max_tokens_verifier: int = Field(default=1024, alias="MAX_TOKENS_VERIFIER")
-    # Context compression summaries (fast model)
     max_tokens_compress: int = Field(default=512, alias="MAX_TOKENS_COMPRESS")
 
+    # ---- Agent loop tuning --------------------------------------------------
+    survey_max_turns: int = Field(default=8, alias="SURVEY_MAX_TURNS")
+    theory_stage_max_turns: int = Field(default=6, alias="THEORY_STAGE_MAX_TURNS")
+    writer_max_turns: int = Field(default=4, alias="WRITER_MAX_TURNS")
+    arxiv_max_results: int = Field(default=10, alias="ARXIV_MAX_RESULTS")
+    llm_retry_attempts: int = Field(default=5, alias="LLM_RETRY_ATTEMPTS")
+    llm_retry_wait_min: int = Field(default=4, alias="LLM_RETRY_WAIT_MIN")
+    llm_retry_wait_max: int = Field(default=90, alias="LLM_RETRY_WAIT_MAX")
+
+    # ---- Proof quality ------------------------------------------------------
+    # When True, writer enforces step-by-step proof rules and highlights
+    # low-confidence lemmas with \textcolor{orange} in the PDF output.
+    enforce_proof_style: bool = Field(default=True, alias="ENFORCE_PROOF_STYLE")
+
     # ---- Paths -------------------------------------------------------------
-    metaclaw_dir: Path = Field(default=Path.home() / ".metaclaw", alias="METACLAW_DIR")
+    eurekaclaw_dir: Path = Field(default=Path.home() / ".eurekaclaw", alias="EUREKACLAW_DIR")
     lean4_bin: str = Field(default="lean", alias="LEAN4_BIN")
     latex_bin: str = Field(default="pdflatex", alias="LATEX_BIN")
 
-    @field_validator("metaclaw_dir", mode="before")
+    @field_validator("eurekaclaw_dir", mode="before")
     @classmethod
     def expand_home(cls, v: str | Path) -> Path:
         return Path(v).expanduser()
@@ -116,15 +114,15 @@ class Config(BaseSettings):
 
     @property
     def skills_dir(self) -> Path:
-        return self.metaclaw_dir / "skills"
+        return self.eurekaclaw_dir / "skills"
 
     @property
     def memory_dir(self) -> Path:
-        return self.metaclaw_dir / "memory"
+        return self.eurekaclaw_dir / "memory"
 
     @property
     def runs_dir(self) -> Path:
-        return self.metaclaw_dir / "runs"
+        return self.eurekaclaw_dir / "runs"
 
     def ensure_dirs(self) -> None:
         for d in (self.skills_dir, self.memory_dir, self.runs_dir):

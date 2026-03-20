@@ -72,8 +72,8 @@ class Verifier:
     async def check(self, proof_attempt: ProofAttempt, state: TheoryState) -> VerificationResult:
         """Verify a proof attempt. Tries Lean4 first, falls back to peer review.
 
-        High-confidence shortcut (ClawTeam performance-based early stopping):
-        if the prover assigned confidence >= AUTO_VERIFY_CONFIDENCE and there
+        High-confidence shortcut: if the prover assigned confidence >=
+        AUTO_VERIFY_CONFIDENCE and there
         are no explicit [GAP:...] flags, skip the LLM peer-review call entirely.
         This saves one fast-model call per ~30% of proof attempts.
         """
@@ -129,9 +129,8 @@ class Verifier:
     async def _peer_review(self, attempt: ProofAttempt, state: TheoryState) -> VerificationResult:
         """LLM-based structured peer review.
 
-        ScienceClaw-style smart compaction: for long proofs only the strategy
-        (head) and conclusion (tail) are sent; the middle is replaced with a
-        placeholder.  Dependency proof texts are replaced with a simple PROVEN
+        Smart compaction: for long proofs only the strategy (head) and
+        conclusion (tail) are sent; the middle is replaced with a placeholder.  Dependency proof texts are replaced with a simple PROVEN
         marker to eliminate redundant tokens.
         """
         dep_ids = state.lemma_dag.get(attempt.lemma_id, None)

@@ -45,7 +45,7 @@ class SkillRegistry:
             if extra_dir.exists():
                 for path in sorted(extra_dir.rglob("*.md")):
                     self._load_file(path, is_seed=True)
-        # 3. User skills from ~/.metaclaw/skills/ (highest priority)
+        # 3. User skills from ~/.eurekaclaw/skills/ (highest priority)
         self._skills_dir.mkdir(parents=True, exist_ok=True)
         for path in sorted(self._skills_dir.rglob("*.md")):
             self._load_file(path, is_seed=False)
@@ -104,6 +104,38 @@ class SkillRegistry:
         skill.file_path = str(path)
         self._skills[skill.meta.name] = skill
         logger.info("Upserted skill: %s", skill.meta.name)
+
+    def update_stats(self, name: str, success: bool) -> None:
+        """Update usage_count and success_rate for a skill after a session.
+
+        Called by ContinualLearningLoop after session completes so skills that
+        actually helped get promoted in future top_k retrieval.
+        """
+        import yaml
+
+        skill = self.get(name)
+        if not skill or not skill.file_path:
+            return
+        path = Path(skill.file_path)
+        if not path.exists():
+            return
+
+        skill.meta.usage_count += 1
+        prev_rate = skill.meta.success_rate
+        if prev_rate is None:
+            skill.meta.success_rate = 1.0 if success else 0.0
+        else:
+            # Exponential moving average (α=0.3) so recent outcomes matter more
+            skill.meta.success_rate = 0.7 * prev_rate + 0.3 * (1.0 if success else 0.0)
+
+        meta_dict = skill.meta.model_dump(mode="json")
+        meta_dict = {k: v for k, v in meta_dict.items() if v is not None}
+        frontmatter_block = yaml.dump(meta_dict, default_flow_style=False, allow_unicode=True)
+        path.write_text(f"---\n{frontmatter_block}---\n\n{skill.content}")
+        logger.debug(
+            "Updated skill stats: %s usage=%d success_rate=%.2f",
+            name, skill.meta.usage_count, skill.meta.success_rate or 0,
+        )
 
     def reload(self) -> None:
         self._loaded = False

@@ -1,17 +1,65 @@
-results/
+# ── Environment & secrets ─────────────────────────────────────────────────────
 .env
-.claude/__pycache__/
+!.env.example
+
+# ── Python ────────────────────────────────────────────────────────────────────
 __pycache__/
-*.pyc
-*.pyo
-.pytest_cache/
-.mypy_cache/
-.DS_Store
-.venv/
-.eurekaclaw-ui/
-dist/
-*.egg-info/
-.claude/
 **/__pycache__/
 *.py[cod]
 *$py.class
+*.pyo
+*.pyd
+
+# ── Build & packaging ─────────────────────────────────────────────────────────
+dist/
+build/
+*.egg-info/
+*.egg
+.eggs/
+
+# ── Virtual environments ───────────────────────────────────────────────────────
+.venv/
+venv/
+.eurekaclaw-ui/
+
+# ── Testing & type checking ────────────────────────────────────────────────────
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+
+# ── IDE / OS ──────────────────────────────────────────────────────────────────
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# ── LaTeX artifacts ────────────────────────────────────────────────────────────
+*.aux
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.lof
+*.lot
+*.out
+*.synctex.gz
+*.toc
+*.xdv
+
+# ── Pipeline outputs (generated, not source) ──────────────────────────────────
+outputs/
+results/
+runs/
+
+# ── Logs ──────────────────────────────────────────────────────────────────────
+*.log
+error.log
+
+# ── Claude Code internals ─────────────────────────────────────────────────────
+.claude/
+
+# ── Misc ─────────────────────────────────────────────────────────────────────
+resources.txt

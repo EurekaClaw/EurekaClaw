@@ -28,8 +28,8 @@ class ArxivSearchTool(BaseTool):
                 },
                 "max_results": {
                     "type": "integer",
-                    "description": "Maximum number of results to return (default 10, max 50).",
-                    "default": 10,
+                    "description": "Maximum number of results to return (default 8, max 20).",
+                    "default": 8,
                 },
                 "sort_by": {
                     "type": "string",
@@ -40,9 +40,10 @@ class ArxivSearchTool(BaseTool):
             "required": ["query"],
         }
 
-    async def call(self, query: str, max_results: int = 10, sort_by: str = "relevance") -> str:
+    async def call(self, query: str, max_results: int = 8, sort_by: str = "relevance") -> str:
         try:
             import arxiv  # type: ignore
+            from eurekaclaw.config import settings
 
             sort_map = {
                 "relevance": arxiv.SortCriterion.Relevance,
@@ -52,7 +53,7 @@ class ArxivSearchTool(BaseTool):
             client = arxiv.Client()
             search = arxiv.Search(
                 query=query,
-                max_results=min(max_results, 50),
+                max_results=min(max_results, settings.arxiv_max_results),
                 sort_by=sort_map.get(sort_by, arxiv.SortCriterion.Relevance),
             )
             results = []
