@@ -84,9 +84,21 @@ def from_papers(paper_ids: tuple[str, ...], query: str, domain: str, mode: str, 
 
     Example: eurekaclaw from-papers 2301.12345 2302.67890 --domain "ML theory"
     """
+    if not query:
+        ids_hint = (
+            f" (papers: {', '.join(list(paper_ids)[:3])}{'…' if len(paper_ids) > 3 else ''})"
+            if paper_ids else ""
+        )
+        query = (
+            f"Analyze the provided reference papers{ids_hint} in {domain}. "
+            f"Identify open problems, under-explored directions, and research gaps "
+            f"relative to the current frontier of {domain}. "
+            f"Propose concrete novel hypotheses that extend or challenge the findings "
+            f"in these papers."
+        )
     _run_session(
         mode="reference",
-        query=query if query != "" else "Generate hypotheses from reference papers",
+        query=query,
         domain=domain,
         paper_ids=list(paper_ids),
         learn_mode=mode,
