@@ -43,6 +43,7 @@ from eurekaclaw.agents.theory.theorem_crystallizer import TheoremCrystallizer
 from eurekaclaw.agents.theory.verifier import Verifier
 from eurekaclaw.config import settings
 from eurekaclaw.knowledge_bus.bus import KnowledgeBus
+from eurekaclaw.memory.manager import MemoryManager
 from eurekaclaw.skills.injector import SkillInjector
 from eurekaclaw.types.artifacts import (
     Counterexample,
@@ -97,6 +98,7 @@ class LemmaDeveloper:
         cx_searcher: CounterexampleSearcher | None = None,
         refiner: Refiner | None = None,
         skill_injector: SkillInjector | None = None,
+        memory: MemoryManager | None = None,
     ) -> None:
         self.bus = bus
         self.prover = prover or Prover()
@@ -104,6 +106,7 @@ class LemmaDeveloper:
         self.cx_searcher = cx_searcher or CounterexampleSearcher()
         self.refiner = refiner or Refiner()
         self.skill_injector = skill_injector
+        self.memory = memory
         self._failure_log: list[FailedAttempt] = []
         self._lemma_failure_sigs: dict[str, list[str]] = {}
 
@@ -139,9 +142,30 @@ class LemmaDeveloper:
             for lemma_id in list(state.open_goals):
                 logger.info("Attempting proof of lemma: %s", lemma_id)
 
-                # --- Proof attempt (skills injected into system prompt) ---
+                # --- Tier 1: collect in-session past failures for this lemma ---
+                past_failures = [
+                    f.failure_reason for f in self._failure_log
+                    if f.lemma_id == lemma_id
+                ][-3:]
+
+                # --- Tier 2: recall cross-session hint from persistent memory ---
+                cross_session_hint: str | None = None
+                if self.memory:
+                    cross_session_hint = self.memory.recall(
+                        f"proof_hint.{domain}.{lemma_id}"
+                    )
+                    if cross_session_hint:
+                        logger.debug(
+                            "Recalled cross-session hint for %s (%d chars)",
+                            lemma_id, len(cross_session_hint),
+                        )
+
+                # --- Proof attempt (skills + memory injected into system prompt) ---
                 proof_attempt = await self.prover.attempt(
-                    state, lemma_id, skill_context=skill_context
+                    state, lemma_id,
+                    past_failures=past_failures or None,
+                    cross_session_hint=cross_session_hint,
+                    skill_context=skill_context,
                 )
 
                 # --- Verification (fast-path skip for very low confidence) ---
@@ -176,6 +200,16 @@ class LemmaDeveloper:
                     state.open_goals.remove(lemma_id)
                     self._lemma_failure_sigs.pop(lemma_id, None)
                     logger.info("✓ Lemma proved: %s (method=%s)", lemma_id, verification.method)
+
+                    # --- Tier 2: persist proof hint for future sessions ---
+                    if self.memory:
+                        self.memory.remember(
+                            key=f"proof_hint.{domain}.{lemma_id}",
+                            value=proof_attempt.proof_text[:400],
+                            tags=[domain, "proof_hint"],
+                            source_session=state.session_id,
+                        )
+
                     self.bus.put_theory_state(state)
                     continue
 
@@ -336,11 +370,13 @@ class TheoryInnerLoopYaml:
         bus: KnowledgeBus,
         spec_path: Path | None = None,
         skill_injector: SkillInjector | None = None,
+        memory: MemoryManager | None = None,
     ) -> None:
         self.bus = bus
         self.spec_path = spec_path or _DEFAULT_SPEC
         self._spec: list[dict] = self._load_spec()
         self._skill_injector = skill_injector
+        self._memory = memory
         # Shared sub-components injected into stages that need them
         self._prover = Prover()
         self._verifier = Verifier()
@@ -377,6 +413,7 @@ class TheoryInnerLoopYaml:
                 cx_searcher=self._cx_searcher,
                 refiner=self._refiner,
                 skill_injector=self._skill_injector,
+                memory=self._memory,
             )
         return cls()
 

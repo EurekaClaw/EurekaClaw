@@ -1,0 +1,120 @@
+# Configuration
+
+All settings are read from environment variables (or a `.env` file in the project root). Copy `.env.example` to `.env` and edit before running.
+
+## LLM Backend
+
+| Variable | Default | Description |
+|---|---|---|
+| `LLM_BACKEND` | `anthropic` | Backend: `anthropic`, `openrouter`, `local` |
+| `ANTHROPIC_API_KEY` | `""` | Anthropic API key. If empty, falls back to ccproxy OAuth (`~/.claude/.credentials.json`) |
+| `ANTHROPIC_AUTH_MODE` | `api_key` | `api_key` or `oauth` (ccproxy) |
+| `CCPROXY_PORT` | `8000` | Port for ccproxy server |
+| `OPENAI_COMPAT_BASE_URL` | `""` | Base URL for OpenAI-compatible endpoint (OpenRouter / local vLLM) |
+| `OPENAI_COMPAT_API_KEY` | `""` | API key for OpenAI-compatible endpoint |
+| `OPENAI_COMPAT_MODEL` | `""` | Model name for OpenAI-compatible endpoint |
+
+**Backend shortcuts:**
+
+| `LLM_BACKEND` | Notes |
+|---|---|
+| `anthropic` | Default. Uses `ANTHROPIC_API_KEY` or ccproxy OAuth |
+| `openrouter` | Set `OPENAI_COMPAT_API_KEY=sk-or-...` |
+| `local` | Defaults to `http://localhost:8000/v1` (vLLM / Ollama) |
+
+## Models
+
+| Variable | Default | Description |
+|---|---|---|
+| `EUREKACLAW_MODEL` | `claude-sonnet-4-6` | Main reasoning model (all agents) |
+| `EUREKACLAW_FAST_MODEL` | `claude-haiku-4-5-20251001` | Fast/cheap model for compression, formalization, counterexample |
+
+## External APIs
+
+| Variable | Default | Description |
+|---|---|---|
+| `S2_API_KEY` | `""` | Semantic Scholar API key (optional — higher rate limits) |
+| `BRAVE_SEARCH_API_KEY` | `""` | Brave Search API key (web search) |
+| `SERPAPI_KEY` | `""` | SerpAPI key (web search fallback) |
+| `WOLFRAM_APP_ID` | `""` | Wolfram Alpha app ID (symbolic computation) |
+
+## Pipeline Modes
+
+| Variable | Default | Options | Description |
+|---|---|---|---|
+| `EUREKACLAW_MODE` | `skills_only` | `skills_only`, `rl`, `madmax` | Post-run learning mode |
+| `GATE_MODE` | `auto` | `auto`, `human`, `none` | Stage gate behavior |
+| `OUTPUT_FORMAT` | `latex` | `latex`, `markdown` | Paper output format |
+| `EXPERIMENT_MODE` | `auto` | `auto`, `true`, `false` | Experiment stage: auto-detect / force run / force skip |
+
+**Gate modes:**
+- `none` — no stage cards or approval prompts
+- `auto` — prints stage summary cards; prompts only when low-confidence lemmas detected
+- `human` — prints cards and prompts at every gate; accepts text feedback injected into next agent
+
+## Proof & Theory
+
+| Variable | Default | Description |
+|---|---|---|
+| `THEORY_MAX_ITERATIONS` | `10` | Max proof iterations in LemmaDeveloper loop |
+| `AUTO_VERIFY_CONFIDENCE` | `0.85` | Auto-accept proofs with confidence ≥ this threshold |
+| `STAGNATION_WINDOW` | `3` | Force Refiner if same error repeats N times |
+| `ENFORCE_PROOF_STYLE` | `true` | Inject proof readability rules into WriterAgent prompts |
+
+## Context & Compression
+
+| Variable | Default | Description |
+|---|---|---|
+| `CONTEXT_COMPRESS_AFTER_TURNS` | `6` | Compress agent history every N turns using fast model |
+
+## Token Limits (per call type)
+
+| Variable | Default | Applies to |
+|---|---|---|
+| `MAX_TOKENS_AGENT` | `8192` | Main agent reasoning loop (all agents) |
+| `MAX_TOKENS_PROVER` | `4096` | Proof generation (Prover) |
+| `MAX_TOKENS_PLANNER` | `4096` | Research direction planning (diverge); converge uses half |
+| `MAX_TOKENS_DECOMPOSER` | `2048` | Lemma decomposition (LemmaDecomposer) |
+| `MAX_TOKENS_FORMALIZER` | `2048` | Formalization, Refiner, CounterexampleSearcher, ResourceAnalyst |
+| `MAX_TOKENS_VERIFIER` | `1024` | Proof verification (Verifier) |
+| `MAX_TOKENS_COMPRESS` | `512` | Context compression summaries (fast model) |
+
+## Turn Limits
+
+| Variable | Default | Description |
+|---|---|---|
+| `SURVEY_MAX_TURNS` | `8` | Tool-use turns in SurveyAgent loop |
+| `THEORY_STAGE_MAX_TURNS` | `6` | Turns per inner theory stage |
+| `WRITER_MAX_TURNS` | `4` | Turns for WriterAgent |
+
+## Search & Retrieval
+
+| Variable | Default | Description |
+|---|---|---|
+| `ARXIV_MAX_RESULTS` | `10` | Hard cap on arXiv search results |
+
+## Retry & Resilience
+
+| Variable | Default | Description |
+|---|---|---|
+| `LLM_RETRY_ATTEMPTS` | `5` | Retry count on 5xx / rate-limit errors |
+| `LLM_RETRY_WAIT_MIN` | `4` | Minimum exponential backoff (seconds) |
+| `LLM_RETRY_WAIT_MAX` | `90` | Maximum exponential backoff (seconds) |
+
+## File Paths & Tools
+
+| Variable | Default | Description |
+|---|---|---|
+| `EUREKACLAW_DIR` | `~/.eurekaclaw` | Base directory for skills, memory, and run artifacts |
+| `LEAN4_BIN` | `lean` | Path to the Lean4 binary |
+| `LATEX_BIN` | `pdflatex` | Path to the pdflatex binary |
+| `USE_DOCKER_SANDBOX` | `false` | Use Docker container for Python code execution |
+
+## Derived Paths (read-only properties on `settings`)
+
+| Property | Value |
+|---|---|
+| `settings.skills_dir` | `EUREKACLAW_DIR/skills` |
+| `settings.memory_dir` | `EUREKACLAW_DIR/memory` |
+| `settings.runs_dir` | `EUREKACLAW_DIR/runs` |
+| `settings.fast_model` | `EUREKACLAW_FAST_MODEL` (falls back to main model if unset) |

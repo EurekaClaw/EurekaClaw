@@ -1,13 +1,23 @@
 ---
+agent_roles:
+- survey
+created_at: '2026-03-19T23:32:30.830435'
+description: 'Decompose a paper into cognitive primitives: Insight, Research Trending,
+  Serendipity.'
 name: literature_decomp
-version: "1.0"
-tags: [survey, literature, decomposition, insight, gaps, open-problems]
-agent_roles: [survey]
-pipeline_stages: [survey]
-description: "Decompose a paper into cognitive primitives: Insight, Research Trending, Serendipity."
+pipeline_stages:
+- survey
 source: seed
-usage_count: 0
-success_rate: null
+success_rate: 0.0
+tags:
+- survey
+- literature
+- decomposition
+- insight
+- gaps
+- open-problems
+usage_count: 1
+version: '1.0'
 ---
 
 # Literature Decomposition

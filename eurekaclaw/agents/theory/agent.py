@@ -72,6 +72,7 @@ The proof pipeline is specified by the YAML file loaded by TheoryInnerLoopYaml.
         inner_loop = TheoryInnerLoopYaml(
             bus=self.bus,
             skill_injector=self.skill_injector,
+            memory=self.memory,
         )
 
         try:
@@ -89,15 +90,43 @@ The proof pipeline is specified by the YAML file loaded by TheoryInnerLoopYaml.
                 f"Theory loop: {final_state.status}, {proven_count} lemmas proved, {open_count} open",
             )
 
-            # Add proven theorems to knowledge graph
+            # Add proven theorems to knowledge graph (Tier 3)
             if success:
-                self.memory.add_theorem(
+                # Register each proven lemma as a node and link dependencies
+                lemma_node_ids: dict[str, str] = {}
+                for lemma_id, record in final_state.proven_lemmas.items():
+                    dag_node = final_state.lemma_dag.get(lemma_id)
+                    node = self.memory.add_theorem(
+                        theorem_name=lemma_id,
+                        formal_statement=(dag_node.statement if dag_node else record.proof_text[:200]),
+                        domain=brief.domain,
+                        session_id=brief.session_id,
+                        tags=[brief.domain.lower().replace(" ", "_"), "lemma"],
+                    )
+                    lemma_node_ids[lemma_id] = node.node_id
+
+                # Link dependencies between lemma nodes
+                for lemma_id, dag_node in final_state.lemma_dag.items():
+                    if lemma_id not in lemma_node_ids:
+                        continue
+                    for dep_id in dag_node.dependencies:
+                        if dep_id in lemma_node_ids:
+                            self.memory.link_theorems(
+                                lemma_node_ids[lemma_id],
+                                lemma_node_ids[dep_id],
+                                relation="uses",
+                            )
+
+                # Register the final theorem and link it to its lemmas
+                main_node = self.memory.add_theorem(
                     theorem_name=direction.title,
                     formal_statement=final_state.formal_statement,
                     domain=brief.domain,
                     session_id=brief.session_id,
                     tags=[brief.domain.lower().replace(" ", "_")],
                 )
+                for node_id in lemma_node_ids.values():
+                    self.memory.link_theorems(main_node.node_id, node_id, relation="uses")
 
             return self._make_result(
                 task,

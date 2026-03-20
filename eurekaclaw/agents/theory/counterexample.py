@@ -52,8 +52,8 @@ For each candidate counterexample, verify it step by step.
 def _extract_proof_excerpt(proof_text: str, max_chars: int = 500) -> str:
     """Extract the most informative excerpt from a potentially long proof.
 
-    ScienceClaw-style selective preservation: keep the proof strategy (head)
-    and the conclusion/failed step (tail), drop the middle bulk.
+    Selective preservation: keep the proof strategy (head) and the
+    conclusion/failed step (tail), drop the middle bulk.
     """
     if len(proof_text) <= max_chars:
         return proof_text
