@@ -1491,6 +1491,7 @@ nextStepBtn.addEventListener("click", () => {
   flashTransitionTo("workspace");
 });
 
+
 document.getElementById("tutorial-btn").addEventListener("click", () => {
   currentWizardStep = 0;
   renderWizardStep(0);

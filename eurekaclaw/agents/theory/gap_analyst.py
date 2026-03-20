@@ -86,6 +86,8 @@ class GapAnalyst:
                     ),
                 }],
             )
+            if not response.content:
+                raise ValueError("LLM returned empty content list")
             state.research_gap = response.content[0].text.strip()
             logger.info("GapAnalyst: research gap identified (%d chars)", len(state.research_gap))
         except Exception as e:
