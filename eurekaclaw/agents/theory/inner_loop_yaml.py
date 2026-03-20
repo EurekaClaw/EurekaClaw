@@ -472,13 +472,27 @@ class TheoryInnerLoopYaml:
                 logger.info("Pipeline complete: theorem proved and consistent.")
                 break
 
-            # On retry: only re-run theorem_crystallizer and consistency_checker
-            # (stages after assembler).  lemma_developer's work is preserved.
-            logger.info("Consistency check failed — re-running crystallizer (outer iter %d)", outer_iter + 1)
-            self._spec = [
-                s for s in self._spec
-                if s["name"] in ("theorem_crystallizer", "consistency_checker")
-            ]
+            # On retry: decide which stages to re-run based on the failure type.
+            # Uncited-lemma failures require re-running the assembler (it needs to
+            # add [lemma_id] citations); other failures only need re-crystallization.
+            last_failure = state.failed_attempts[-1] if state.failed_attempts else None
+            uncited_issue = last_failure and any(
+                kw in last_failure.failure_reason.lower()
+                for kw in ("never cited", "uncited", "missing citation", "not cited")
+            )
+            if uncited_issue:
+                retry_stages = ("assembler", "theorem_crystallizer", "consistency_checker")
+                logger.info(
+                    "Consistency check failed (uncited lemmas) — re-running assembler + crystallizer (outer iter %d)",
+                    outer_iter + 1,
+                )
+            else:
+                retry_stages = ("theorem_crystallizer", "consistency_checker")
+                logger.info(
+                    "Consistency check failed — re-running crystallizer (outer iter %d)",
+                    outer_iter + 1,
+                )
+            self._spec = [s for s in self._spec if s["name"] in retry_stages]
         else:
             if state.status != "proved":
                 state.status = "abandoned"

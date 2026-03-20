@@ -28,7 +28,8 @@ logger = logging.getLogger(__name__)
 CHECK_SYSTEM = """\
 You are a rigorous mathematical reviewer.  You will be given:
 1. A theorem statement
-2. An assembled proof that was intended to prove it
+2. An assembled proof that was intended to prove it (may be excerpted if long)
+3. A list of lemma identifiers that must each be explicitly cited in the proof
 
 Check whether the proof actually establishes the stated theorem.
 Look for:
@@ -36,12 +37,21 @@ Look for:
 - Notation mismatch: symbols in the theorem differ from the proof
 - Missing assumptions: the theorem omits conditions assumed in the proof
 - Incorrect constants: bounds stated with wrong dependence on parameters
+- Missing citations: any lemma identifier from the required list that does
+  not appear in the proof text as [lemma_id] is a gap
+- Truncated theorem statement: if the theorem formula ends mid-expression
+  (e.g. ends with a backslash or unclosed brace), flag it as an issue
+
+Important: if the proof is marked "[compressed]", do NOT flag missing
+intermediate steps as issues — only flag things you can positively verify
+are wrong or missing from what you can see.
 
 Return JSON:
 {
   "consistent": true | false,
   "confidence": 0.0-1.0,
   "issues": ["list of specific inconsistencies"],
+  "uncited_lemmas": ["lemma_ids present in required list but not cited"],
   "notes": "brief summary"
 }
 """
@@ -53,7 +63,11 @@ Theorem statement:
 Assembled proof (excerpt):
 {proof_excerpt}
 
+Required lemma identifiers (each must appear as [lemma_id] in the proof):
+{required_lemma_ids}
+
 Is the theorem statement consistent with and supported by this proof?
+Are all required lemmas cited?
 Return ONLY valid JSON.
 """
 
@@ -63,6 +77,7 @@ class ConsistencyResult:
     consistent: bool
     confidence: float
     issues: list[str]
+    uncited_lemmas: list[str]
     notes: str
 
 
@@ -78,52 +93,59 @@ class ConsistencyChecker:
             logger.warning("ConsistencyChecker: missing theorem or proof — skipping")
             return state
 
-        result = await self._check(state)
+        required_lemma_ids = list(state.proven_lemmas.keys())
+        result = await self._check(state, required_lemma_ids)
 
-        if result.consistent:
+        all_issues = result.issues + [
+            f"Lemma [{lid}] is proved but never cited in the assembled proof"
+            for lid in result.uncited_lemmas
+        ]
+
+        if result.consistent and not result.uncited_lemmas:
             logger.info(
                 "ConsistencyChecker: PASS (confidence=%.2f)", result.confidence
             )
-            # Proof is complete and consistent
             state.status = "proved"
         else:
             logger.warning(
                 "ConsistencyChecker: FAIL — %d issues: %s",
-                len(result.issues), "; ".join(result.issues[:3]),
+                len(all_issues), "; ".join(all_issues[:3]),
             )
-            # Store issues so TheoremCrystallizer can use them on retry
             state.status = "in_progress"
-            # Reuse FailedAttempt to record the mismatch (lemma_id = "_theorem")
             from eurekaclaw.types.artifacts import FailedAttempt
             state.failed_attempts.append(
                 FailedAttempt(
                     lemma_id="_theorem_consistency",
                     attempt_text=state.formal_statement[:500],
-                    failure_reason="; ".join(result.issues[:5]) or result.notes,
+                    failure_reason="; ".join(all_issues[:5]) or result.notes,
                     iteration=state.iteration,
                 )
             )
 
         return state
 
-    async def _check(self, state: TheoryState) -> ConsistencyResult:
+    async def _check(
+        self, state: TheoryState, required_lemma_ids: list[str]
+    ) -> ConsistencyResult:
         proof_excerpt = state.assembled_proof
-        if len(proof_excerpt) > 3000:
+        if len(proof_excerpt) > 5000:
             proof_excerpt = (
-                proof_excerpt[:1500]
+                proof_excerpt[:2500]
                 + "\n... [compressed] ...\n"
-                + proof_excerpt[-1000:]
+                + proof_excerpt[-1500:]
             )
+        ids_str = ", ".join(f"[{lid}]" for lid in required_lemma_ids) or "(none)"
         try:
             response = await self.client.messages.create(
                 model=settings.fast_model,
-                max_tokens=512,
+                max_tokens=600,
                 system=CHECK_SYSTEM,
                 messages=[{
                     "role": "user",
                     "content": CHECK_USER.format(
                         theorem=state.formal_statement[:800],
                         proof_excerpt=proof_excerpt,
+                        required_lemma_ids=ids_str,
                     ),
                 }],
             )
@@ -133,12 +155,14 @@ class ConsistencyChecker:
                 consistent=bool(data.get("consistent", False)),
                 confidence=float(data.get("confidence", 0.5)),
                 issues=data.get("issues", []),
+                uncited_lemmas=data.get("uncited_lemmas", []),
                 notes=data.get("notes", ""),
             )
         except Exception as e:
             logger.warning("ConsistencyChecker LLM call failed: %s — defaulting to pass", e)
             return ConsistencyResult(
                 consistent=True, confidence=0.5, issues=[],
+                uncited_lemmas=[],
                 notes=f"Checker unavailable: {e}",
             )
 
