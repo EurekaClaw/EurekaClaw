@@ -28,6 +28,11 @@ Verification checklist:
 5. Are there edge cases that the proof misses?
 6. Is the conclusion exactly what was claimed?
 
+Be conservative:
+- Mark "verified": true only if the proof is fully justified end-to-end.
+- If any material step is implicit, unclear, or plausibly false, return "verified": false.
+- Confidence above 0.9 should be reserved for proofs with no meaningful ambiguity.
+
 Output a JSON verification report.
 """
 
@@ -72,13 +77,16 @@ class Verifier:
     async def check(self, proof_attempt: ProofAttempt, state: TheoryState) -> VerificationResult:
         """Verify a proof attempt. Tries Lean4 first, falls back to peer review.
 
-        High-confidence shortcut (ClawTeam performance-based early stopping):
+        High-confidence shortcut (strict version):
         if the prover assigned confidence >= AUTO_VERIFY_CONFIDENCE and there
         are no explicit [GAP:...] flags, skip the LLM peer-review call entirely.
-        This saves one fast-model call per ~30% of proof attempts.
         """
         # Fast-path: auto-accept proofs the prover is already confident about
-        if proof_attempt.confidence >= settings.auto_verify_confidence and not proof_attempt.gaps:
+        if (
+            proof_attempt.success
+            and proof_attempt.confidence >= settings.auto_verify_confidence
+            and not proof_attempt.gaps
+        ):
             logger.info(
                 "Auto-verifying lemma %s (confidence=%.2f, no gaps)",
                 proof_attempt.lemma_id, proof_attempt.confidence,
@@ -172,23 +180,34 @@ class Verifier:
             text = response.content[0].text
             data = self._parse_review(text)
 
+            confidence = float(data.get("confidence", 0.5))
+            errors = data.get("errors", []) + data.get("gaps", [])
+            passed = (
+                bool(data.get("verified", False))
+                and len(errors) == 0
+                and confidence >= settings.verifier_pass_confidence
+            )
+
             return VerificationResult(
                 lemma_id=attempt.lemma_id,
-                passed=data.get("verified", False) and len(data.get("errors", [])) == 0,
+                passed=passed,
                 method="peer_review",
-                confidence=float(data.get("confidence", 0.5)),
-                errors=data.get("errors", []) + data.get("gaps", []),
-                notes=data.get("notes", ""),
+                confidence=confidence,
+                errors=errors,
+                notes=(
+                    f"{data.get('notes', '')} "
+                    f"[pass threshold={settings.verifier_pass_confidence:.2f}]"
+                ).strip(),
             )
         except Exception as e:
-            logger.warning("Peer review failed, falling back to prover confidence: %s", e)
+            logger.warning("Peer review failed; rejecting proof conservatively: %s", e)
             return VerificationResult(
                 lemma_id=attempt.lemma_id,
-                passed=attempt.success and attempt.confidence >= 0.7,
+                passed=False,
                 method="llm_check",
                 confidence=attempt.confidence,
-                errors=attempt.gaps,
-                notes=f"Auto-verified (reviewer unavailable): {e}",
+                errors=attempt.gaps or ["Peer review unavailable"],
+                notes=f"Verification failed conservatively because peer review was unavailable: {e}",
             )
 
     def _parse_review(self, text: str) -> dict:

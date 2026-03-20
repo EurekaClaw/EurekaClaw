@@ -88,6 +88,8 @@ PROOF WRITING RULES (strictly enforced):
   Bad:  "...therefore E[N_i(T)] ≤ 8 log T / Δ_i²"
   Good: "...by Lemma 3 (Hoeffding concentration) applied with δ = t^{-2}, we get E[N_i(T)] ≤ 8 log T / Δ_i²"
 - If a step requires a calculation that takes more than one line, write it out inline — do not skip it.
+- Every theorem, lemma, proposition, corollary, or claim in the paper must either have a proof or an explicit citation.
+- If a result is adapted from prior work, cite the source and prove the modified part.
 - LOW-CONFIDENCE LEMMAS: any lemma marked [LOW CONFIDENCE] in the input has NOT been formally
   verified. You MUST add a \\textcolor{orange}{\\textbf{[Unverified step — see discussion]}} tag
   immediately after its \\end{proof}, and add a paragraph in the Limitations section explaining
@@ -108,7 +110,11 @@ Your output must follow standard theory paper format:
 7. Conclusion: summary, limitations, future work
 
 Use proper LaTeX theorem environments throughout.
+If the paper contains an algorithm, typeset it in a proper LaTeX algorithm environment with a caption and label.
 Ensure all citations are in \\cite{key} format.
+Every theorem, lemma, proposition, corollary, or claim must either be proved in the paper or explicitly cited.
+Do not leave theorem-like statements unsupported.
+Before finalizing the LaTeX, sanity-check environment matching, brace balance, required packages, and custom macro definitions.
 Make the paper self-contained — a reader should understand it without other references.
 """
 
@@ -127,6 +133,8 @@ Your output must follow standard theory paper format using Markdown headings:
 
 Use **Theorem**, **Lemma**, **Proof** bold labels for formal results.
 Use $...$ for inline math and $$...$$ for display math (LaTeX-style math is fine inside Markdown).
+Every theorem, lemma, proposition, corollary, or claim must either be proved in the paper or explicitly cited.
+Do not leave theorem-like statements unsupported.
 Make the paper self-contained — a reader should understand it without other references.
 """
 

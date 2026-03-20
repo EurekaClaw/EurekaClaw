@@ -46,6 +46,8 @@ _CONFIG_FIELDS: dict[str, str] = {
     "gate_mode": "GATE_MODE",
     "ccproxy_port": "CCPROXY_PORT",
     "theory_max_iterations": "THEORY_MAX_ITERATIONS",
+    "auto_verify_confidence": "AUTO_VERIFY_CONFIDENCE",
+    "verifier_pass_confidence": "VERIFIER_PASS_CONFIDENCE",
     "output_format": "OUTPUT_FORMAT",
     "eurekaclaw_dir": "EUREKACLAW_DIR",
     # Token limits

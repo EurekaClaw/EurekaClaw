@@ -61,7 +61,8 @@ class Config(BaseSettings):
 
     # ---- Token-efficiency knobs --------------------------------------------
     context_compress_after_turns: int = Field(default=6, alias="CONTEXT_COMPRESS_AFTER_TURNS")
-    auto_verify_confidence: float = Field(default=0.85, alias="AUTO_VERIFY_CONFIDENCE")
+    auto_verify_confidence: float = Field(default=0.95, alias="AUTO_VERIFY_CONFIDENCE")
+    verifier_pass_confidence: float = Field(default=0.90, alias="VERIFIER_PASS_CONFIDENCE")
     stagnation_window: int = Field(default=3, alias="STAGNATION_WINDOW")
     experiment_mode: Literal["auto", "true", "false"] = Field(
         default="auto", alias="EXPERIMENT_MODE"
