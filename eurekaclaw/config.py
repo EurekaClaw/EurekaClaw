@@ -55,6 +55,9 @@ class Config(BaseSettings):
     gate_mode: Literal["auto", "human", "none"] = Field(
         default="auto", alias="GATE_MODE"
     )
+    theory_pipeline: Literal["default", "memory_guided"] = Field(
+        default="default", alias="THEORY_PIPELINE"
+    )
     theory_max_iterations: int = Field(default=10, alias="THEORY_MAX_ITERATIONS")
     use_docker_sandbox: bool = Field(default=False, alias="USE_DOCKER_SANDBOX")
     # Output format for the generated paper: "latex" (default) or "markdown"

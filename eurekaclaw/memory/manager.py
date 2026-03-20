@@ -72,6 +72,49 @@ class MemoryManager:
     def find_related_theorems(self, node_id: str, depth: int = 2) -> list[KnowledgeNode]:
         return self.graph.find_related(node_id, depth)
 
+    def retrieve_relevant_theorems(
+        self,
+        query: str,
+        domain: str = "",
+        limit: int = 5,
+    ) -> list[KnowledgeNode]:
+        """Return the most relevant theorems/lemmas from the knowledge graph.
+
+        Uses a lightweight lexical overlap score over theorem name + statement.
+        This keeps retrieval deterministic and dependency-free while making the
+        graph actually useful during proof planning.
+        """
+        import re
+
+        def tokenize(text: str) -> set[str]:
+            return {
+                token
+                for token in re.findall(r"[A-Za-z][A-Za-z0-9_]{2,}", text.lower())
+                if token not in {"theorem", "lemma", "proof", "result", "using", "show", "bound"}
+            }
+
+        query_tokens = tokenize(query)
+        if not query_tokens and not domain:
+            return []
+
+        candidates = self.graph.search_by_domain(domain) if domain else self.graph.all_nodes()
+        if not candidates:
+            candidates = self.graph.all_nodes()
+
+        scored: list[tuple[int, KnowledgeNode]] = []
+        domain_lower = domain.lower()
+        for node in candidates:
+            haystack = f"{node.theorem_name}\n{node.formal_statement}"
+            node_tokens = tokenize(haystack)
+            overlap = len(query_tokens & node_tokens)
+            if domain_lower and domain_lower in node.domain.lower():
+                overlap += 2
+            if overlap > 0:
+                scored.append((overlap, node))
+
+        scored.sort(key=lambda item: (-item[0], item[1].created_at), reverse=False)
+        return [node for _score, node in scored[:limit]]
+
     # --- Tier 4: Domain markdown memories ---------------------------------
 
     def load_for_injection(self, domain: str, k: int = 4) -> str:
