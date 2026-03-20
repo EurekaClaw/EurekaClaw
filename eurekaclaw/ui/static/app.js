@@ -4,6 +4,9 @@ const navItems = document.querySelectorAll("[data-view-target]");
 const inputModeEl = document.getElementById("input-mode");
 const inputDomainEl = document.getElementById("input-domain");
 const inputPromptEl = document.getElementById("input-prompt");
+const inputPaperIdsEl = document.getElementById("input-paper-ids");
+const paperIdsLabel = document.getElementById("paper-ids-label");
+const promptLabelEl = document.getElementById("prompt-label");
 const launchSessionBtn = document.getElementById("launch-session-btn");
 const loadExampleBtn = document.getElementById("load-example-btn");
 const runMetaEl = document.getElementById("run-meta");
@@ -843,42 +846,97 @@ ccproxy auth status claude_api</pre>
   if (_tl) _tl.textContent = title;
 }
 
+const MODE_CONFIG = {
+  detailed: {
+    promptLabel: "Conjecture / theorem to prove",
+    promptPlaceholder: "e.g. The sample complexity of transformers is O(L·d·log(d)/ε²)",
+    requirePrompt: true,
+    requireDomain: false,
+    showPaperIds: false,
+  },
+  reference: {
+    promptLabel: "Research focus (optional)",
+    promptPlaceholder: "e.g. Find gaps in sparse attention theory, or leave blank to auto-detect",
+    requirePrompt: false,
+    requireDomain: true,
+    showPaperIds: true,
+  },
+  exploration: {
+    promptLabel: "Guiding question (optional)",
+    promptPlaceholder: "e.g. What are the tightest known regret lower bounds for stochastic bandits?",
+    requirePrompt: false,
+    requireDomain: true,
+    showPaperIds: false,
+  },
+};
+
+function updateModeUI() {
+  const mode = inputModeEl.value;
+  const cfg = MODE_CONFIG[mode] || MODE_CONFIG.detailed;
+  promptLabelEl.textContent = cfg.promptLabel;
+  inputPromptEl.placeholder = cfg.promptPlaceholder;
+  paperIdsLabel.hidden = !cfg.showPaperIds;
+}
+
+function validateInputSpec() {
+  const mode = inputModeEl.value;
+  const cfg = MODE_CONFIG[mode] || MODE_CONFIG.detailed;
+  const domain = inputDomainEl.value.trim();
+  const prompt = inputPromptEl.value.trim();
+
+  if (cfg.requireDomain && !domain) {
+    return `Research domain is required for ${mode} mode.`;
+  }
+  if (cfg.requirePrompt && !prompt) {
+    return mode === "detailed"
+      ? "Please enter the conjecture or theorem you want EurekaClaw to prove."
+      : "Research prompt is required for this mode.";
+  }
+  return null;
+}
+
 function normalizeInputSpec() {
-  const modeLabel = inputModeEl.value;
+  const mode = inputModeEl.value;
   const domain = inputDomainEl.value.trim();
   const prompt = inputPromptEl.value.trim();
   const selectedSkillContext = selectedSkills.length
     ? `User-selected skills: ${selectedSkills.join(", ")}`
     : "";
 
-  if (modeLabel === "Reference-driven") {
+  const paperIds = (inputPaperIdsEl.value || "")
+    .split(/[\n,\s]+/)
+    .map((id) => id.trim())
+    .filter(Boolean);
+
+  if (mode === "reference") {
     return {
       mode: "reference",
       domain,
-      query: prompt || `Find gaps in ${domain}`,
-      paper_ids: [],
+      query: prompt || `Find research gaps in ${domain}`,
+      paper_ids: paperIds,
       additional_context: selectedSkillContext,
-      selected_skills: selectedSkills
+      selected_skills: selectedSkills,
     };
   }
 
-  if (modeLabel === "Open exploration") {
+  if (mode === "exploration") {
     return {
       mode: "exploration",
       domain,
-      query: prompt || `Survey the frontier of ${domain}`,
+      query: prompt || `Survey the frontier of ${domain} and identify open problems`,
       additional_context: selectedSkillContext,
-      selected_skills: selectedSkills
+      selected_skills: selectedSkills,
     };
   }
 
+  // detailed (default)
   return {
     mode: "detailed",
     domain,
-    query: prompt,
     conjecture: prompt,
+    query: prompt,
     additional_context: selectedSkillContext,
-    selected_skills: selectedSkills
+    selected_skills: selectedSkills,
   };
 }
 
@@ -1115,7 +1173,16 @@ async function loadMostRecentRun() {
   }
 }
 
+inputModeEl.addEventListener("change", updateModeUI);
+updateModeUI();
+
 launchSessionBtn.addEventListener("click", async () => {
+  const validationError = validateInputSpec();
+  if (validationError) {
+    setRunStatus("failed", validationError);
+    return;
+  }
+
   launchSessionBtn.disabled = true;
   setRunStatus("running", "Creating a new EurekaClaw session...");
   try {
@@ -1138,10 +1205,11 @@ launchSessionBtn.addEventListener("click", async () => {
 });
 
 loadExampleBtn.addEventListener("click", () => {
-  inputModeEl.value = "Detailed proof";
+  inputModeEl.value = "detailed";
   inputDomainEl.value = "Machine learning theory";
   inputPromptEl.value =
     "Prove a generalization bound for sparse transformer attention under low-rank kernel assumptions.";
+  updateModeUI();
 });
 
 skillSearchEl.addEventListener("input", () => {

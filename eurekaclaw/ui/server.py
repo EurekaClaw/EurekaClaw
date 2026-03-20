@@ -427,7 +427,14 @@ class UIRequestHandler(SimpleHTTPRequestHandler):
         parsed = urlparse(self.path)
         if parsed.path == "/api/runs":
             payload = self._read_json()
-            input_spec = InputSpec.model_validate(payload)
+            try:
+                input_spec = InputSpec.model_validate(payload)
+            except Exception as exc:
+                self._send_json(
+                    {"error": f"Invalid request: {exc}"},
+                    status=HTTPStatus.BAD_REQUEST,
+                )
+                return
             run = self.state.create_run(input_spec)
             self.state.start_run(run)
             self._send_json(self.state.snapshot_run(run), status=HTTPStatus.CREATED)
