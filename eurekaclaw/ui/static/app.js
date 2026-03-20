@@ -4,6 +4,9 @@ const navItems = document.querySelectorAll("[data-view-target]");
 const inputModeEl = document.getElementById("input-mode");
 const inputDomainEl = document.getElementById("input-domain");
 const inputPromptEl = document.getElementById("input-prompt");
+const inputPaperIdsEl = document.getElementById("input-paper-ids");
+const paperIdsLabel = document.getElementById("paper-ids-label");
+const promptLabelEl = document.getElementById("prompt-label");
 const launchSessionBtn = document.getElementById("launch-session-btn");
 const loadExampleBtn = document.getElementById("load-example-btn");
 const runMetaEl = document.getElementById("run-meta");
@@ -32,9 +35,7 @@ const skillSelectedEl = document.getElementById("skill-selected");
 const skillListEl = document.getElementById("skill-list");
 const skillMetaEl = document.getElementById("skill-meta");
 const skillPaginationEl = document.getElementById("skill-pagination");
-const sidebarModeEl = document.getElementById("sidebar-mode");
-const sidebarStageEl = document.getElementById("sidebar-stage");
-const sidebarArtifactsEl = document.getElementById("sidebar-artifacts");
+const sessionListEl = document.getElementById("session-list");
 const artifactDrawerEl = document.getElementById("artifact-drawer");
 const artifactDrawerBackdropEl = document.getElementById("artifact-drawer-backdrop");
 const artifactDrawerTitleEl = document.getElementById("artifact-drawer-title");
@@ -42,7 +43,7 @@ const artifactDrawerBodyEl = document.getElementById("artifact-drawer-body");
 const closeArtifactDrawerBtn = document.getElementById("close-artifact-drawer-btn");
 
 const wizardStage = document.getElementById("wizard-stage");
-const wizardContext = document.getElementById("wizard-context");
+const wizardDotsRow = document.getElementById("wizard-dots-row");
 const wizardProgressBar = document.getElementById("wizard-progress-bar");
 const wizardStepLabel = document.getElementById("wizard-step-label");
 const prevStepBtn = document.getElementById("prev-step-btn");
@@ -51,9 +52,13 @@ const nextStepBtn = document.getElementById("next-step-btn");
 let currentWizardStep = 0;
 let currentRunId = null;
 let pollTimer = null;
+let pollErrors = 0;
+const POLL_INTERVAL_MS = 2000;
+const POLL_MAX_ERRORS = 4;   // show "connection lost" only after 4 consecutive failures
 let latestArtifacts = null;
 let availableSkills = [];
 let selectedSkills = [];
+let allSessions = [];
 let currentSkillPage = 1;
 const skillsPerPage = 4;
 let currentLogPage = 1;
@@ -69,168 +74,162 @@ function showView(viewName) {
   });
 }
 
+function flashTransitionTo(viewName) {
+  const overlay = document.getElementById("flash-overlay");
+  overlay.classList.remove("flash-in", "flash-out");
+  requestAnimationFrame(() => {
+    overlay.classList.add("flash-in");
+    setTimeout(() => {
+      showView(viewName);
+      overlay.classList.remove("flash-in");
+      overlay.classList.add("flash-out");
+      setTimeout(() => overlay.classList.remove("flash-out"), 380);
+    }, 90);
+  });
+}
+
 navItems.forEach((item) => {
   item.addEventListener("click", () => showView(item.dataset.viewTarget));
 });
 
 const wizardSteps = [
   {
-    title: "Welcome",
-    copy:
-      "Turn EurekaClaw from a repository into a working research system. The setup should feel guided, not documentation-driven.",
-    context:
-      "This step sets expectations. Users should understand what EurekaClaw does, how long setup takes, and which parts are required versus optional.",
-    bullets: [
-      "Explain that the core system can run before optional tools are installed.",
-      "Make local-first and controllability part of the onboarding tone.",
-      "Offer clear next-step framing instead of dropping users into raw config."
+    icon: "🦞",
+    title: "Welcome to EurekaClaw",
+    subtitle: "From a question to a publishable paper — autonomously",
+    items: [
+      { label: "Crawls arXiv & Semantic Scholar", note: "Finds, summarizes, and cross-references relevant papers" },
+      { label: "Generates theorems + multi-stage proofs", note: "7-stage bottom-up proof pipeline with lemma verification" },
+      { label: "Runs numerical experiments", note: "Validates theoretical bounds; flags low-confidence lemmas" },
+      { label: "Writes camera-ready LaTeX papers", note: "Full bibliography, theorem environments, and PDF compilation" },
+      { label: "Fully local-first, private by default", note: "Your data never leaves your machine — MIT licensed" }
     ],
-    cards: [
-      ["Core runtime", "Python + dependencies + model access"],
-      ["Optional depth", "Lean4, LaTeX, Docker, external APIs"]
-    ]
+    tip: "Setup takes ~5 minutes for the core system. Optional tools (Lean4, LaTeX, Docker) can be added later — EurekaClaw runs in a useful degraded mode without them."
   },
   {
-    title: "Environment Detection",
-    copy:
-      "Inspect what is already available on this machine before asking the user to configure anything manually.",
-    context:
-      "The backend now exposes real capability checks. This step should eventually surface live Python, Lean4, LaTeX, Docker, skills directory, and model access status directly in the wizard.",
-    bullets: [
-      "Detect Python version and package availability.",
-      "Detect Lean4, pdflatex, Docker, and writable run directories.",
-      "Surface results as pass, optional, or action-needed states."
+    icon: "📦",
+    title: "Install EurekaClaw",
+    subtitle: "Python 3.11 or newer required",
+    items: [
+      { label: "Clone the repository", code: "git clone https://github.com/EurekaClaw/EurekaClaw_dev_zero" },
+      { label: "Enter the project directory", code: "cd EurekaClaw_dev_zero" },
+      { label: "Install in editable mode", code: "pip install -e \".\"", note: "Installs the eurekaclaw CLI immediately" },
+      { label: "Copy the environment file", code: "cp .env.example .env", note: "This is where all your keys and settings live" },
+      { label: "Optional extras (OpenRouter / OAuth)", code: "pip install -e \".[openai,oauth]\"" }
     ],
-    cards: [
-      ["Runtime", "Live capability data available via /api/capabilities"],
-      ["Optional tools", "Lean4, LaTeX, Docker are inspected individually"]
-    ]
+    tip: "The -e flag installs in editable mode so changes to the source take effect immediately without reinstalling."
   },
   {
-    title: "Provider Connection",
-    copy:
-      "Choose how EurekaClaw connects to models without hand-editing environment files on day one.",
-    context:
-      "The systems page now edits live config values that are persisted back to .env, so onboarding can evolve into a real setup wizard rather than a mock flow.",
-    bullets: [
-      "Offer provider presets rather than a blank config screen.",
-      "Show exactly which fields are required for each mode.",
-      "Validate before users move on."
+    icon: "🔑",
+    title: "Connect Your Language Model",
+    subtitle: "Choose how EurekaClaw reaches an AI model",
+    items: [
+      { label: "Option A — Anthropic API key (fastest)", code: "ANTHROPIC_API_KEY=sk-ant-...   # add to .env", note: "Recommended for most users" },
+      { label: "Option B — Claude Pro/Max via OAuth (no API key)", code: "pip install \"eurekaclaw[oauth]\"\nANTHROPIC_AUTH_MODE=oauth   # add to .env", note: "ccproxy auto-reads ~/.claude/.credentials.json" },
+      { label: "Option C — OpenRouter", code: "LLM_BACKEND=openrouter\nOPENAI_COMPAT_API_KEY=sk-or-...   # add to .env" },
+      { label: "Option D — Local model (vLLM / Ollama)", code: "LLM_BACKEND=local   # defaults to http://localhost:8000/v1" }
     ],
-    cards: [
-      ["Anthropic API", "Fastest default path"],
-      ["OAuth / ccproxy", "For Claude Pro or Max workflows"],
-      ["OpenAI-compatible", "For vLLM, OpenRouter, or custom endpoints"]
-    ]
+    tip: "You can also change backend and API keys in the Settings tab — they write back to .env automatically without manual file editing."
   },
   {
-    title: "Base Configuration",
-    copy:
-      "Translate the most important .env and runtime settings into an understandable control surface.",
-    context:
-      "This is where users manage primary model, fast model, output format, and iteration counts. The systems page already reflects these values from the backend.",
-    bullets: [
-      "Expose model and fast-model choices.",
-      "Let users choose markdown or LaTeX output.",
-      "Explain implications of iteration count and run directories."
+    icon: "⚙️",
+    title: "Configure Runtime Settings",
+    subtitle: "Tune key parameters in .env or the Settings tab",
+    items: [
+      { label: "Primary model", code: "EUREKACLAW_MODEL=claude-sonnet-4-6", note: "Fast model defaults to claude-haiku-4-5-20251001" },
+      { label: "Gate mode (human review control)", code: "GATE_MODE=auto", note: "none = fully auto · auto = escalates on low-confidence lemmas · human = pauses at every stage" },
+      { label: "Output format", code: "OUTPUT_FORMAT=latex", note: "latex (default, generates PDF) or markdown" },
+      { label: "Experiment validation", code: "EXPERIMENT_MODE=auto", note: "auto = run when needed · true = always · false = skip" },
+      { label: "Max proof loop iterations", code: "THEORY_MAX_ITERATIONS=10", note: "Increase if proofs are being abandoned prematurely" }
     ],
-    cards: [
-      ["Config API", "Live read and write support is enabled"],
-      ["Persistence", "Saved values are written back to .env"]
-    ]
+    tip: "The Settings tab has live sliders for all 7 token-limit knobs (agent, prover, planner, decomposer, formalizer, verifier, compress) — no .env editing required."
   },
   {
-    title: "Optional Capabilities",
-    copy:
-      "Advanced tools should feel like upgrades, not blockers.",
-    context:
-      "Capability checks now distinguish between available, optional, and missing system features. That makes degraded mode visible and trustworthy.",
-    bullets: [
-      "Group optional capabilities by benefit, not by package name.",
-      "Show users what each capability unlocks.",
-      "Support degraded mode when optional tools are unavailable."
+    icon: "🔧",
+    title: "Optional Tools",
+    subtitle: "Each unlocks a meaningful capability — none are blockers",
+    items: [
+      { label: "Lean4 — formal proof verification", code: "curl https://elan.lean-lang.org/elan-init.sh | sh", note: "Lets EurekaClaw formally verify proofs, not just LLM-check them" },
+      { label: "TeX Live / MacTeX — PDF compilation", code: "brew install --cask mactex-no-gui   # macOS", note: "Required for paper.pdf output; paper.tex is always generated" },
+      { label: "Docker — sandboxed code execution", note: "Install from docker.com — enables safe experiment runs" },
+      { label: "Semantic Scholar API key", code: "S2_API_KEY=...   # add to .env", note: "Unlocks citation counts and venue metadata for papers" },
+      { label: "Wolfram Alpha API key", code: "WOLFRAM_APP_ID=...   # add to .env", note: "Enables symbolic computation and formula verification" }
     ],
-    cards: [
-      ["Formal verification", "Lean4"],
-      ["PDF generation", "TeX Live / MacTeX"],
-      ["Sandboxed code", "Docker"],
-      ["Research APIs", "Search, S2, Wolfram"]
-    ]
+    tip: "Missing optional tools appear as warnings (not errors) in the System Health panel under Settings. The system auto-detects what is available on startup."
   },
   {
-    title: "Skills Installation",
-    copy:
-      "Built-in seed skills should be a one-click enhancement to the system's reasoning quality.",
-    context:
-      "The underlying project already supports `eurekaclaw install-skills`. The UI now has enough backend context to surface skills directory readiness and can grow into a true installer flow next.",
-    bullets: [
-      "Offer install and reinstall actions for seed skills.",
-      "List skill families in human terms: survey, ideation, proof, experiment, writing.",
-      "Show where skills live and whether custom skills already exist."
+    icon: "🧠",
+    title: "Install Built-in Skills",
+    subtitle: "One command adds proof strategies to all agents",
+    items: [
+      { label: "Install seed skills (run once)", code: "eurekaclaw install-skills", note: "Installs to ~/.eurekaclaw/skills/ and persists across sessions" },
+      { label: "Browse all available skills", code: "eurekaclaw skills" },
+      { label: "Theory skills", note: "Induction, contradiction, compactness, concentration inequalities, UCB regret analysis" },
+      { label: "Survey & writing skills", note: "Literature decomposition, gap analysis, paper structure, proof readability rules" },
+      { label: "Add your own custom skills", code: "# Drop any .md file into ~/.eurekaclaw/skills/", note: "EurekaClaw also distills new skills automatically after each successful run" }
     ],
-    cards: [
-      ["Theory skills", "Induction, contradiction, compactness"],
-      ["Survey skills", "Literature decomposition"],
-      ["Writing skills", "Paper structure"]
-    ]
+    tip: "After each session, the continual learning loop extracts what worked and distills it into new skills — your system gets better over time automatically."
   },
   {
-    title: "Health Check & Next Steps",
-    copy:
-      "End with a capability snapshot and clear launch paths so users feel ready to begin.",
-    context:
-      "The workspace can already launch real sessions through the backend. This final step should summarize what is configured and route users straight into a run.",
-    bullets: [
-      "Run a minimal connectivity and config validation check.",
-      "Show what features are available now versus later.",
-      "Offer direct actions: prove, explore, inspect system."
+    icon: "🚀",
+    title: "Launch Your First Session",
+    subtitle: "Three research modes — pick the one that fits",
+    items: [
+      { label: "Browser UI (this tab)", note: "Click Launch session on the Research tab — live progress, log stream, and results viewer" },
+      { label: "Prove a specific conjecture", code: "eurekaclaw prove \"O(n log n) complexity via sparse attention\" --domain \"ML theory\"" },
+      { label: "Explore a broad research area", code: "eurekaclaw explore \"multi-armed bandit theory\"" },
+      { label: "Start from existing papers", code: "eurekaclaw from-papers 1706.03762 2005.14165 --domain \"attention mechanisms\"" },
+      { label: "Results are saved to", code: "./results/<session_id>/paper.tex  ·  paper.pdf  ·  references.bib", note: "Also: theory_state.json, research_brief.json, experiment_result.json" }
     ],
-    cards: [
-      ["Core run", "The workspace can start real EurekaClaw sessions"],
-      ["Live polling", "Pipeline, artifacts, and outputs are fetched from the backend"]
-    ]
+    tip: "Go to Settings → Test connection first to confirm your model is reachable. Use --gate human on your first run to review each stage before it continues."
   }
 ];
 
 function renderWizardStep(index) {
   const step = wizardSteps[index];
-  const progress = ((index + 1) / wizardSteps.length) * 100;
+  const total = wizardSteps.length;
+  const progress = ((index + 1) / total) * 100;
 
+  // Dots row
+  wizardDotsRow.innerHTML = wizardSteps.map((_, i) => {
+    const cls = i < index ? "wizard-dot is-done" : i === index ? "wizard-dot is-active" : "wizard-dot";
+    const label = i < index ? "✓" : String(i + 1);
+    return `<span class="${cls}">${label}</span>`;
+  }).join("");
+
+  // Content
   wizardStage.innerHTML = `
-    <div>
-      <p class="eyebrow">Installation Flow</p>
-      <h4>${step.title}</h4>
+    <div class="wizard-step-header">
+      <div class="wizard-step-icon">${step.icon}</div>
+      <div>
+        <h2 class="wizard-step-title">${step.title}</h2>
+        <p class="wizard-step-subtitle">${step.subtitle}</p>
+      </div>
     </div>
-    <p class="wizard-copy">${step.copy}</p>
-    <ul class="wizard-list">
-      ${step.bullets.map((bullet) => `<li>${bullet}</li>`).join("")}
-    </ul>
-    <div class="wizard-grid">
-      ${step.cards
-        .map(
-          ([title, body]) => `
-            <div class="wizard-card">
-              <strong>${title}</strong>
-              <p>${body}</p>
-            </div>
-          `
-        )
-        .join("")}
+    <div class="wizard-items">
+      ${step.items.map((item, i) => `
+        <div class="wizard-item">
+          <span class="wizard-item-num">${i + 1}</span>
+          <div class="wizard-item-body">
+            <strong>${item.label}</strong>
+            ${item.code ? `<code class="wizard-item-code">${escapeHtml(item.code)}</code>` : ""}
+            ${item.note ? `<span class="wizard-item-note">${item.note}</span>` : ""}
+          </div>
+        </div>
+      `).join("")}
     </div>
-  `;
-
-  wizardContext.innerHTML = `
-    <p>${step.context}</p>
-    <p>
-      The setup UI should always answer three questions: what is required, what
-      is optional, and what becomes possible after this step.
-    </p>
+    ${step.tip ? `
+      <div class="wizard-tip">
+        <span class="wizard-tip-icon">💡</span>
+        <p>${step.tip}</p>
+      </div>
+    ` : ""}
   `;
 
   wizardProgressBar.style.width = `${progress}%`;
-  wizardStepLabel.textContent = `Step ${index + 1} of ${wizardSteps.length}`;
+  wizardStepLabel.textContent = `Step ${index + 1} of ${total}`;
   prevStepBtn.disabled = index === 0;
-  nextStepBtn.textContent = index === wizardSteps.length - 1 ? "Finish" : "Next";
+  nextStepBtn.textContent = index === total - 1 ? "Go to Research →" : "Next →";
 }
 
 function escapeHtml(value) {
@@ -271,6 +270,49 @@ function formatLocalTimestamp(value) {
   });
 }
 
+function formatRelativeTime(value) {
+  const parsed = parseServerTimestamp(value);
+  if (!parsed) return "--";
+  const diffMin = Math.floor((Date.now() - parsed.getTime()) / 60000);
+  if (diffMin < 1) return "Just now";
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `${diffHr}h ago`;
+  return `${Math.floor(diffHr / 24)}d ago`;
+}
+
+function renderSessionList(sessions) {
+  allSessions = sessions;
+  if (!sessions.length) {
+    sessionListEl.innerHTML = '<p class="session-list-empty">No sessions yet.<br>Launch one to get started.</p>';
+    return;
+  }
+  sessionListEl.innerHTML = sessions.map((s) => {
+    const prompt = s.input_spec?.query || s.input_spec?.domain || "Untitled session";
+    const domain = s.input_spec?.domain || "";
+    const status = s.status || "queued";
+    const time = formatRelativeTime(s.created_at);
+    const isActive = s.run_id === currentRunId;
+    return `<div class="session-item${isActive ? " is-active" : ""}" data-run-id="${escapeHtml(s.run_id)}">
+      <div class="session-item-prompt">${escapeHtml(prompt)}</div>
+      <div class="session-item-meta">
+        <span class="session-status-dot ${status}"></span>
+        <span>${time}</span>
+        ${domain ? `<span>·</span><span>${escapeHtml(domain)}</span>` : ""}
+      </div>
+    </div>`;
+  }).join("");
+}
+
+async function loadSessionList() {
+  try {
+    const data = await apiGet("/api/runs");
+    renderSessionList(data.runs || []);
+  } catch (_) {
+    // Silently fail — don't disrupt the main UX
+  }
+}
+
 function statusClass(status) {
   if (status === "completed" || status === "available") {
     return "status-complete";
@@ -290,9 +332,31 @@ function statusClass(status) {
 function setRunStatus(status, detail) {
   runStatusPillEl.className = `status-pill ${statusClass(status)}`;
   runStatusPillEl.textContent = titleCase(status);
-  if (detail) {
+  if (detail !== undefined) {
     runMetaEl.textContent = detail;
+    runMetaEl.style.color = "";
   }
+}
+
+function liveStatusDetail(run) {
+  if (!run) return "Launch a session from the form above.";
+  if (run.status === "queued") return "Session queued — waiting to start…";
+  if (run.status === "running") {
+    const activeTasks = (run.pipeline || []).filter((t) => t.status === "in_progress");
+    if (activeTasks.length) {
+      return `Running: ${activeTasks.map((t) => titleCase(t.name)).join(", ")}`;
+    }
+    const elapsed = run.started_at
+      ? Math.floor((Date.now() - new Date(run.started_at).getTime()) / 1000)
+      : 0;
+    return `Running${elapsed ? ` · ${elapsed}s elapsed` : ""}`;
+  }
+  if (run.status === "completed") {
+    const dir = run.output_dir ? ` → ${run.output_dir}` : "";
+    return `Completed${dir}`;
+  }
+  if (run.status === "failed") return `Failed: ${run.error || "unknown error"}`;
+  return `Run ${run.run_id.slice(0, 8)}`;
 }
 
 function renderTokenUsage(tasks) {
@@ -381,7 +445,8 @@ function renderArtifacts(artifacts) {
     ["resource_analysis", "Resource analysis"]
   ].filter(([key]) => artifacts && artifacts[key]);
 
-  sidebarArtifactsEl.textContent = String(entries.length);
+  const sidebarArtifactsEl = document.getElementById("sidebar-artifacts");
+  if (sidebarArtifactsEl) sidebarArtifactsEl.textContent = String(entries.length);
 
   if (!entries.length) {
     artifactListEl.innerHTML = `
@@ -527,10 +592,16 @@ function renderOutput(run) {
   `;
 }
 
-function updateSidebar(run, tasks) {
-  sidebarModeEl.textContent = run?.input_spec?.mode ? titleCase(run.input_spec.mode) : "Not started";
-  const activeTask = (tasks || []).find((task) => task.status === "in_progress");
-  sidebarStageEl.textContent = activeTask ? titleCase(activeTask.name) : titleCase(run?.status || "idle");
+function updateSidebar(run) {
+  if (!run) return;
+  // Update the status dot for this session in the sidebar list
+  const item = sessionListEl.querySelector(`[data-run-id="${run.run_id}"]`);
+  if (!item) return;
+  const dot = item.querySelector(".session-status-dot");
+  if (dot) dot.className = `session-status-dot ${run.status}`;
+  sessionListEl.querySelectorAll(".session-item").forEach((el) => {
+    el.classList.toggle("is-active", el.dataset.runId === currentRunId);
+  });
 }
 
 async function apiGet(path) {
@@ -728,7 +799,7 @@ ccproxy auth status claude_api</pre>
         project OAuth dependencies.
       </p>
     `;
-    authGuidanceToggleEl.querySelector(".auth-guidance-toggle-label").textContent = title;
+    const _tl = authGuidanceToggleEl.querySelector(".auth-guidance-toggle-label"); if (_tl) _tl.textContent = title;
     return;
   }
 
@@ -763,7 +834,7 @@ ccproxy auth status claude_api</pre>
         </div>
       </div>
     `;
-    authGuidanceToggleEl.querySelector(".auth-guidance-toggle-label").textContent = title;
+    const _tl = authGuidanceToggleEl.querySelector(".auth-guidance-toggle-label"); if (_tl) _tl.textContent = title;
     return;
   }
 
@@ -797,45 +868,101 @@ ccproxy auth status claude_api</pre>
       </div>
     </div>
   `;
-  authGuidanceToggleEl.querySelector(".auth-guidance-toggle-label").textContent = title;
+  const _tl = authGuidanceToggleEl.querySelector(".auth-guidance-toggle-label");
+  if (_tl) _tl.textContent = title;
+}
+
+const MODE_CONFIG = {
+  detailed: {
+    promptLabel: "Conjecture / theorem to prove",
+    promptPlaceholder: "e.g. The sample complexity of transformers is O(L·d·log(d)/ε²)",
+    requirePrompt: true,
+    requireDomain: false,
+    showPaperIds: false,
+  },
+  reference: {
+    promptLabel: "Research focus (optional)",
+    promptPlaceholder: "e.g. Find gaps in sparse attention theory, or leave blank to auto-detect",
+    requirePrompt: false,
+    requireDomain: true,
+    showPaperIds: true,
+  },
+  exploration: {
+    promptLabel: "Guiding question (optional)",
+    promptPlaceholder: "e.g. What are the tightest known regret lower bounds for stochastic bandits?",
+    requirePrompt: false,
+    requireDomain: true,
+    showPaperIds: false,
+  },
+};
+
+function updateModeUI() {
+  const mode = inputModeEl.value;
+  const cfg = MODE_CONFIG[mode] || MODE_CONFIG.detailed;
+  promptLabelEl.textContent = cfg.promptLabel;
+  inputPromptEl.placeholder = cfg.promptPlaceholder;
+  paperIdsLabel.hidden = !cfg.showPaperIds;
+}
+
+function validateInputSpec() {
+  const mode = inputModeEl.value;
+  const cfg = MODE_CONFIG[mode] || MODE_CONFIG.detailed;
+  const domain = inputDomainEl.value.trim();
+  const prompt = inputPromptEl.value.trim();
+
+  if (cfg.requireDomain && !domain) {
+    return `Research domain is required for ${mode} mode.`;
+  }
+  if (cfg.requirePrompt && !prompt) {
+    return mode === "detailed"
+      ? "Please enter the conjecture or theorem you want EurekaClaw to prove."
+      : "Research prompt is required for this mode.";
+  }
+  return null;
 }
 
 function normalizeInputSpec() {
-  const modeLabel = inputModeEl.value;
+  const mode = inputModeEl.value;
   const domain = inputDomainEl.value.trim();
   const prompt = inputPromptEl.value.trim();
   const selectedSkillContext = selectedSkills.length
     ? `User-selected skills: ${selectedSkills.join(", ")}`
     : "";
 
-  if (modeLabel === "Reference-driven") {
+  const paperIds = (inputPaperIdsEl.value || "")
+    .split(/[\n,\s]+/)
+    .map((id) => id.trim())
+    .filter(Boolean);
+
+  if (mode === "reference") {
     return {
       mode: "reference",
       domain,
-      query: prompt || `Find gaps in ${domain}`,
-      paper_ids: [],
+      query: prompt || `Find research gaps in ${domain}`,
+      paper_ids: paperIds,
       additional_context: selectedSkillContext,
-      selected_skills: selectedSkills
+      selected_skills: selectedSkills,
     };
   }
 
-  if (modeLabel === "Open exploration") {
+  if (mode === "exploration") {
     return {
       mode: "exploration",
       domain,
-      query: prompt || `Survey the frontier of ${domain}`,
+      query: prompt || `Survey the frontier of ${domain} and identify open problems`,
       additional_context: selectedSkillContext,
-      selected_skills: selectedSkills
+      selected_skills: selectedSkills,
     };
   }
 
+  // detailed (default)
   return {
     mode: "detailed",
     domain,
-    query: prompt,
     conjecture: prompt,
+    query: prompt,
     additional_context: selectedSkillContext,
-    selected_skills: selectedSkills
+    selected_skills: selectedSkills,
   };
 }
 
@@ -898,12 +1025,8 @@ function renderRun(run) {
   renderLogs(run, tasks);
   renderOutput(run);
   renderTokenUsage(tasks);
-  updateSidebar(run, tasks);
-  if (run) {
-    setRunStatus(run.status, `Run ${run.run_id.slice(0, 8)} is ${run.status}.`);
-  } else {
-    setRunStatus("idle", "The UI is connected. Launch a session to start the pipeline.");
-  }
+  updateSidebar(run);
+  setRunStatus(run ? run.status : "idle", liveStatusDetail(run));
 }
 
 function renderArtifactSummary(key, artifact) {
@@ -1051,50 +1174,119 @@ function closeArtifactDrawer() {
   artifactDrawerBackdropEl.hidden = true;
 }
 
+// ── Polling engine ──────────────────────────────────────────────────────────
+
+function startPolling(runId) {
+  stopPolling();
+  currentRunId = runId;
+  pollErrors = 0;
+  // First tick immediately, then on interval
+  _pollTick();
+  pollTimer = setInterval(_pollTick, POLL_INTERVAL_MS);
+}
+
+function stopPolling() {
+  if (pollTimer) {
+    clearInterval(pollTimer);
+    pollTimer = null;
+  }
+  pollErrors = 0;
+}
+
+async function _pollTick() {
+  if (!currentRunId) return;
+  try {
+    // Fetch both the active run and the full sessions list in parallel
+    const [run, sessionsData] = await Promise.all([
+      apiGet(`/api/runs/${currentRunId}`),
+      apiGet("/api/runs"),
+    ]);
+
+    pollErrors = 0;
+
+    // Update session list (sidebar dots reflect live status)
+    allSessions = sessionsData.runs || [];
+    renderSessionList(allSessions);
+
+    // Update main panel only if this is still the displayed run
+    if (run.run_id === currentRunId) {
+      renderRun(run);
+    }
+
+    // Stop polling when the run reaches a terminal state
+    if (run.status === "completed" || run.status === "failed") {
+      stopPolling();
+    }
+  } catch (_err) {
+    pollErrors += 1;
+    if (pollErrors >= POLL_MAX_ERRORS) {
+      setRunStatus("missing", "Backend not responding — check that `eurekaclaw ui` is running.");
+    }
+    // Keep polling — transient errors auto-recover
+  }
+}
+
 async function refreshRun(runId) {
+  // One-shot fetch without touching the poll timer
   try {
     const run = await apiGet(`/api/runs/${runId}`);
-    currentRunId = run.run_id;
-    renderRun(run);
-    if (run.status === "completed" || run.status === "failed") {
-      clearInterval(pollTimer);
-      pollTimer = null;
+    if (run.run_id === currentRunId) {
+      renderRun(run);
     }
-  } catch (error) {
-    setRunStatus("missing", `Unable to refresh the run: ${error.message}`);
+  } catch (_err) {
+    // Silently ignore — polling will surface persistent errors
   }
 }
 
 async function loadMostRecentRun() {
   try {
     const data = await apiGet("/api/runs");
-    const latest = data.runs[0];
+    allSessions = data.runs || [];
+    renderSessionList(allSessions);
+    const latest = allSessions[0];
     if (latest) {
       currentRunId = latest.run_id;
       currentLogPage = 1;
       renderRun(latest);
+      // Resume polling if the run is still live
+      if (latest.status === "running" || latest.status === "queued") {
+        startPolling(latest.run_id);
+      }
     } else {
       renderRun(null);
     }
-  } catch (error) {
-    setRunStatus("missing", `Unable to load runs: ${error.message}`);
+  } catch (_err) {
+    // Don't flash "missing" on startup — backend may just be starting up
+    renderRun(null);
   }
 }
 
+inputModeEl.addEventListener("change", updateModeUI);
+updateModeUI();
+
 launchSessionBtn.addEventListener("click", async () => {
+  const validationError = validateInputSpec();
+  if (validationError) {
+    // Show inline validation message without marking any run as "failed"
+    runMetaEl.textContent = validationError;
+    runMetaEl.style.color = "var(--warn)";
+    setTimeout(() => { runMetaEl.style.color = ""; }, 4000);
+    return;
+  }
+
   launchSessionBtn.disabled = true;
-  setRunStatus("running", "Creating a new EurekaClaw session...");
+  runMetaEl.style.color = "";
+  setRunStatus("running", "Creating session...");
   try {
     const run = await apiPost("/api/runs", normalizeInputSpec());
+    // Keep allSessions in sync immediately (no waiting for next poll)
+    allSessions = [run, ...allSessions.filter((s) => s.run_id !== run.run_id)];
     currentRunId = run.run_id;
     currentLogPage = 1;
+    renderSessionList(allSessions);
     renderRun(run);
     showView("workspace");
-
-    if (pollTimer) {
-      clearInterval(pollTimer);
-    }
-    pollTimer = setInterval(() => refreshRun(currentRunId), 3000);
+    startPolling(run.run_id);
   } catch (error) {
     setRunStatus("failed", `Could not start session: ${error.message}`);
   } finally {
@@ -1103,10 +1295,11 @@ launchSessionBtn.addEventListener("click", async () => {
 });
 
 loadExampleBtn.addEventListener("click", () => {
-  inputModeEl.value = "Detailed proof";
+  inputModeEl.value = "detailed";
   inputDomainEl.value = "Machine learning theory";
   inputPromptEl.value =
     "Prove a generalization bound for sparse transformer attention under low-rank kernel assumptions.";
+  updateModeUI();
 });
 
 skillSearchEl.addEventListener("input", () => {
@@ -1161,11 +1354,41 @@ logPaginationEl.addEventListener("click", (event) => {
   const action = target.getAttribute("data-log-page");
   if (action === "prev" && currentLogPage > 1) {
     currentLogPage -= 1;
-    refreshRun(currentRunId);
+    if (currentRunId) refreshRun(currentRunId);
   }
   if (action === "next") {
     currentLogPage += 1;
-    refreshRun(currentRunId);
+    if (currentRunId) refreshRun(currentRunId);
+  }
+});
+
+document.getElementById("new-session-btn").addEventListener("click", () => {
+  stopPolling();
+  currentRunId = null;
+  currentLogPage = 1;
+  renderRun(null);
+  renderSessionList(allSessions);
+  showView("workspace");
+  inputPromptEl.focus();
+});
+
+sessionListEl.addEventListener("click", (event) => {
+  const item = event.target.closest(".session-item");
+  if (!item) return;
+  const runId = item.dataset.runId;
+  if (!runId || runId === currentRunId) return;
+
+  stopPolling();
+  currentRunId = runId;
+  currentLogPage = 1;
+  renderSessionList(allSessions);
+  showView("workspace");
+  refreshRun(runId);
+
+  // Resume live polling only if the session is still active
+  const session = allSessions.find((s) => s.run_id === runId);
+  if (session && (session.status === "running" || session.status === "queued")) {
+    startPolling(runId);
   }
 });
 
@@ -1265,11 +1488,17 @@ nextStepBtn.addEventListener("click", () => {
     renderWizardStep(currentWizardStep);
     return;
   }
-  showView("workspace");
+  flashTransitionTo("workspace");
+});
+
+document.getElementById("tutorial-btn").addEventListener("click", () => {
+  currentWizardStep = 0;
+  renderWizardStep(0);
+  flashTransitionTo("onboarding");
 });
 
 renderWizardStep(currentWizardStep);
-showView("workspace");
+showView("onboarding");
 loadCapabilities();
 loadConfig();
 loadMostRecentRun();

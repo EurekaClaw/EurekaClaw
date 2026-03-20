@@ -231,7 +231,7 @@ class UIServerState:
                 "output_dir": str(out_dir),
             }
         except Exception as exc:
-            logger.exception("UI session run failed: %s", exc)
+            logger.exception("UI session run failed")
             run.status = "failed"
             run.error = str(exc)
         finally:
@@ -286,6 +286,15 @@ class UIServerState:
         }
 
 
+def _config_payload() -> dict[str, Any]:
+    return {
+        field_name: str(getattr(settings, field_name))
+        if isinstance(getattr(settings, field_name), Path)
+        else getattr(settings, field_name)
+        for field_name in _CONFIG_FIELDS
+    }
+
+
 def _preflight_check(config: dict[str, Any]) -> None:
     """Raise a descriptive ValueError if credentials are not configured.
 
@@ -293,11 +302,18 @@ def _preflight_check(config: dict[str, Any]) -> None:
     surface as a clear ``run.error`` message rather than a cryptic traceback
     deep inside the agent loop.
     """
+    from eurekaclaw.llm.factory import _BACKEND_ALIASES
+
     backend = str(config.get("llm_backend", "anthropic"))
     auth_mode = str(config.get("anthropic_auth_mode", "api_key"))
 
+    # Resolve shortcut backends (openrouter, local) → (openai_compat, default_base_url)
+    _canonical, _default_base = _BACKEND_ALIASES.get(backend, (backend, ""))
+    if _canonical != backend:
+        backend = _canonical
+
     if backend == "openai_compat":
-        base_url = str(config.get("openai_compat_base_url", "") or "")
+        base_url = str(config.get("openai_compat_base_url", "") or "") or _default_base
         if not base_url:
             raise ValueError(
                 "OPENAI_COMPAT_BASE_URL is not set. "
@@ -337,15 +353,6 @@ def _preflight_check(config: dict[str, Any]) -> None:
                 "Add it in the UI Settings panel or your .env file, "
                 "or use ANTHROPIC_AUTH_MODE=oauth with Claude Code."
             )
-
-
-def _config_payload() -> dict[str, Any]:
-    return {
-        field_name: str(getattr(settings, field_name))
-        if isinstance(getattr(settings, field_name), Path)
-        else getattr(settings, field_name)
-        for field_name in _CONFIG_FIELDS
-    }
 
 
 def _skills_payload() -> list[dict[str, Any]]:
@@ -501,7 +508,7 @@ class UIRequestHandler(SimpleHTTPRequestHandler):
                 input_spec = InputSpec.model_validate(payload)
             except Exception as exc:
                 self._send_json(
-                    {"error": f"Invalid session parameters: {exc}"},
+                    {"error": f"Invalid request: {exc}"},
                     status=HTTPStatus.BAD_REQUEST,
                 )
                 return
