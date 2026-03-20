@@ -197,12 +197,26 @@ class UIServerState:
         run.status = "running"
         run.started_at = datetime.utcnow()
         run.updated_at = datetime.utcnow()
-        session = EurekaSession()
-        run.eureka_session = session
 
         try:
-            with _temporary_auth_env(_config_payload()):
-                result = asyncio.run(session.run(run.input_spec))
+            # Pre-flight: verify credentials before spending time initialising agents
+            config = _config_payload()
+            _preflight_check(config)
+
+            session = EurekaSession()
+            run.eureka_session = session
+
+            with _temporary_auth_env(config):
+                # asyncio.run() can be unreliable in non-main threads on some
+                # Python versions.  Creating an explicit loop is safer.
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    result = loop.run_until_complete(session.run(run.input_spec))
+                finally:
+                    loop.close()
+                    asyncio.set_event_loop(None)
+
             run.result = result
 
             # Save artifacts to results/<run_id>/ so files are always on disk.
@@ -279,6 +293,59 @@ def _config_payload() -> dict[str, Any]:
         else getattr(settings, field_name)
         for field_name in _CONFIG_FIELDS
     }
+
+
+def _preflight_check(config: dict[str, Any]) -> None:
+    """Raise a descriptive ValueError if credentials are not configured.
+
+    Called before the session thread spins up the LLM client so that failures
+    surface as a clear ``run.error`` message rather than a cryptic traceback
+    deep inside the agent loop.
+    """
+    backend = str(config.get("llm_backend", "anthropic"))
+    auth_mode = str(config.get("anthropic_auth_mode", "api_key"))
+
+    if backend == "openai_compat":
+        base_url = str(config.get("openai_compat_base_url", "") or "")
+        if not base_url:
+            raise ValueError(
+                "OPENAI_COMPAT_BASE_URL is not set. "
+                "Configure it in the UI settings or .env before starting a session."
+            )
+        api_key = str(config.get("openai_compat_api_key", "") or "")
+        if not api_key:
+            raise ValueError(
+                "OPENAI_COMPAT_API_KEY is not set. "
+                "Configure it in the UI settings or .env before starting a session."
+            )
+    else:
+        # Anthropic backend
+        if auth_mode == "oauth":
+            return  # ccproxy handles auth; no key needed here
+
+        import os as _os
+        from pathlib import Path as _Path
+        import json as _json
+
+        api_key = (
+            str(config.get("anthropic_api_key", "") or "")
+            or _os.environ.get("ANTHROPIC_API_KEY", "")
+        )
+        if not api_key:
+            # Last resort: check for Claude Code OAuth token
+            creds = _Path.home() / ".claude" / ".credentials.json"
+            if creds.exists():
+                try:
+                    token = _json.loads(creds.read_text()).get("claudeAiOauth", {}).get("accessToken", "")
+                    if token:
+                        return
+                except Exception:
+                    pass
+            raise ValueError(
+                "ANTHROPIC_API_KEY is not set. "
+                "Add it in the UI Settings panel or your .env file, "
+                "or use ANTHROPIC_AUTH_MODE=oauth with Claude Code."
+            )
 
 
 def _skills_payload() -> list[dict[str, Any]]:
