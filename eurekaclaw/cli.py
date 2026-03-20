@@ -74,18 +74,19 @@ def explore(domain: str, query: str, mode: str, gate: str, output: str) -> None:
 
 @main.command()
 @click.argument("paper_ids", nargs=-1)
+@click.option("--query", "-q", default="", help="Specific research question")
 @click.option("--domain", "-d", required=True, help="Research domain")
 @click.option("--mode", default="skills_only")
 @click.option("--gate", default="none", type=click.Choice(["human", "auto", "none"]))
 @click.option("--output", "-o", default="./results", help="Output directory for artifacts (default: ./results)")
-def from_papers(paper_ids: tuple[str, ...], domain: str, mode: str, gate: str, output: str) -> None:
+def from_papers(paper_ids: tuple[str, ...], query: str, domain: str, mode: str, gate: str, output: str) -> None:
     """Level 2: Generate hypotheses from reference papers.
 
     Example: eurekaclaw from-papers 2301.12345 2302.67890 --domain "ML theory"
     """
     _run_session(
         mode="reference",
-        query=f"Find gaps in {domain}",
+        query=query if query != "" else "Generate hypotheses from reference papers",
         domain=domain,
         paper_ids=list(paper_ids),
         learn_mode=mode,
