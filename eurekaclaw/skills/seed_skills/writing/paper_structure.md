@@ -16,7 +16,7 @@ tags:
 - structure
 - theorem
 - proof
-usage_count: 6
+usage_count: 0
 version: '1.0'
 ---
 
