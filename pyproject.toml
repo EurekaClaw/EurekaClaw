@@ -7,7 +7,7 @@ name = "eurekaclaw"
 version = "0.1.0"
 description = "Multi-agent system for theoretical research — proof-heavy, formalism-rich, math-dense domains"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 license = { text = "MIT" }
 authors = [{ name = "EurekaClaw Contributors" }]
 
@@ -25,17 +25,20 @@ dependencies = [
     "numpy>=1.26",
     "arxiv>=2.1",
     "bibtexparser>=1.4",
+    "requests>=2.31",
 ]
 
 [project.optional-dependencies]
-# Semantic skill retrieval (falls back to tag-based retrieval if absent)
+# Semantic skill/memory retrieval via cosine similarity (falls back to tag/recency if absent)
 embeddings = ["sentence-transformers>=3.0"]
 # Sandboxed code execution via Docker (falls back to local subprocess if absent)
 docker = ["docker>=7.0"]
-# OpenAI-compatible backend (OpenRouter, vLLM, SGLang, LM Studio…)
+# OpenAI-compatible backend (OpenRouter, vLLM, SGLang, LM Studio, Minimax…)
 openai = ["openai>=1.30"]
 # Claude Pro/Max via Claude Code OAuth tokens
 oauth = ["ccproxy-api>=0.2.4"]
+# Full-PDF extraction via Docling (arXiv PDF → theorem/lemma sections)
+pdf = ["docling>=2.0"]
 # Development & testing
 dev = [
     "pytest>=8.0",
@@ -43,9 +46,9 @@ dev = [
     "pytest-mock>=3.12",
     "mypy>=1.10",
 ]
-# Install everything at once (except system-level Lean4/Coq)
+# Install everything at once (except system-level Lean4/pdflatex)
 all = [
-    "eurekaclaw[embeddings,docker,openai]",
+    "eurekaclaw[embeddings,docker,openai,pdf]",
 ]
 
 [project.scripts]
