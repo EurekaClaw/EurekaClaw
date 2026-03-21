@@ -6,6 +6,10 @@ Summary of all updates from `UPDATES.md`.
 
 ## 2026-03-21
 
+### 6. Add `CCPROXY_PORT` to `.env` for OAuth Mode
+
+Added `CCPROXY_PORT=8100` to `.env` so `maybe_start_ccproxy()` checks and reuses the correct port instead of defaulting to 8000 and failing.
+
 ### 5. Fix Infinite Loop on ConsistencyChecker `uncited` Severity
 
 The `uncited` retry path in `inner_loop_yaml.py` previously set `current_spec` to only `theorem_crystallizer`. After the crystallizer ran, no `ConsistencyChecker` was invoked, so `state.status` never reached `"proved"` and the outer iteration loop re-triggered the same `uncited` branch on every iteration — a deadlock.
