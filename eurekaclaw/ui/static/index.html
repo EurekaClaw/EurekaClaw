@@ -284,11 +284,11 @@
                   <fieldset class="token-limits-group">
                     <label class="slider-label">
                       <span>Agent loop - default budget for generic agents <em id="max_tokens_agent-val"></em></span>
-                      <input type="range" name="max_tokens_agent" min="1024" max="32768" step="512" oninput="document.getElementById('max_tokens_agent-val').textContent=this.value" />
+                      <input type="range" name="max_tokens_agent" min="1024" max="20480" step="512" oninput="document.getElementById('max_tokens_agent-val').textContent=this.value" />
                     </label>
                     <label class="slider-label">
                       <span>Prover - generates full lemma proofs <em id="max_tokens_prover-val"></em></span>
-                      <input type="range" name="max_tokens_prover" min="512" max="32768" step="256" oninput="document.getElementById('max_tokens_prover-val').textContent=this.value" />
+                      <input type="range" name="max_tokens_prover" min="512" max="20480" step="256" oninput="document.getElementById('max_tokens_prover-val').textContent=this.value" />
                     </label>
                     <label class="slider-label">
                       <span>Planner - general planning and task breakdown <em id="max_tokens_planner-val"></em></span>
@@ -304,7 +304,7 @@
                     </label>
                     <label class="slider-label">
                       <span>Assembler - assembles the full proof narrative <em id="max_tokens_assembler-val"></em></span>
-                      <input type="range" name="max_tokens_assembler" min="512" max="32768" step="256" oninput="document.getElementById('max_tokens_assembler-val').textContent=this.value" />
+                      <input type="range" name="max_tokens_assembler" min="512" max="20480" step="256" oninput="document.getElementById('max_tokens_assembler-val').textContent=this.value" />
                     </label>
                     <label class="slider-label">
                       <span>Formalizer / Refiner - formalization, refinement, and theory analysis <em id="max_tokens_formalizer-val"></em></span>
@@ -312,7 +312,7 @@
                     </label>
                     <label class="slider-label">
                       <span>TheoremCrystallizer - writes the final theorem statement <em id="max_tokens_crystallizer-val"></em></span>
-                      <input type="range" name="max_tokens_crystallizer" min="256" max="32768" step="256" oninput="document.getElementById('max_tokens_crystallizer-val').textContent=this.value" />
+                      <input type="range" name="max_tokens_crystallizer" min="256" max="20480" step="256" oninput="document.getElementById('max_tokens_crystallizer-val').textContent=this.value" />
                     </label>
                     <label class="slider-label">
                       <span>Analyst - memory-guided analysis and proof framing <em id="max_tokens_analyst-val"></em></span>

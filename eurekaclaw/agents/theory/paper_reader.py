@@ -60,6 +60,33 @@ the above research direction.  Return ONLY valid JSON (array).
 _MAX_PAPERS = 5
 
 
+def _normalize_result_type(raw: object) -> str:
+    value = str(raw or "lemma").strip().lower()
+    aliases = {
+        "theorem": "theorem",
+        "lemma": "lemma",
+        "corollary": "corollary",
+        "algorithm": "algorithm",
+        "technique": "technique",
+        "definition": "technique",
+        "def": "technique",
+        "method": "technique",
+        "remark": "technique",
+        "assumption": "technique",
+        "proposition": "theorem",
+        "claim": "lemma",
+        "fact": "lemma",
+        "observation": "lemma",
+    }
+    return aliases.get(value, "lemma")
+
+
+def _normalize_notation(raw: object) -> dict[str, str]:
+    if isinstance(raw, dict):
+        return {str(k): str(v) for k, v in raw.items()}
+    return {}
+
+
 class PaperReader:
     """Stage 1: extract KnownResult objects from the session bibliography."""
 
@@ -129,19 +156,29 @@ class PaperReader:
             )
             text = response.content[0].text
             items = self._parse_json_array(text)
-            return [
-                KnownResult(
-                    source_paper_id=paper_id,
-                    source_paper_title=title,
-                    result_type=item.get("result_type", "lemma"),
-                    statement=item.get("statement", ""),
-                    informal=item.get("informal", ""),
-                    proof_technique=item.get("proof_technique", ""),
-                    notation=item.get("notation", {}),
-                )
-                for item in items
-                if item.get("statement")
-            ]
+            results: list[KnownResult] = []
+            for item in items:
+                if not item.get("statement"):
+                    continue
+                try:
+                    results.append(
+                        KnownResult(
+                            source_paper_id=paper_id,
+                            source_paper_title=title,
+                            result_type=_normalize_result_type(item.get("result_type", "lemma")),
+                            statement=str(item.get("statement", "")),
+                            informal=str(item.get("informal", "")),
+                            proof_technique=str(item.get("proof_technique", "")),
+                            notation=_normalize_notation(item.get("notation", {})),
+                        )
+                    )
+                except Exception as item_exc:
+                    logger.warning(
+                        "PaperReader: skipping malformed result from '%s': %s",
+                        title[:50],
+                        item_exc,
+                    )
+            return results
         except Exception as e:
             logger.warning("PaperReader: extraction failed for '%s': %s", title[:50], e)
             return []

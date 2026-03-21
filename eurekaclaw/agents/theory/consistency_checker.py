@@ -135,7 +135,7 @@ class ConsistencyChecker:
                 messages=[{
                     "role": "user",
                     "content": CHECK_USER.format(
-                        theorem=state.formal_statement[:800],
+                        theorem=state.formal_statement,
                         proof_excerpt=proof_excerpt,
                         required_lemma_ids=ids_str,
                     ),
