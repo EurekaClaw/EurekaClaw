@@ -7,6 +7,7 @@ from pathlib import Path
 
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
+from rich.prompt import Prompt
 
 from eurekaclaw.agents.base import BaseAgent
 from eurekaclaw.agents.experiment.agent import ExperimentAgent
@@ -188,6 +189,9 @@ class MetaOrchestrator:
 
                 # Always-on summary card — visible regardless of gate_mode
                 self.gate.print_stage_summary(task.name)
+
+                if task.name == "survey":
+                    await self._handle_empty_survey_fallback(pipeline)
 
             self.bus.put_pipeline(pipeline)
 
@@ -371,6 +375,67 @@ class MetaOrchestrator:
             console.print(
                 "[yellow]Sketch still flagged — proceeding to writer anyway.[/yellow]\n"
             )
+
+    async def _handle_empty_survey_fallback(self, pipeline: TaskPipeline) -> None:
+        """If the survey found 0 papers, pause and ask the user for paper IDs."""
+        bib = self.bus.get_bibliography()
+        has_papers = False
+        if bib:
+            # Safely check whether there are any gathered papers
+            bib_dict = bib.model_dump()
+            papers = bib_dict.get("papers") or bib_dict.get("entries") or []
+            has_papers = len(papers) > 0
+
+        if has_papers:
+            return
+
+        console.print("\n[yellow]⚠ Survey stage completed but found 0 papers.[/yellow]")
+        paper_input = Prompt.ask(
+            "[bold cyan]Please provide a comma-separated list of paper IDs/titles to retry, or press Enter to proceed without papers[/bold cyan]"
+        )
+
+        if not paper_input.strip():
+            return
+
+        survey_task = next((t for t in pipeline.tasks if t.name == "survey"), None)
+        if not survey_task:
+            return
+
+        # Inject the manual overrides and ready the task for re-execution
+        feedback = f"Please specifically use and analyze these papers: {paper_input.strip()}"
+        survey_task.description = (survey_task.description or "") + f"\n\n[User provided papers]: {feedback}"
+        survey_task.retries = 0
+        survey_task.status = TaskStatus.PENDING
+
+        # Enable exact match schema on the arXiv tool specifically for this retry
+        arxiv_tool = self.tool_registry.get("arxiv_search")
+        if arxiv_tool:
+            arxiv_tool.exact_match_mode = True
+
+        console.print(f"\n[yellow]Re-running survey agent with your provided papers...[/yellow]")
+        agent = self.router.resolve(survey_task)
+
+        with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), console=console) as progress:
+            prog_task = progress.add_task("survey (revision)...", total=None)
+            result = await agent.execute(survey_task)
+            progress.update(prog_task, completed=True)
+
+        # Restore standard schema behavior after execution
+        if arxiv_tool:
+            arxiv_tool.exact_match_mode = False
+
+        if result.failed:
+            survey_task.mark_failed(result.error)
+            console.print(f"[red]Survey revision failed: {result.error[:100]}[/red]")
+        else:
+            task_outputs = dict(result.output)
+            if result.text_summary:
+                task_outputs["text_summary"] = result.text_summary
+            if result.token_usage:
+                task_outputs["token_usage"] = result.token_usage
+            survey_task.mark_completed(task_outputs)
+            console.print("[green]✓ Survey revision complete.[/green]")
+            self.gate.print_stage_summary("survey")
 
     def _dependencies_met(self, task: Task, pipeline: TaskPipeline) -> bool:
         for dep_id in task.depends_on:

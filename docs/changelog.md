@@ -4,17 +4,143 @@ Summary of all updates from `UPDATES.md`.
 
 ---
 
-## 2026-03-20 (3)
+## 2026-03-20 (continued — PRs #23, #28, #29, #30, #31, #33)
 
-### Bug Fix: pause AttributeError
+### 8. Principled Prover Confidence Scoring
+
+The `Prover` now replaces purely format-based heuristics with a structured LLM self-assessment block appended to every proof response.
+
+**Prompt change:** the system prompt instructs the LLM to append a `\`\`\`json` block after the proof body:
+
+```json
+{
+  "confidence": 0.0-1.0,
+  "completeness": "complete|partial|sketch",
+  "gaps": ["...uncertain step descriptions..."],
+  "weakest_step": "...",
+  "techniques_used": ["..."]
+}
+```
+
+Calibration guide embedded in the prompt:
+
+| Range | Meaning |
+|---|---|
+| ≥ 0.95 | Every step elementary or from a named theorem; no hand-waving |
+| 0.80–0.94 | All key steps present; at most one routine calculation left implicit |
+| 0.60–0.79 | Sketch correct but one non-trivial step not fully worked out |
+| 0.40–0.59 | Main idea right but genuine gap flagged with `[GAP: ...]` |
+| < 0.40 | Incomplete proof or possibly wrong approach |
+
+**`_parse_proof_attempt()` pipeline (6 steps):**
+1. Extract inline `[GAP: ...]` tags
+2. Parse the structured JSON self-assessment block
+3. Heuristic fallback if no valid block (presence of "QED", "□", "this completes")
+4. Citation-integrity check: penalty −0.15 per uncited lemma ID (cap −0.30)
+5. Weasel-word penalty: −0.05 per "clearly"/"obviously"/etc. (cap −0.15)
+6. Strip JSON block from stored `proof_text`; extract optional Lean4 sketch
+
+### 9. Verifier Bug Fix: Format Code Error
+
+`Verifier._peer_review()` was raising `Unknown format code 'f' for object of type 'str'` because `settings.verifier_pass_confidence` returned a `str` via Pydantic's env-var parsing. Fixed by explicit `float()` cast before `:.2f` formatting.
+
+### 10. pdfTeX Font Expansion Fix
+
+`! pdfTeX error (font expansion): auto expansion is only possible with scalable fonts` caused by `microtype`'s automatic font expansion being incompatible with `lmss` (Latin Modern Sans) on TeX Live 2022. Fixed by passing `expansion=false` to `\RequirePackage[expansion=false]{microtype}` in `eureka.cls`.
+
+### 11. Token Limit UI Sliders (Extended)
+
+Five additional token-limit controls added to the Settings tab:
+
+| Setting | UI label | Default |
+|---|---|---|
+| `MAX_TOKENS_ASSEMBLER` | Assembler | 4096 |
+| `MAX_TOKENS_CRYSTALLIZER` | Crystallizer | 2500 |
+| `MAX_TOKENS_ARCHITECT` | Proof architect | 3000 |
+| `MAX_TOKENS_ANALYST` | Analysis stages | 1600 |
+| `MAX_TOKENS_SKETCH` | Proof sketch | 600 |
+
+`server.py`'s `_CONFIG_FIELDS` mapping updated to expose all 12 token-limit knobs to the UI.
+
+All hardcoded `max_tokens=...` literals across theory and learning agent files replaced with `settings.max_tokens_*` references.
+
+### 12. Human Intervention for Empty Survey
+
+When the survey stage completes with zero papers found, the pipeline pauses and prompts the user:
+
+```
+⚠ Survey stage completed but found 0 papers.
+Please provide a comma-separated list of paper IDs/titles to retry,
+or press Enter to proceed without papers:
+```
+
+If the user provides titles, the survey task is re-injected with the paper list and re-executed once. Implemented in `MetaOrchestrator._handle_empty_survey_fallback()`.
+
+### 13. ProofCheckpoint Bug Fixes (Issue #27)
+
+| Bug | Fix |
+|---|---|
+| `cp.checkpoint_path` AttributeError — public property was missing | Added `@property checkpoint_path → self._checkpoint` |
+| `cli.py resume` used wrong meta key `"research_brief"` (dict) | Fixed to `json.loads(meta.get("research_brief_json", "{}") or "{}")` |
+| `cli.py resume` used wrong attribute `exc.paused_before_stage` | Fixed to `exc.stage_name` |
+
+### 14. Minimax LLM Backend (PR #23)
+
+New backend shortcut `LLM_BACKEND=minimax`:
+
+| Variable | Description |
+|---|---|
+| `MINIMAX_API_KEY` | Minimax API key |
+| `MINIMAX_MODEL` | Minimax model name (e.g. `abab7-chat`) |
+
+**`active_model` / `active_fast_model` properties** added to `Config` — resolve the correct model string for any backend (Anthropic, Minimax, OpenAI-compat). All agents and theory stages updated to use `settings.active_model` / `settings.active_fast_model` instead of hardcoded model names.
+
+### 15. PDF Extraction via Docling (PR #23)
+
+`PaperReader._extract_from_paper_pdf()` fetches the full arXiv PDF via Docling, filters to theorem/lemma sections with a regex pass, then runs the LLM extractor over the rich excerpt instead of the abstract only.
+
+Enable with the `[pdf]` optional extra:
+
+```bash
+pip install eurekaclaw[pdf]
+```
+
+### 16. Memory Relevance-Based Retrieval (PR #30)
+
+Tier 4 domain memories are now ranked by **cosine similarity** to the current task query instead of most-recently-written ordering.
+
+- `_index.json` now stores a `"embedding"` field per memory file (computed at write time using `embedding_utils.get_embedding()`)
+- `MemoryManager.load_for_injection(domain, k, query)` accepts a `query` argument; if provided, ranks candidates by cosine similarity and returns the top-k most relevant files
+- New helper module: `eurekaclaw/memory/embedding_utils.py` (`get_embedding()`, `cosine_similarity()`)
+
+### 17. smile.sty Math Macro Package (PR #28)
+
+A comprehensive SMiLe-group math macro package (`smile.sty`) is now bundled with the template:
+
+- Blackboard bold shortcuts: `\RR`, `\EE`, `\PP`, `\NN`, `\ZZ`, `\QQ`, `\CC`, …
+- Calligraphic shortcuts: `\cA` … `\cZ`
+- Bold vectors (mathbf family): `\xb`, `\Wb`, … and (bm family): `\bx`, `\bW`, …
+- Bold Greek: `\balpha`, `\bbeta`, `\bGamma`, …
+- Norm/bracket macros: `\norm{x}`, `\nbr{x}`, `\bignorm{x}`, `\opnorm{x}{p}`
+
+The writer agent system prompt is updated to list all available macros and instruct the LLM to use them instead of redefining equivalents.
+
+### 18. OpenClaw Hub Integration (PR #31)
+
+Skills can now be installed directly from the [ClawHub](https://clawhub.ai/) registry:
+
+```bash
+eurekaclaw install-skills <skillname>
+# e.g. eurekaclaw install-skills steipete/github
+```
+
+`install-skills` with no argument continues to install all bundled seed skills. The `clawhub` CLI must be installed separately. The implementation lives in `eurekaclaw/skills/from_hub.py`.
+
+### 19. Bug Fix: pause AttributeError (PR #33)
 
 `cli.py` referenced `exc.paused_before_stage` but `ProofPausedException` stores the field as `stage_name`. Fixed both call sites so pausing a run no longer crashes with `AttributeError`.
 
----
-
-## 2026-03-20 (2)
-
-### Direction Planning Fallback
+### 20. Direction Planning Fallback (PR #33)
 
 When `DivergentConvergentPlanner.diverge()` returns an empty list or throws an exception, the orchestrator now halts and prompts the user to enter a research direction manually instead of silently continuing with no direction. The survey's open problems are shown as context. Empty input or Ctrl+C raises `RuntimeError` and exits cleanly.
 

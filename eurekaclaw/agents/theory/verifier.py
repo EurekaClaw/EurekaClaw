@@ -74,6 +74,13 @@ class Verifier:
         self.client: LLMClient = client or create_client()
         self._lean4 = Lean4Tool()
 
+    @staticmethod
+    def _threshold(value: float | str, fallback: float) -> float:
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return fallback
+
     async def check(self, proof_attempt: ProofAttempt, state: TheoryState) -> VerificationResult:
         """Verify a proof attempt. Tries Lean4 first, falls back to peer review.
 
@@ -81,10 +88,12 @@ class Verifier:
         if the prover assigned confidence >= AUTO_VERIFY_CONFIDENCE and there
         are no explicit [GAP:...] flags, skip the LLM peer-review call entirely.
         """
+        auto_verify_threshold = self._threshold(settings.auto_verify_confidence, 0.95)
+
         # Fast-path: auto-accept proofs the prover is already confident about
         if (
             proof_attempt.success
-            and proof_attempt.confidence >= settings.auto_verify_confidence
+            and proof_attempt.confidence >= auto_verify_threshold
             and not proof_attempt.gaps
         ):
             logger.info(
@@ -99,7 +108,7 @@ class Verifier:
                 errors=[],
                 notes=(
                     f"Auto-verified: prover confidence {proof_attempt.confidence:.2f} "
-                    f">= threshold {settings.auto_verify_confidence:.2f}, no gaps."
+                    f">= threshold {auto_verify_threshold:.2f}, no gaps."
                 ),
             )
 
@@ -161,6 +170,7 @@ class Verifier:
             proof_text = f"{head}\n... [middle section compressed] ...\n{tail}"
 
         try:
+            verifier_pass_threshold = self._threshold(settings.verifier_pass_confidence, 0.90)
             response = await self.client.messages.create(
                 model=settings.active_fast_model,
                 max_tokens=settings.max_tokens_verifier,
@@ -180,11 +190,12 @@ class Verifier:
             data = self._parse_review(text)
 
             confidence = float(data.get("confidence", 0.5))
+            threshold = float(settings.verifier_pass_confidence)
             errors = data.get("errors", []) + data.get("gaps", [])
             passed = (
                 bool(data.get("verified", False))
                 and len(errors) == 0
-                and confidence >= settings.verifier_pass_confidence
+                and confidence >= verifier_pass_threshold
             )
 
             return VerificationResult(
@@ -195,7 +206,7 @@ class Verifier:
                 errors=errors,
                 notes=(
                     f"{data.get('notes', '')} "
-                    f"[pass threshold={settings.verifier_pass_confidence:.2f}]"
+                    f"[pass threshold={verifier_pass_threshold:.2f}]"
                 ).strip(),
             )
         except Exception as e:

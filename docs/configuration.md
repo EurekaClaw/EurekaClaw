@@ -6,7 +6,7 @@ All settings are read from environment variables (or a `.env` file in the projec
 
 | Variable | Default | Description |
 |---|---|---|
-| `LLM_BACKEND` | `anthropic` | Backend: `anthropic`, `openrouter`, `local` |
+| `LLM_BACKEND` | `anthropic` | Backend: `anthropic`, `openrouter`, `local`, `minimax` |
 | `ANTHROPIC_API_KEY` | `""` | Anthropic API key. If empty, falls back to ccproxy OAuth (`~/.claude/.credentials.json`) |
 | `ANTHROPIC_AUTH_MODE` | `api_key` | `api_key` or `oauth` (ccproxy) |
 | `CCPROXY_PORT` | `8000` | Port for ccproxy server |
@@ -21,6 +21,14 @@ All settings are read from environment variables (or a `.env` file in the projec
 | `anthropic` | Default. Uses `ANTHROPIC_API_KEY` or ccproxy OAuth |
 | `openrouter` | Set `OPENAI_COMPAT_API_KEY=sk-or-...` |
 | `local` | Defaults to `http://localhost:8000/v1` (vLLM / Ollama) |
+| `minimax` | Set `MINIMAX_API_KEY` and `MINIMAX_MODEL` |
+
+**Minimax-specific variables:**
+
+| Variable | Default | Description |
+|---|---|---|
+| `MINIMAX_API_KEY` | `""` | Minimax API key |
+| `MINIMAX_MODEL` | `""` | Minimax model name (e.g. `abab7-chat`) |
 
 ## Models
 
@@ -28,6 +36,8 @@ All settings are read from environment variables (or a `.env` file in the projec
 |---|---|---|
 | `EUREKACLAW_MODEL` | `claude-sonnet-4-6` | Main reasoning model (all agents) |
 | `EUREKACLAW_FAST_MODEL` | `claude-haiku-4-5-20251001` | Fast/cheap model for compression, formalization, counterexample |
+
+`settings.active_model` and `settings.active_fast_model` are **derived read-only properties** that resolve the correct model string for the active backend. All agents use these properties — never the raw `EUREKACLAW_MODEL` variable directly.
 
 ## External APIs
 
@@ -74,10 +84,17 @@ All settings are read from environment variables (or a `.env` file in the projec
 | `MAX_TOKENS_AGENT` | `8192` | Main agent reasoning loop (all agents) |
 | `MAX_TOKENS_PROVER` | `4096` | Proof generation (Prover) |
 | `MAX_TOKENS_PLANNER` | `4096` | Research direction planning (diverge); converge uses half |
-| `MAX_TOKENS_DECOMPOSER` | `2048` | Lemma decomposition (LemmaDecomposer) |
+| `MAX_TOKENS_DECOMPOSER` | `2048` | Lemma decomposition (LemmaDecomposer, KeyLemmaExtractor) |
+| `MAX_TOKENS_ASSEMBLER` | `4096` | Proof assembly narrative (Assembler) |
+| `MAX_TOKENS_CRYSTALLIZER` | `2500` | Final theorem statement extraction (TheoremCrystallizer) |
+| `MAX_TOKENS_ARCHITECT` | `3000` | Proof plan generation (ProofArchitect) |
+| `MAX_TOKENS_ANALYST` | `1600` | Analysis stages (AnalysisStages) |
+| `MAX_TOKENS_SKETCH` | `600` | Lean4/Coq sketch generation (SketchGenerator) |
 | `MAX_TOKENS_FORMALIZER` | `2048` | Formalization, Refiner, CounterexampleSearcher, ResourceAnalyst |
 | `MAX_TOKENS_VERIFIER` | `1024` | Proof verification (Verifier) |
 | `MAX_TOKENS_COMPRESS` | `512` | Context compression summaries (fast model) |
+
+All 12 values are adjustable from the Settings tab in the web UI.
 
 ## Turn Limits
 

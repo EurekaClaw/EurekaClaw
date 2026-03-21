@@ -140,7 +140,12 @@ class GateController:
         lines = []
         bib = self.bus.get_bibliography()
         n_papers = len(bib.papers) if bib else 0
-        lines.append(f"[bold]Papers found:[/bold] {n_papers}")
+        
+        if n_papers == 0:
+            lines.append("[bold red]Papers found:[/bold red] 0")
+        else:
+            lines.append(f"[bold]Papers found:[/bold] {n_papers}")
+            
         if brief.open_problems:
             lines.append(f"[bold]Open problems identified:[/bold] {len(brief.open_problems)}")
             for p in brief.open_problems[:3]:
@@ -150,7 +155,8 @@ class GateController:
         if brief.key_mathematical_objects:
             lines.append(f"[bold]Key objects:[/bold] " +
                          ", ".join(str(o)[:60] for o in brief.key_mathematical_objects[:5]))
-        console.print(Panel("\n".join(lines), title="[cyan]📚 Survey complete[/cyan]", border_style="cyan"))
+        border = "red" if n_papers == 0 else "cyan"
+        console.print(Panel("\n".join(lines), title="[cyan]📚 Survey complete[/cyan]", border_style=border))
 
     def _print_theory_status(self) -> None:
         if not self.bus:
@@ -307,6 +313,26 @@ class GateController:
                 f"[bold]Experiment:[/bold] [{color}]alignment={exp.alignment_score:.2f}[/{color}]"
             )
         console.print(Panel("\n".join(lines), title="[cyan]📄 Session Summary[/cyan]", border_style="cyan"))
+
+    def survey_empty_prompt(self) -> str:
+        """Check if 0 papers were found and optionally ask the user for fallback IDs."""
+        if not self.bus:
+            return ""
+
+        bib = self.bus.get_bibliography()
+        n_papers = len(bib.papers) if bib else 0
+        if n_papers > 0:
+            return ""
+
+        try:
+            paper_input = Prompt.ask(
+                "\n[cyan]Please provide a comma-separated list of paper IDs/titles to retry, or press Enter to proceed without papers[/cyan]"
+            )
+        except (KeyboardInterrupt, EOFError):
+            console.print("\n[dim]Input interrupted — proceeding.[/dim]")
+            return ""
+            
+        return paper_input.strip()
 
     def theory_review_prompt(self) -> tuple[bool, str, str]:
         """Show the numbered lemma chain and ask for approval.

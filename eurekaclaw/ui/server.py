@@ -56,7 +56,12 @@ _CONFIG_FIELDS: dict[str, str] = {
     "max_tokens_prover": "MAX_TOKENS_PROVER",
     "max_tokens_planner": "MAX_TOKENS_PLANNER",
     "max_tokens_decomposer": "MAX_TOKENS_DECOMPOSER",
+    "max_tokens_assembler": "MAX_TOKENS_ASSEMBLER",
     "max_tokens_formalizer": "MAX_TOKENS_FORMALIZER",
+    "max_tokens_crystallizer": "MAX_TOKENS_CRYSTALLIZER",
+    "max_tokens_architect": "MAX_TOKENS_ARCHITECT",
+    "max_tokens_analyst": "MAX_TOKENS_ANALYST",
+    "max_tokens_sketch": "MAX_TOKENS_SKETCH",
     "max_tokens_verifier": "MAX_TOKENS_VERIFIER",
     "max_tokens_compress": "MAX_TOKENS_COMPRESS",
 }
@@ -68,14 +73,21 @@ class SessionRun:
 
     run_id: str
     input_spec: InputSpec
+    name: str = ""
+    # Statuses: queued → running → pausing → paused → resuming → running → completed
+    #           any of the above → failed
     status: str = "queued"
     created_at: datetime = field(default_factory=datetime.utcnow)
     updated_at: datetime = field(default_factory=datetime.utcnow)
     started_at: datetime | None = None
     completed_at: datetime | None = None
+    paused_at: datetime | None = None
+    pause_requested_at: datetime | None = None  # set when status → "pausing"
+    paused_stage: str = ""                       # stage name where proof stopped
     error: str = ""
     result: ResearchOutput | None = None
     eureka_session: EurekaSession | None = None
+    eureka_session_id: str = ""
     output_summary: dict[str, Any] = field(default_factory=dict)
     output_dir: str = ""
 
@@ -170,12 +182,120 @@ class UIServerState:
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self.runs: dict[str, SessionRun] = {}
+        self._load_persisted_runs()
+
+    # ── Persistence helpers ──────────────────────────────────────────────────
+
+    def _sessions_dir(self) -> Path:
+        d = settings.eurekaclaw_dir / "ui_sessions"
+        d.mkdir(parents=True, exist_ok=True)
+        return d
+
+    def _persist_run(self, run: SessionRun) -> None:
+        """Write run metadata to disk so sessions survive server restarts."""
+        try:
+            data: dict[str, Any] = {
+                "run_id": run.run_id,
+                "name": run.name,
+                "status": run.status,
+                "error": run.error,
+                "eureka_session_id": run.eureka_session_id,
+                "created_at": run.created_at.isoformat(),
+                "updated_at": run.updated_at.isoformat(),
+                "started_at": run.started_at.isoformat() if run.started_at else None,
+                "completed_at": run.completed_at.isoformat() if run.completed_at else None,
+                "paused_at": run.paused_at.isoformat() if run.paused_at else None,
+                "pause_requested_at": run.pause_requested_at.isoformat() if run.pause_requested_at else None,
+                "paused_stage": run.paused_stage,
+                "input_spec": _serialize_value(run.input_spec),
+                "output_dir": run.output_dir,
+                "output_summary": _serialize_value(run.output_summary),
+            }
+            path = self._sessions_dir() / f"{run.run_id}.json"
+            path.write_text(json.dumps(data, indent=2))
+        except Exception:
+            logger.warning("Failed to persist run %s", run.run_id, exc_info=True)
+
+    def _load_persisted_runs(self) -> None:
+        """Load previously persisted sessions from disk on startup."""
+        sessions_dir = settings.eurekaclaw_dir / "ui_sessions"
+        if not sessions_dir.exists():
+            return
+        for path in sorted(sessions_dir.glob("*.json")):
+            try:
+                data = json.loads(path.read_text())
+                input_spec = InputSpec.model_validate(data.get("input_spec", {}))
+                run = SessionRun(
+                    run_id=data["run_id"],
+                    input_spec=input_spec,
+                    name=data.get("name", ""),
+                    status=data.get("status", "failed"),
+                    error=data.get("error", ""),
+                    eureka_session_id=data.get("eureka_session_id", ""),
+                    paused_stage=data.get("paused_stage", ""),
+                    output_dir=data.get("output_dir", ""),
+                    output_summary=data.get("output_summary", {}),
+                )
+                for ts_field in ("created_at", "updated_at", "started_at", "completed_at",
+                                 "paused_at", "pause_requested_at"):
+                    raw = data.get(ts_field)
+                    if raw:
+                        try:
+                            setattr(run, ts_field, datetime.fromisoformat(raw))
+                        except ValueError:
+                            pass
+                # Transient statuses that cannot survive a server restart
+                if run.status in ("running", "queued", "pausing", "resuming"):
+                    run.status = "failed"
+                    run.error = "Session interrupted by a server restart."
+                self.runs[run.run_id] = run
+            except Exception:
+                logger.warning("Failed to load persisted run from %s", path, exc_info=True)
+
+    # ── CRUD ─────────────────────────────────────────────────────────────────
 
     def create_run(self, input_spec: InputSpec) -> SessionRun:
         run = SessionRun(run_id=str(uuid.uuid4()), input_spec=input_spec)
         with self._lock:
             self.runs[run.run_id] = run
+        self._persist_run(run)
         return run
+
+    def delete_run(self, run_id: str) -> dict[str, Any]:
+        run = self.get_run(run_id)
+        if run is None:
+            return {"error": "Run not found"}
+        if run.status in ("running", "queued"):
+            return {"error": "Cannot delete a running session — pause or wait for it to finish first"}
+        with self._lock:
+            self.runs.pop(run_id, None)
+        path = self._sessions_dir() / f"{run_id}.json"
+        try:
+            path.unlink(missing_ok=True)
+        except Exception:
+            logger.warning("Failed to remove persisted run file %s", path)
+        return {"ok": True, "run_id": run_id}
+
+    def rename_run(self, run_id: str, name: str) -> dict[str, Any]:
+        run = self.get_run(run_id)
+        if run is None:
+            return {"error": "Run not found"}
+        run.name = name.strip()[:80]
+        run.updated_at = datetime.utcnow()
+        self._persist_run(run)
+        return {"ok": True, "run_id": run_id, "name": run.name}
+
+    def restart_run(self, run_id: str) -> dict[str, Any]:
+        run = self.get_run(run_id)
+        if run is None:
+            return {"error": "Run not found"}
+        if run.status in ("running", "queued"):
+            return {"error": f"Cannot restart a {run.status} session"}
+        new_run = self.create_run(run.input_spec)
+        new_run.name = run.name  # carry the custom name if any
+        self._persist_run(new_run)
+        self.start_run(new_run)
+        return self.snapshot_run(new_run)
 
     def get_run(self, run_id: str) -> SessionRun | None:
         with self._lock:
@@ -188,6 +308,119 @@ class UIServerState:
     def start_run(self, run: SessionRun) -> None:
         thread = threading.Thread(target=self._execute_run, args=(run.run_id,), daemon=True)
         thread.start()
+
+    def pause_run(self, run_id: str) -> dict[str, Any]:
+        run = self.get_run(run_id)
+        if run is None:
+            return {"error": "Run not found"}
+        if run.status not in ("running",):
+            return {"error": f"Run is not running (status: {run.status})"}
+        if not run.eureka_session_id:
+            return {"error": "No active theory session to pause"}
+        from eurekaclaw.agents.theory.checkpoint import ProofCheckpoint
+        cp = ProofCheckpoint(run.eureka_session_id)
+        cp.request_pause()
+        # Immediately reflect the intermediate state so the frontend can poll it
+        run.status = "pausing"
+        run.pause_requested_at = datetime.utcnow()
+        run.updated_at = datetime.utcnow()
+        self._persist_run(run)
+        return {"ok": True, "session_id": run.eureka_session_id, "status": "pausing"}
+
+    def resume_run(self, run_id: str) -> dict[str, Any]:
+        run = self.get_run(run_id)
+        if run is None:
+            return {"error": "Run not found"}
+        if run.status != "paused":
+            return {"error": f"Run is not paused (status: {run.status})"}
+        if not run.eureka_session_id:
+            return {"error": "No checkpoint session ID found"}
+        from eurekaclaw.agents.theory.checkpoint import ProofCheckpoint
+        cp = ProofCheckpoint(run.eureka_session_id)
+        if not cp.exists():
+            return {"error": f"No checkpoint found for session '{run.eureka_session_id}'"}
+        # Transition to intermediate "resuming" state before the thread starts
+        run.status = "resuming"
+        run.updated_at = datetime.utcnow()
+        self._persist_run(run)
+        thread = threading.Thread(target=self._execute_resume, args=(run_id,), daemon=True)
+        thread.start()
+        return {"ok": True, "session_id": run.eureka_session_id, "status": "resuming"}
+
+    def _execute_resume(self, run_id: str) -> None:
+        from eurekaclaw.agents.theory.checkpoint import ProofCheckpoint, ProofPausedException
+        from eurekaclaw.agents.theory.inner_loop_yaml import TheoryInnerLoopYaml
+        from eurekaclaw.memory.manager import MemoryManager
+        from eurekaclaw.skills.injector import SkillInjector
+        from eurekaclaw.skills.registry import SkillRegistry
+
+        run = self.get_run(run_id)
+        if run is None:
+            return
+
+        run.status = "running"
+        run.paused_at = None
+        run.pause_requested_at = None
+        run.paused_stage = ""
+        run.updated_at = datetime.utcnow()
+        self._persist_run(run)
+
+        try:
+            session = run.eureka_session
+            if session is None:
+                raise ValueError("Session object not available for resume")
+
+            session_id = run.eureka_session_id
+            cp = ProofCheckpoint(session_id)
+            state, meta = cp.load()
+            cp.clear_pause_flag()
+
+            # Restore checkpoint theory state into the existing bus (which still has
+            # survey / ideation / planning data from the original run).
+            session.bus.put_theory_state(state)
+
+            domain = meta.get("domain", "")
+            memory = MemoryManager(session_id=session_id)
+            skill_injector = SkillInjector(SkillRegistry())
+            inner_loop = TheoryInnerLoopYaml(
+                bus=session.bus,
+                skill_injector=skill_injector,
+                memory=memory,
+            )
+
+            config = _config_payload()
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                with _temporary_auth_env(config):
+                    final_state = loop.run_until_complete(
+                        inner_loop.run(session_id, domain=domain)
+                    )
+                    session.bus.put_theory_state(final_state)
+            finally:
+                loop.close()
+                asyncio.set_event_loop(None)
+
+            run.status = "completed"
+            run.output_summary = {"resumed": True, "session_id": session_id}
+
+        except Exception as exc:
+            from eurekaclaw.agents.theory.checkpoint import ProofPausedException  # noqa: F811
+            if isinstance(exc, ProofPausedException):
+                logger.info("Session %s paused again at stage '%s'", run_id, exc.stage_name)
+                run.status = "paused"
+                run.paused_at = datetime.utcnow()
+                run.paused_stage = exc.stage_name
+                run.pause_requested_at = None
+                run.error = ""
+            else:
+                logger.exception("UI session resume failed")
+                run.status = "failed"
+                run.error = str(exc)
+        finally:
+            run.completed_at = datetime.utcnow()
+            run.updated_at = datetime.utcnow()
+            self._persist_run(run)
 
     def _execute_run(self, run_id: str) -> None:
         run = self.get_run(run_id)
@@ -205,6 +438,7 @@ class UIServerState:
 
             session = EurekaSession()
             run.eureka_session = session
+            run.eureka_session_id = session.session_id
 
             with _temporary_auth_env(config):
                 # asyncio.run() can be unreliable in non-main threads on some
@@ -231,12 +465,22 @@ class UIServerState:
                 "output_dir": str(out_dir),
             }
         except Exception as exc:
-            logger.exception("UI session run failed")
-            run.status = "failed"
-            run.error = str(exc)
+            from eurekaclaw.agents.theory.checkpoint import ProofPausedException
+            if isinstance(exc, ProofPausedException):
+                logger.info("Session %s paused at stage '%s'", run_id, exc.stage_name)
+                run.status = "paused"
+                run.paused_at = datetime.utcnow()
+                run.paused_stage = exc.stage_name
+                run.pause_requested_at = None
+                run.error = ""
+            else:
+                logger.exception("UI session run failed")
+                run.status = "failed"
+                run.error = str(exc)
         finally:
             run.completed_at = datetime.utcnow()
             run.updated_at = datetime.utcnow()
+            self._persist_run(run)
 
     def snapshot_run(self, run: SessionRun) -> dict[str, Any]:
         bus = run.eureka_session.bus if run.eureka_session else None
@@ -266,11 +510,16 @@ class UIServerState:
 
         return {
             "run_id": run.run_id,
+            "name": run.name,
+            "session_id": run.eureka_session_id,
             "status": run.status,
             "error": run.error,
             "created_at": run.created_at.isoformat(),
             "started_at": run.started_at.isoformat() if run.started_at else None,
             "completed_at": run.completed_at.isoformat() if run.completed_at else None,
+            "paused_at": run.paused_at.isoformat() if run.paused_at else None,
+            "pause_requested_at": run.pause_requested_at.isoformat() if run.pause_requested_at else None,
+            "paused_stage": run.paused_stage,
             "input_spec": _serialize_value(run.input_spec),
             "pipeline": tasks,
             "artifacts": {
@@ -538,6 +787,8 @@ class UIRequestHandler(SimpleHTTPRequestHandler):
                     setattr(settings, field_name, Path(rendered))
                 elif isinstance(current, int):
                     setattr(settings, field_name, int(rendered))
+                elif isinstance(current, float):
+                    setattr(settings, field_name, float(rendered))
                 else:
                     setattr(settings, field_name, rendered)
 
@@ -545,6 +796,52 @@ class UIRequestHandler(SimpleHTTPRequestHandler):
             self._send_json({"config": _config_payload(), "saved": True})
             return
 
+        if parsed.path.startswith("/api/runs/") and parsed.path.endswith("/pause"):
+            run_id = parsed.path.removeprefix("/api/runs/").removesuffix("/pause")
+            result = self.state.pause_run(run_id)
+            if "error" in result:
+                self._send_json(result, status=HTTPStatus.BAD_REQUEST)
+            else:
+                self._send_json(result)
+            return
+        if parsed.path.startswith("/api/runs/") and parsed.path.endswith("/resume"):
+            run_id = parsed.path.removeprefix("/api/runs/").removesuffix("/resume")
+            result = self.state.resume_run(run_id)
+            if "error" in result:
+                self._send_json(result, status=HTTPStatus.BAD_REQUEST)
+            else:
+                self._send_json(result)
+            return
+        if parsed.path.startswith("/api/runs/") and parsed.path.endswith("/rename"):
+            run_id = parsed.path.removeprefix("/api/runs/").removesuffix("/rename")
+            payload = self._read_json()
+            result = self.state.rename_run(run_id, str(payload.get("name", "")))
+            if "error" in result:
+                self._send_json(result, status=HTTPStatus.BAD_REQUEST)
+            else:
+                self._send_json(result)
+            return
+        if parsed.path.startswith("/api/runs/") and parsed.path.endswith("/restart"):
+            run_id = parsed.path.removeprefix("/api/runs/").removesuffix("/restart")
+            result = self.state.restart_run(run_id)
+            if "error" in result:
+                self._send_json(result, status=HTTPStatus.BAD_REQUEST)
+            else:
+                self._send_json(result, status=HTTPStatus.CREATED)
+            return
+
+        self._send_json({"error": "Not found"}, status=HTTPStatus.NOT_FOUND)
+
+    def do_DELETE(self) -> None:  # noqa: N802
+        parsed = urlparse(self.path)
+        if parsed.path.startswith("/api/runs/"):
+            run_id = parsed.path.removeprefix("/api/runs/").strip("/")
+            result = self.state.delete_run(run_id)
+            if "error" in result:
+                self._send_json(result, status=HTTPStatus.BAD_REQUEST)
+            else:
+                self._send_json(result)
+            return
         self._send_json({"error": "Not found"}, status=HTTPStatus.NOT_FOUND)
 
     def log_message(self, format: str, *args: Any) -> None:

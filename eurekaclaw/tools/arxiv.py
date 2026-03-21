@@ -18,18 +18,15 @@ class ArxivSearchTool(BaseTool):
         "arxiv IDs, and PDF links. Best for recent preprints in CS, math, and physics."
     )
 
+    exact_match_mode: bool = False
+
     def input_schema(self) -> dict[str, Any]:
-        return {
+        schema = {
             "type": "object",
             "properties": {
                 "query": {
                     "type": "string",
-                    "description": (
-                        "Search query string. Use space-separated keywords for broad, "
-                        "relevance-ranked results (e.g. \"sparse attention\" Rademacher "
-                        "complexity kernel transformer). Do NOT use abs:, title:, or AND "
-                        "operators — they restrict to exact matches and return far fewer papers."
-                    ),
+                    "description": "",
                 },
                 "max_results": {
                     "type": "integer",
@@ -44,6 +41,21 @@ class ArxivSearchTool(BaseTool):
             },
             "required": ["query"],
         }
+        
+        if self.exact_match_mode:
+            schema["properties"]["query"]["description"] = (
+                "The search query. You MUST use the 'AND' operator (e.g., 'title:attention AND title:all') "
+                "to perform an exact match. Do NOT use standard loose search."
+            )
+        else:
+            schema["properties"]["query"]["description"] = (
+                "Search query string. Use space-separated keywords for broad, "
+                "relevance-ranked results (e.g. \"sparse attention\" Rademacher "
+                "complexity kernel transformer). Do NOT use abs:, title:, or AND "
+                "operators — they restrict to exact matches and return far fewer papers."
+            )
+            
+        return schema
 
     async def call(self, query: str, max_results: int = 8, sort_by: str = "relevance") -> str:
         try:
