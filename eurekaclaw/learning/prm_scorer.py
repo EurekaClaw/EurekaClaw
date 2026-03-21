@@ -45,7 +45,7 @@ class ProcessRewardModel:
         try:
             steps_text = "\n".join(f"Step {i+1}: {s[:200]}" for i, s in enumerate(traj.steps[:5]))
             response = await self.client.messages.create(
-                model=settings.fast_model,
+                model=settings.active_fast_model,
                 max_tokens=128,
                 system=PRM_SYSTEM,
                 messages=[{

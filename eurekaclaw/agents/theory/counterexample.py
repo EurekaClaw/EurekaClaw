@@ -94,7 +94,7 @@ class CounterexampleSearcher:
 
         try:
             response = await self.client.messages.create(
-                model=settings.fast_model,
+                model=settings.active_fast_model,
                 max_tokens=settings.max_tokens_formalizer,
                 system=COUNTEREXAMPLE_SYSTEM,
                 messages=[{
