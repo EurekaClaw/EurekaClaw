@@ -84,9 +84,9 @@ class Config(BaseSettings):
     max_tokens_formalizer: int = Field(default=4096, alias="MAX_TOKENS_FORMALIZER")
     max_tokens_verifier: int = Field(default=2048, alias="MAX_TOKENS_VERIFIER")
     max_tokens_crystallizer: int = Field(default=4096, alias="MAX_TOKENS_CRYSTALLIZER")
-    max_tokens_assembler: int = Field(default=6000, alias="MAX_TOKENS_ASSEMBLER")
-    max_tokens_architect: int = Field(default=3000, alias="MAX_TOKENS_ARCHITECT")
-    max_tokens_analyst: int = Field(default=1600, alias="MAX_TOKENS_ANALYST")
+    max_tokens_assembler: int = Field(default=6144, alias="MAX_TOKENS_ASSEMBLER")
+    max_tokens_architect: int = Field(default=3072, alias="MAX_TOKENS_ARCHITECT")
+    max_tokens_analyst: int = Field(default=1536, alias="MAX_TOKENS_ANALYST")
     max_tokens_sketch: int = Field(default=1024, alias="MAX_TOKENS_SKETCH")
     max_tokens_compress: int = Field(default=512, alias="MAX_TOKENS_COMPRESS")
 

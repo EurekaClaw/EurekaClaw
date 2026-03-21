@@ -41,6 +41,30 @@ const artifactDrawerBackdropEl = document.getElementById("artifact-drawer-backdr
 const artifactDrawerTitleEl = document.getElementById("artifact-drawer-title");
 const artifactDrawerBodyEl = document.getElementById("artifact-drawer-body");
 const closeArtifactDrawerBtn = document.getElementById("close-artifact-drawer-btn");
+const pauseSessionBtn = document.getElementById("pause-session-btn");
+const resumeSessionBtn = document.getElementById("resume-session-btn");
+const proofCtrlEl = document.getElementById("proof-ctrl");
+const proofCtrlRunningEl = document.getElementById("proof-ctrl-running");
+const proofCtrlPausingEl = document.getElementById("proof-ctrl-pausing");
+const proofCtrlPausedEl = document.getElementById("proof-ctrl-paused");
+const proofCtrlResumingEl = document.getElementById("proof-ctrl-resuming");
+const proofCtrlPausedStageEl = document.getElementById("proof-ctrl-paused-stage");
+const pauseElapsedEl = document.getElementById("pause-elapsed");
+const proofCtrlSessionIdEl = document.getElementById("proof-ctrl-session-id");
+const copyResumeCmdBtn = document.getElementById("copy-resume-cmd-btn");
+const copyResumeCmdLabelEl = document.getElementById("copy-resume-cmd-label");
+const failedSessionNoteEl = document.getElementById("failed-session-note");
+const failedSessionErrorTextEl = document.getElementById("failed-session-error-text");
+const restartSessionBtn = document.getElementById("restart-session-btn");
+const skipTutorialBtn = document.getElementById("skip-tutorial-btn");
+
+// Canvas / session-detail pane switching
+const newSessionPaneEl = document.getElementById("new-session-pane");
+const sessionDetailPaneEl = document.getElementById("session-detail-pane");
+const sessionTopbarNameEl = document.getElementById("session-topbar-name");
+const sessionTopbarRenameBtnEl = document.getElementById("session-topbar-rename-btn");
+const sessionTopbarNameInputEl = document.getElementById("session-topbar-name-input");
+const canvasErrorEl = document.getElementById("canvas-error");
 
 const wizardStage = document.getElementById("wizard-stage");
 const wizardDotsRow = document.getElementById("wizard-dots-row");
@@ -49,12 +73,19 @@ const wizardStepLabel = document.getElementById("wizard-step-label");
 const prevStepBtn = document.getElementById("prev-step-btn");
 const nextStepBtn = document.getElementById("next-step-btn");
 
+const TUTORIAL_SKIP_KEY = "eurekaclaw_tutorial_skipped";
+
 let currentWizardStep = 0;
 let currentRunId = null;
+let isPausingRequested = false; // true between "Pause clicked" and server confirming paused status
+let pauseRequestedAt = null;    // Date object set when pause is clicked (for elapsed timer)
+let elapsedTimer = null;        // setInterval id for the pausing elapsed ticker
 let pollTimer = null;
 let pollErrors = 0;
-const POLL_INTERVAL_MS = 2000;
-const POLL_MAX_ERRORS = 4;   // show "connection lost" only after 4 consecutive failures
+const POLL_INTERVAL_FAST_MS = 500;   // while pausing / resuming — need fast feedback
+const POLL_INTERVAL_ACTIVE_MS = 1200; // while running / queued
+const POLL_INTERVAL_IDLE_MS = 3000;  // all sessions terminal — keep alive for new sessions
+const POLL_MAX_ERRORS = 4;
 let latestArtifacts = null;
 let availableSkills = [];
 let selectedSkills = [];
@@ -96,92 +127,170 @@ const wizardSteps = [
   {
     icon: "🦞",
     title: "Welcome to EurekaClaw",
-    subtitle: "From a question to a publishable paper — autonomously",
+    subtitle: "An AI co-author that takes your mathematical question all the way to a camera-ready paper.",
+    visual: `
+      <div class="wiz-pipeline">
+        <div class="wiz-pipe-step"><span class="wiz-pipe-icon">📚</span><span>Survey</span></div>
+        <div class="wiz-pipe-arrow">→</div>
+        <div class="wiz-pipe-step"><span class="wiz-pipe-icon">💡</span><span>Ideation</span></div>
+        <div class="wiz-pipe-arrow">→</div>
+        <div class="wiz-pipe-step"><span class="wiz-pipe-icon">📐</span><span>Theory</span></div>
+        <div class="wiz-pipe-arrow">→</div>
+        <div class="wiz-pipe-step"><span class="wiz-pipe-icon">🧪</span><span>Experiment</span></div>
+        <div class="wiz-pipe-arrow">→</div>
+        <div class="wiz-pipe-step"><span class="wiz-pipe-icon">✍️</span><span>Paper</span></div>
+      </div>
+      <p class="wiz-pipeline-caption">You give a question or domain. EurekaClaw does the rest — reading papers, formulating theorems, proving them, and writing a LaTeX paper.</p>
+    `,
     items: [
-      { label: "Crawls arXiv & Semantic Scholar", note: "Finds, summarizes, and cross-references relevant papers" },
-      { label: "Generates theorems + multi-stage proofs", note: "7-stage bottom-up proof pipeline with lemma verification" },
-      { label: "Runs numerical experiments", note: "Validates theoretical bounds; flags low-confidence lemmas" },
-      { label: "Writes camera-ready LaTeX papers", note: "Full bibliography, theorem environments, and PDF compilation" },
-      { label: "Fully local-first, private by default", note: "Your data never leaves your machine — MIT licensed" }
+      { label: "Reads 100s of papers on arXiv & Semantic Scholar", note: "Identifies research gaps and related work automatically" },
+      { label: "Generates theorems and proves them step by step", note: "Bottom-up proof pipeline with lemma verification — low-confidence steps are flagged" },
+      { label: "Runs numerical experiments to validate theory", note: "Checks that bounds hold empirically before writing" },
+      { label: "Produces a camera-ready LaTeX paper + PDF", note: "Theorem environments, bibliography, and figures included" },
+      { label: "Your data stays on your machine — MIT licensed", note: "No data is sent anywhere except the AI model you configure" }
     ],
-    tip: "Setup takes ~5 minutes for the core system. Optional tools (Lean4, LaTeX, Docker) can be added later — EurekaClaw runs in a useful degraded mode without them."
+    tip: "Setup takes about 5 minutes. Optional tools like Lean4 and LaTeX can be added later — EurekaClaw runs in a useful mode without them."
   },
   {
     icon: "📦",
     title: "Install EurekaClaw",
-    subtitle: "Python 3.11 or newer required",
+    subtitle: "You need Python 3.11 or newer. Open your Terminal and run these commands in order.",
     items: [
-      { label: "Clone the repository", code: "git clone https://github.com/EurekaClaw/EurekaClaw_dev_zero" },
-      { label: "Enter the project directory", code: "cd EurekaClaw_dev_zero" },
-      { label: "Install in editable mode", code: "pip install -e \".\"", note: "Installs the eurekaclaw CLI immediately" },
-      { label: "Copy the environment file", code: "cp .env.example .env", note: "This is where all your keys and settings live" },
-      { label: "Optional extras (OpenRouter / OAuth)", code: "pip install -e \".[openai,oauth]\"" }
+      { label: "Clone the source code", code: "git clone https://github.com/EurekaClaw/EurekaClaw_dev_zero\ncd EurekaClaw_dev_zero" },
+      { label: "Install the package and CLI", code: "pip install -e \".\"", note: "The eurekaclaw command will now be available in your terminal" },
+      { label: "Create your settings file", code: "cp .env.example .env", note: "Open .env in any text editor to add your API key in the next step" },
+      { label: "Start the web interface", code: "eurekaclaw ui", note: "Then open http://localhost:7860 in your browser — you're already there!" },
+      { label: "Optional: OpenRouter / OAuth support", code: "pip install -e \".[openai,oauth]\"", optional: true }
     ],
-    tip: "The -e flag installs in editable mode so changes to the source take effect immediately without reinstalling."
+    tip: "If pip install fails, try: python -m pip install -e \".\" — and make sure you have Python 3.11+ with: python --version"
   },
   {
     icon: "🔑",
-    title: "Connect Your Language Model",
-    subtitle: "Choose how EurekaClaw reaches an AI model",
-    items: [
-      { label: "Option A — Anthropic API key (fastest)", code: "ANTHROPIC_API_KEY=sk-ant-...   # add to .env", note: "Recommended for most users" },
-      { label: "Option B — Claude Pro/Max via OAuth (no API key)", code: "pip install \"eurekaclaw[oauth]\"\nANTHROPIC_AUTH_MODE=oauth   # add to .env", note: "ccproxy auto-reads ~/.claude/.credentials.json" },
-      { label: "Option C — OpenRouter", code: "LLM_BACKEND=openrouter\nOPENAI_COMPAT_API_KEY=sk-or-...   # add to .env" },
-      { label: "Option D — Local model (vLLM / Ollama)", code: "LLM_BACKEND=local   # defaults to http://localhost:8000/v1" }
-    ],
-    tip: "You can also change backend and API keys in the Settings tab — they write back to .env automatically without manual file editing."
+    title: "Connect Your AI Model",
+    subtitle: "EurekaClaw needs access to a large language model. Choose the option that fits you.",
+    visual: `
+      <div class="wiz-options-grid">
+        <div class="wiz-option-card wiz-option-recommended">
+          <div class="wiz-option-badge">Recommended</div>
+          <div class="wiz-option-title">Anthropic API Key</div>
+          <div class="wiz-option-desc">Sign up at console.anthropic.com, get an API key, add it to .env</div>
+          <code class="wiz-option-code">ANTHROPIC_API_KEY=sk-ant-...</code>
+        </div>
+        <div class="wiz-option-card">
+          <div class="wiz-option-title">Claude Pro / Max</div>
+          <div class="wiz-option-desc">Already pay for Claude? Use your existing subscription — no separate API key needed.</div>
+          <code class="wiz-option-code">ANTHROPIC_AUTH_MODE=oauth</code>
+        </div>
+        <div class="wiz-option-card">
+          <div class="wiz-option-title">OpenRouter</div>
+          <div class="wiz-option-desc">Access dozens of models (GPT-4o, Gemini, Llama…) via one API key.</div>
+          <code class="wiz-option-code">LLM_BACKEND=openrouter</code>
+        </div>
+        <div class="wiz-option-card">
+          <div class="wiz-option-title">Local Model</div>
+          <div class="wiz-option-desc">Run a model on your own machine with vLLM or Ollama.</div>
+          <code class="wiz-option-code">LLM_BACKEND=local</code>
+        </div>
+      </div>
+    `,
+    items: [],
+    tip: "You can change the AI model at any time in the Settings tab — it writes back to .env automatically. Go to Settings → Test Connection to verify your key works."
   },
   {
     icon: "⚙️",
-    title: "Configure Runtime Settings",
-    subtitle: "Tune key parameters in .env or the Settings tab",
+    title: "Key Settings to Know",
+    subtitle: "You can set these in .env or change them live in the Settings tab — no restart needed.",
+    visual: `
+      <div class="wiz-settings-table">
+        <div class="wiz-settings-row wiz-settings-header">
+          <span>Setting</span><span>What it controls</span><span>Default</span>
+        </div>
+        <div class="wiz-settings-row">
+          <code>GATE_MODE</code>
+          <span>How much you review before each stage proceeds</span>
+          <code>auto</code>
+        </div>
+        <div class="wiz-settings-row">
+          <code>OUTPUT_FORMAT</code>
+          <span>Paper output format: LaTeX PDF or Markdown</span>
+          <code>latex</code>
+        </div>
+        <div class="wiz-settings-row">
+          <code>THEORY_MAX_ITERATIONS</code>
+          <span>Max proof loop attempts before giving up</span>
+          <code>10</code>
+        </div>
+        <div class="wiz-settings-row">
+          <code>EXPERIMENT_MODE</code>
+          <span>When to run numerical validation</span>
+          <code>auto</code>
+        </div>
+      </div>
+    `,
     items: [
-      { label: "Primary model", code: "EUREKACLAW_MODEL=claude-sonnet-4-6", note: "Fast model defaults to claude-haiku-4-5-20251001" },
-      { label: "Gate mode (human review control)", code: "GATE_MODE=auto", note: "none = fully auto · auto = escalates on low-confidence lemmas · human = pauses at every stage" },
-      { label: "Output format", code: "OUTPUT_FORMAT=latex", note: "latex (default, generates PDF) or markdown" },
-      { label: "Experiment validation", code: "EXPERIMENT_MODE=auto", note: "auto = run when needed · true = always · false = skip" },
-      { label: "Max proof loop iterations", code: "THEORY_MAX_ITERATIONS=10", note: "Increase if proofs are being abandoned prematurely" }
+      { label: "GATE_MODE = none", note: "Fully autonomous — no check-ins from you. Good for overnight runs." },
+      { label: "GATE_MODE = auto  (recommended)", note: "Pauses and asks you to review when confidence is low. Best for your first runs." },
+      { label: "GATE_MODE = human", note: "Pauses at every stage boundary. Maximum control — slower but you see everything." }
     ],
-    tip: "The Settings tab has live sliders for all 7 token-limit knobs (agent, prover, planner, decomposer, formalizer, verifier, compress) — no .env editing required."
+    tip: "For your very first session, set GATE_MODE=human so you can see what each stage produces before it continues."
   },
   {
     icon: "🔧",
-    title: "Optional Tools",
-    subtitle: "Each unlocks a meaningful capability — none are blockers",
+    title: "Optional Power Tools",
+    subtitle: "None of these are required. Each one unlocks a specific capability.",
     items: [
-      { label: "Lean4 — formal proof verification", code: "curl https://elan.lean-lang.org/elan-init.sh | sh", note: "Lets EurekaClaw formally verify proofs, not just LLM-check them" },
-      { label: "TeX Live / MacTeX — PDF compilation", code: "brew install --cask mactex-no-gui   # macOS", note: "Required for paper.pdf output; paper.tex is always generated" },
-      { label: "Docker — sandboxed code execution", note: "Install from docker.com — enables safe experiment runs" },
-      { label: "Semantic Scholar API key", code: "S2_API_KEY=...   # add to .env", note: "Unlocks citation counts and venue metadata for papers" },
-      { label: "Wolfram Alpha API key", code: "WOLFRAM_APP_ID=...   # add to .env", note: "Enables symbolic computation and formula verification" }
+      { label: "Lean 4 — formal proof verification", code: "curl https://elan.lean-lang.org/elan-init.sh | sh", note: "Makes EurekaClaw mathematically rigorous — proofs are formally checked, not just LLM-evaluated", optional: true },
+      { label: "LaTeX / MacTeX — PDF compilation", code: "brew install --cask mactex-no-gui   # macOS\nsudo apt install texlive-full       # Linux", note: "Needed to compile paper.pdf — the .tex source file is always generated even without this", optional: true, badge: "macOS / Linux" },
+      { label: "Docker — safe code sandbox", note: "Install from docker.com — lets experiments run in an isolated container", optional: true },
+      { label: "Semantic Scholar API key", code: "S2_API_KEY=your-key-here   # in .env", note: "Unlocks citation counts, venue rankings, and richer paper metadata", optional: true },
+      { label: "Wolfram Alpha App ID", code: "WOLFRAM_APP_ID=your-app-id   # in .env", note: "Enables symbolic computation and formula cross-checking", optional: true }
     ],
-    tip: "Missing optional tools appear as warnings (not errors) in the System Health panel under Settings. The system auto-detects what is available on startup."
+    tip: "Go to Settings → System Health to see which optional tools are detected. Missing tools appear as warnings, not errors — everything still works."
   },
   {
     icon: "🧠",
-    title: "Install Built-in Skills",
-    subtitle: "One command adds proof strategies to all agents",
+    title: "Activate Built-in Skills",
+    subtitle: "Skills are proof strategies and writing rules that all agents share. Install them once.",
     items: [
-      { label: "Install seed skills (run once)", code: "eurekaclaw install-skills", note: "Installs to ~/.eurekaclaw/skills/ and persists across sessions" },
-      { label: "Browse all available skills", code: "eurekaclaw skills" },
-      { label: "Theory skills", note: "Induction, contradiction, compactness, concentration inequalities, UCB regret analysis" },
-      { label: "Survey & writing skills", note: "Literature decomposition, gap analysis, paper structure, proof readability rules" },
-      { label: "Add your own custom skills", code: "# Drop any .md file into ~/.eurekaclaw/skills/", note: "EurekaClaw also distills new skills automatically after each successful run" }
+      { label: "Install seed skills (run this once)", code: "eurekaclaw install-skills", note: "Saves proof patterns to ~/.eurekaclaw/skills/ — these persist across all future sessions" },
+      { label: "See what skills are installed", code: "eurekaclaw skills" },
+      { label: "Theory skills included", note: "Mathematical induction, proof by contradiction, compactness, concentration inequalities, UCB regret bounds" },
+      { label: "Survey & writing skills included", note: "Literature gap analysis, theorem statement style, proof readability, reference formatting" },
+      { label: "Add your own skills anytime", code: "# Save any .md file into ~/.eurekaclaw/skills/", note: "EurekaClaw also distills new skills automatically after each successful proof", optional: true }
     ],
-    tip: "After each session, the continual learning loop extracts what worked and distills it into new skills — your system gets better over time automatically."
+    tip: "Think of skills as a growing personal proof library. After each successful session, EurekaClaw adds what it learned — your system gets smarter over time."
   },
   {
     icon: "🚀",
     title: "Launch Your First Session",
-    subtitle: "Three research modes — pick the one that fits",
+    subtitle: "Three research modes. Pick based on how much you already know about your topic.",
+    visual: `
+      <div class="wiz-modes-grid">
+        <div class="wiz-mode-card">
+          <div class="wiz-mode-icon">🔭</div>
+          <div class="wiz-mode-title">Explore a domain</div>
+          <div class="wiz-mode-desc">You give a broad area. EurekaClaw finds open problems and proposes conjectures.</div>
+          <code class="wiz-mode-code">eurekaclaw explore "multi-armed bandit theory"</code>
+        </div>
+        <div class="wiz-mode-card">
+          <div class="wiz-mode-icon">📐</div>
+          <div class="wiz-mode-title">Prove a conjecture</div>
+          <div class="wiz-mode-desc">You state the theorem. EurekaClaw builds a full proof and writes the paper.</div>
+          <code class="wiz-mode-code">eurekaclaw prove "O(n log n) via sparse attention" --domain "ML theory"</code>
+        </div>
+        <div class="wiz-mode-card">
+          <div class="wiz-mode-icon">📄</div>
+          <div class="wiz-mode-title">Start from papers</div>
+          <div class="wiz-mode-desc">Paste arXiv IDs. EurekaClaw reads them and generates follow-up research.</div>
+          <code class="wiz-mode-code">eurekaclaw from-papers 1706.03762 2005.14165</code>
+        </div>
+      </div>
+    `,
     items: [
-      { label: "Browser UI (this tab)", note: "Click Launch session on the Research tab — live progress, log stream, and results viewer" },
-      { label: "Prove a specific conjecture", code: "eurekaclaw prove \"O(n log n) complexity via sparse attention\" --domain \"ML theory\"" },
-      { label: "Explore a broad research area", code: "eurekaclaw explore \"multi-armed bandit theory\"" },
-      { label: "Start from existing papers", code: "eurekaclaw from-papers 1706.03762 2005.14165 --domain \"attention mechanisms\"" },
-      { label: "Results are saved to", code: "./results/<session_id>/paper.tex  ·  paper.pdf  ·  references.bib", note: "Also: theory_state.json, research_brief.json, experiment_result.json" }
+      { label: "Or use this browser UI", note: "Click the Research tab → fill in the form → Launch Session. Live progress streams in real time." },
+      { label: "Results are saved here", code: "~/.eurekaclaw/runs/<session_id>/\n  paper.tex   paper.pdf   references.bib", note: "Also: theory_state.json, research_brief.json, experiment_result.json" }
     ],
-    tip: "Go to Settings → Test connection first to confirm your model is reachable. Use --gate human on your first run to review each stage before it continues."
+    tip: "First time? Use the Research tab here, set Gate Mode to 'human', and start with a narrow domain you know well — that way you can judge the output quality."
   }
 ];
 
@@ -206,18 +315,20 @@ function renderWizardStep(index) {
         <p class="wizard-step-subtitle">${step.subtitle}</p>
       </div>
     </div>
+    ${step.visual ? `<div class="wizard-visual">${step.visual}</div>` : ""}
+    ${step.items && step.items.length ? `
     <div class="wizard-items">
       ${step.items.map((item, i) => `
-        <div class="wizard-item">
-          <span class="wizard-item-num">${i + 1}</span>
+        <div class="wizard-item${item.optional ? " is-optional" : ""}">
+          <span class="wizard-item-num">${item.optional ? "○" : String(i + 1)}</span>
           <div class="wizard-item-body">
-            <strong>${item.label}</strong>
+            <strong>${item.label}</strong>${item.badge ? ` <span class="wizard-item-badge">${item.badge}</span>` : ""}
             ${item.code ? `<code class="wizard-item-code">${escapeHtml(item.code)}</code>` : ""}
             ${item.note ? `<span class="wizard-item-note">${item.note}</span>` : ""}
           </div>
         </div>
       `).join("")}
-    </div>
+    </div>` : ""}
     ${step.tip ? `
       <div class="wizard-tip">
         <span class="wizard-tip-icon">💡</span>
@@ -239,6 +350,97 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
+}
+
+// ── Pane switching ────────────────────────────────────────────────────────
+
+function showNewSessionPane() {
+  newSessionPaneEl.hidden = false;
+  sessionDetailPaneEl.hidden = true;
+}
+
+function showSessionDetailPane() {
+  newSessionPaneEl.hidden = true;
+  sessionDetailPaneEl.hidden = false;
+}
+
+function truncateSessionName(run) {
+  const text = run?.input_spec?.query || run?.input_spec?.domain || "Untitled session";
+  return text.length > 64 ? text.slice(0, 61) + "…" : text;
+}
+
+function updateSessionTopbar(run) {
+  if (!run) return;
+  const name = run.name || truncateSessionName(run);
+  sessionTopbarNameEl.textContent = name;
+  sessionTopbarNameEl.hidden = false;
+  sessionTopbarNameInputEl.hidden = true;
+}
+
+// ── Rename session ────────────────────────────────────────────────────────
+
+async function renameRun(runId, newName) {
+  if (!newName.trim() || !runId) return;
+  try {
+    await apiPost(`/api/runs/${runId}/rename`, { name: newName.trim() });
+    const session = allSessions.find((s) => s.run_id === runId);
+    if (session) session.name = newName.trim();
+    if (runId === currentRunId) updateSessionTopbar(session);
+    renderSessionList(allSessions);
+  } catch (_) {
+    // silently ignore — name reverts on next poll
+  }
+}
+
+function startSidebarRename(runId) {
+  const item = sessionListEl.querySelector(`[data-run-id="${CSS.escape(runId)}"]`);
+  if (!item) return;
+  const nameEl = item.querySelector(".session-item-name");
+  if (!nameEl) return;
+  const session = allSessions.find((s) => s.run_id === runId);
+  const currentName = session?.name || nameEl.textContent || "";
+
+  const input = document.createElement("input");
+  input.className = "session-rename-input";
+  input.value = currentName;
+  input.maxLength = 80;
+
+  nameEl.replaceWith(input);
+  input.focus();
+  input.select();
+
+  const finish = async () => {
+    const val = input.value.trim();
+    if (val && val !== currentName) await renameRun(runId, val);
+    else renderSessionList(allSessions);
+  };
+  input.addEventListener("blur", finish, { once: true });
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") input.blur();
+    if (e.key === "Escape") {
+      input.removeEventListener("blur", finish);
+      renderSessionList(allSessions);
+    }
+  });
+}
+
+// ── Restart session ───────────────────────────────────────────────────────
+
+async function restartRun(runId) {
+  const btn = document.getElementById("restart-session-btn");
+  if (btn) { btn.disabled = true; btn.querySelector("span") && (btn.querySelector("span").textContent = "Restarting…"); }
+  try {
+    const newRun = await apiPost(`/api/runs/${runId}/restart`, {});
+    allSessions = [newRun, ...allSessions.filter((s) => s.run_id !== newRun.run_id)];
+    currentRunId = newRun.run_id;
+    currentLogPage = 1;
+    renderSessionList(allSessions);
+    renderRun(newRun);
+    if (!pollTimer) startPolling(newRun.run_id);
+  } catch (error) {
+    if (btn) { btn.disabled = false; }
+    setRunStatus("failed", `Restart failed: ${error.message}`);
+  }
 }
 
 function titleCase(text) {
@@ -288,17 +490,42 @@ function renderSessionList(sessions) {
     return;
   }
   sessionListEl.innerHTML = sessions.map((s) => {
-    const prompt = s.input_spec?.query || s.input_spec?.domain || "Untitled session";
-    const domain = s.input_spec?.domain || "";
+    const rawName = s.name || s.input_spec?.query || s.input_spec?.domain || "Untitled session";
+    const displayName = rawName.length > 52 ? rawName.slice(0, 49) + "…" : rawName;
     const status = s.status || "queued";
     const time = formatRelativeTime(s.created_at);
     const isActive = s.run_id === currentRunId;
-    return `<div class="session-item${isActive ? " is-active" : ""}" data-run-id="${escapeHtml(s.run_id)}">
-      <div class="session-item-prompt">${escapeHtml(prompt)}</div>
-      <div class="session-item-meta">
-        <span class="session-status-dot ${status}"></span>
-        <span>${time}</span>
-        ${domain ? `<span>·</span><span>${escapeHtml(domain)}</span>` : ""}
+    const isFailed = status === "failed";
+    const isPaused = status === "paused";
+    const isPausing = status === "pausing";
+    const isResuming = status === "resuming";
+    const isRunning = status === "running" || status === "queued";
+    const isLive = isRunning || isPausing || isResuming;
+    const extraClass = isActive ? " is-active" : isFailed ? " is-failed" : "";
+    const statusLabel = titleCase(status);
+    const canDelete = !isLive;
+    return `<div class="session-item${extraClass}" data-run-id="${escapeHtml(s.run_id)}">
+      <div class="session-item-main">
+        <div class="session-item-name">${escapeHtml(displayName)}</div>
+        <div class="session-item-meta">
+          <span class="session-status-dot ${status}" aria-label="${escapeHtml(statusLabel)}"></span>
+          <span>${time}</span>
+          ${isFailed ? `<span class="session-item-failed-tag">failed</span>` : ""}
+          ${isPaused ? `<span class="session-item-failed-tag session-item-paused-tag">paused</span>` : ""}
+          ${isPausing ? `<span class="session-item-failed-tag session-item-pausing-tag">pausing…</span>` : ""}
+          ${isResuming ? `<span class="session-item-failed-tag session-item-resuming-tag">resuming…</span>` : ""}
+        </div>
+      </div>
+      <div class="session-item-actions">
+        ${isFailed ? `<button class="session-action-btn session-restart-sidebar-btn" data-restart-run-id="${escapeHtml(s.run_id)}" title="Restart session" aria-label="Restart session">
+          <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.5"/></svg>
+        </button>` : ""}
+        <button class="session-action-btn session-rename-sidebar-btn" data-rename-run-id="${escapeHtml(s.run_id)}" title="Rename" aria-label="Rename session">
+          <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        </button>
+        ${canDelete ? `<button class="session-action-btn session-delete-btn" data-delete-run-id="${escapeHtml(s.run_id)}" title="Delete session" aria-label="Delete session">
+          <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+        </button>` : ""}
       </div>
     </div>`;
   }).join("");
@@ -322,6 +549,15 @@ function statusClass(status) {
   }
   if (status === "failed" || status === "missing") {
     return "status-error";
+  }
+  if (status === "paused") {
+    return "status-paused";
+  }
+  if (status === "pausing") {
+    return "status-pausing";
+  }
+  if (status === "resuming") {
+    return "status-resuming";
   }
   if (status === "optional") {
     return "status-warning";
@@ -347,13 +583,16 @@ function liveStatusDetail(run) {
       return `Running: ${activeTasks.map((t) => titleCase(t.name)).join(", ")}`;
     }
     const elapsed = run.started_at
-      ? Math.floor((Date.now() - (parseServerTimestamp(run.started_at)?.getTime() ?? Date.now())) / 1000)
+      ? Math.floor((Date.now() - new Date(run.started_at).getTime()) / 1000)
       : 0;
     return `Running${elapsed ? ` · ${elapsed}s elapsed` : ""}`;
   }
   if (run.status === "completed") {
     const dir = run.output_dir ? ` → ${run.output_dir}` : "";
     return `Completed${dir}`;
+  }
+  if (run.status === "paused") {
+    return "Proof paused at checkpoint — click Resume to continue, or use the Copy command button.";
   }
   if (run.status === "failed") return `Failed: ${run.error || "unknown error"}`;
   return `Run ${run.run_id.slice(0, 8)}`;
@@ -594,7 +833,6 @@ function renderOutput(run) {
 
 function updateSidebar(run) {
   if (!run) return;
-  // Update the status dot for this session in the sidebar list
   const item = sessionListEl.querySelector(`[data-run-id="${run.run_id}"]`);
   if (!item) return;
   const dot = item.querySelector(".session-status-dot");
@@ -602,6 +840,91 @@ function updateSidebar(run) {
   sessionListEl.querySelectorAll(".session-item").forEach((el) => {
     el.classList.toggle("is-active", el.dataset.runId === currentRunId);
   });
+}
+
+// ── Elapsed timer for "Pausing…" state ──────────────────────────────────────
+function startElapsedTimer(fromDate) {
+  stopElapsedTimer();
+  pauseRequestedAt = fromDate || new Date();
+  function tick() {
+    const secs = Math.round((Date.now() - pauseRequestedAt.getTime()) / 1000);
+    if (pauseElapsedEl) pauseElapsedEl.textContent = secs < 2 ? "" : `${secs}s`;
+  }
+  tick();
+  elapsedTimer = setInterval(tick, 1000);
+}
+function stopElapsedTimer() {
+  if (elapsedTimer) { clearInterval(elapsedTimer); elapsedTimer = null; }
+  if (pauseElapsedEl) pauseElapsedEl.textContent = "";
+  pauseRequestedAt = null;
+}
+
+// ── Proof-ctrl state machine ─────────────────────────────────────────────────
+function updateSessionControls(run) {
+  const status = run ? run.status : null;
+  const isRunning = status === "running";
+  const isPausing = status === "pausing" || (status === "running" && isPausingRequested);
+  const isPaused = status === "paused";
+  const isResuming = status === "resuming";
+  const isFailed = status === "failed";
+  const showCtrl = isRunning || isPausing || isPaused || isResuming;
+
+  // Sync local flag with authoritative server status
+  if (status === "pausing" || status === "paused" || status === "resuming") {
+    isPausingRequested = false;
+  }
+
+  // Elapsed timer: start on pausing, stop on any other state
+  if (isPausing && !elapsedTimer) {
+    const fromDate = run && run.pause_requested_at ? new Date(run.pause_requested_at) : null;
+    startElapsedTimer(fromDate);
+  } else if (!isPausing) {
+    stopElapsedTimer();
+  }
+
+  // Animate transition into paused (flash the ctrl once)
+  if (isPaused && proofCtrlPausedEl.hidden) {
+    proofCtrlPausedEl.classList.remove("ctrl-flash-in");
+    requestAnimationFrame(() => proofCtrlPausedEl.classList.add("ctrl-flash-in"));
+  }
+  // Animate transition into running after resume
+  if (isRunning && !isPausingRequested && proofCtrlRunningEl.hidden) {
+    proofCtrlRunningEl.classList.remove("ctrl-flash-in");
+    requestAnimationFrame(() => proofCtrlRunningEl.classList.add("ctrl-flash-in"));
+  }
+
+  // Outer container
+  proofCtrlEl.hidden = !showCtrl;
+
+  // Sub-states — mutually exclusive
+  proofCtrlRunningEl.hidden = !isRunning || isPausing;
+  proofCtrlPausingEl.hidden = !isPausing;
+  proofCtrlPausedEl.hidden = !isPaused;
+  proofCtrlResumingEl.hidden = !isResuming;
+
+  // Paused details
+  if (isPaused && run) {
+    if (run.session_id) {
+      proofCtrlSessionIdEl.textContent = run.session_id.slice(0, 16) + "…";
+      proofCtrlSessionIdEl.title = `eurekaclaw resume ${run.session_id}`;
+    }
+    if (proofCtrlPausedStageEl) {
+      if (run.paused_stage) {
+        proofCtrlPausedStageEl.textContent = `Stage: ${run.paused_stage}`;
+        proofCtrlPausedStageEl.hidden = false;
+      } else {
+        proofCtrlPausedStageEl.hidden = true;
+      }
+    }
+  }
+
+  // Failed session note
+  failedSessionNoteEl.hidden = !isFailed;
+  if (isFailed && failedSessionErrorTextEl) {
+    const errMsg = run && run.error ? `Error: ${run.error}` : "";
+    failedSessionErrorTextEl.textContent = errMsg;
+    failedSessionErrorTextEl.hidden = !errMsg;
+  }
 }
 
 async function apiGet(path) {
@@ -628,6 +951,32 @@ async function apiPost(path, payload) {
     throw new Error(errorText || `Request failed: ${response.status}`);
   }
   return response.json();
+}
+
+async function apiDelete(path) {
+  const response = await fetch(path, { method: "DELETE" });
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(errorText || `Request failed: ${response.status}`);
+  }
+  return response.json();
+}
+
+async function deleteRun(runId) {
+  if (!confirm("Delete this session? This cannot be undone.")) return;
+  try {
+    await apiDelete(`/api/runs/${runId}`);
+    allSessions = allSessions.filter((s) => s.run_id !== runId);
+    if (currentRunId === runId) {
+      stopPolling();
+      currentRunId = null;
+      currentLogPage = 1;
+      renderRun(null);
+    }
+    renderSessionList(allSessions);
+  } catch (error) {
+    alert(`Could not delete session: ${error.message}`);
+  }
 }
 
 function configPayloadFromForm() {
@@ -1018,6 +1367,12 @@ async function loadConfig() {
 }
 
 function renderRun(run) {
+  if (!run) {
+    showNewSessionPane();
+    return;
+  }
+  showSessionDetailPane();
+  updateSessionTopbar(run);
   const tasks = run?.pipeline || [];
   renderPipeline(tasks);
   renderAgents(tasks);
@@ -1026,6 +1381,7 @@ function renderRun(run) {
   renderOutput(run);
   renderTokenUsage(tasks);
   updateSidebar(run);
+  updateSessionControls(run);
   setRunStatus(run ? run.status : "idle", liveStatusDetail(run));
 }
 
@@ -1175,63 +1531,84 @@ function closeArtifactDrawer() {
 }
 
 // ── Polling engine ──────────────────────────────────────────────────────────
+// Adaptive-rate polling: fast (500 ms) while pausing/resuming, normal (1.2 s)
+// while running/queued, and idle (3 s) when all sessions are terminal.
+// One fetch returns ALL sessions so every sidebar dot updates together.
+
+let _currentPollInterval = POLL_INTERVAL_ACTIVE_MS;
+
+function _computePollInterval(sessions) {
+  const hasTransient = sessions.some(
+    (s) => s.status === "pausing" || s.status === "resuming"
+  );
+  if (hasTransient || isPausingRequested) return POLL_INTERVAL_FAST_MS;
+  const hasLive = sessions.some(
+    (s) => s.status === "running" || s.status === "queued"
+  );
+  return hasLive ? POLL_INTERVAL_ACTIVE_MS : POLL_INTERVAL_IDLE_MS;
+}
 
 function startPolling(runId) {
-  stopPolling();
-  currentRunId = runId;
+  if (runId) currentRunId = runId;
+  if (pollTimer) return; // already running
   pollErrors = 0;
-  // First tick immediately, then on interval
   _pollTick();
-  pollTimer = setInterval(_pollTick, POLL_INTERVAL_MS);
+  pollTimer = setInterval(_pollTick, _currentPollInterval);
 }
 
 function stopPolling() {
-  if (pollTimer) {
-    clearInterval(pollTimer);
-    pollTimer = null;
-  }
+  if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
   pollErrors = 0;
 }
 
-async function _pollTick() {
-  if (!currentRunId) return;
-  try {
-    // Fetch both the active run and the full sessions list in parallel
-    const [run, sessionsData] = await Promise.all([
-      apiGet(`/api/runs/${currentRunId}`),
-      apiGet("/api/runs"),
-    ]);
+// Immediately restart poll at fast rate (called on user-initiated pause/resume)
+function restartPollingFast() {
+  stopPolling();
+  _currentPollInterval = POLL_INTERVAL_FAST_MS;
+  pollErrors = 0;
+  _pollTick();
+  pollTimer = setInterval(_pollTick, _currentPollInterval);
+}
 
+async function _pollTick() {
+  try {
+    const sessionsData = await apiGet("/api/runs");
     pollErrors = 0;
 
-    // Update session list (sidebar dots reflect live status)
     allSessions = sessionsData.runs || [];
     renderSessionList(allSessions);
 
-    // Update main panel only if this is still the displayed run
-    if (run.run_id === currentRunId) {
-      renderRun(run);
+    if (currentRunId) {
+      const run = allSessions.find((s) => s.run_id === currentRunId);
+      if (run) renderRun(run);
     }
 
-    // Stop polling when the run reaches a terminal state
-    if (run.status === "completed" || run.status === "failed") {
-      stopPolling();
+    // Recalculate interval and reschedule if it changed
+    const newInterval = _computePollInterval(allSessions);
+    if (newInterval !== _currentPollInterval) {
+      _currentPollInterval = newInterval;
+      if (pollTimer) {
+        clearInterval(pollTimer);
+        pollTimer = setInterval(_pollTick, _currentPollInterval);
+      }
     }
   } catch (_err) {
     pollErrors += 1;
     if (pollErrors >= POLL_MAX_ERRORS) {
       setRunStatus("missing", "Backend not responding — check that `eurekaclaw ui` is running.");
     }
-    // Keep polling — transient errors auto-recover
   }
 }
 
 async function refreshRun(runId) {
-  // One-shot fetch without touching the poll timer
+  // One-shot fetch for the full sessions list — updates sidebar and panel.
   try {
-    const run = await apiGet(`/api/runs/${runId}`);
-    if (run.run_id === currentRunId) {
-      renderRun(run);
+    const data = await apiGet("/api/runs");
+    allSessions = data.runs || [];
+    renderSessionList(allSessions);
+    if (runId === currentRunId) {
+      const run = allSessions.find((s) => s.run_id === runId);
+      if (run) renderRun(run);
     }
   } catch (_err) {
     // Silently ignore — polling will surface persistent errors
@@ -1248,13 +1625,14 @@ async function loadMostRecentRun() {
       currentRunId = latest.run_id;
       currentLogPage = 1;
       renderRun(latest);
-      // Resume polling if the run is still live
-      if (latest.status === "running" || latest.status === "queued") {
-        startPolling(latest.run_id);
-      }
     } else {
       renderRun(null);
     }
+    // Start polling if any session is still live
+    const hasLive = allSessions.some(
+      (s) => s.status === "running" || s.status === "queued"
+    );
+    if (hasLive) startPolling(null);
   } catch (_err) {
     // Don't flash "missing" on startup — backend may just be starting up
     renderRun(null);
@@ -1267,16 +1645,15 @@ updateModeUI();
 launchSessionBtn.addEventListener("click", async () => {
   const validationError = validateInputSpec();
   if (validationError) {
-    // Show inline validation message without marking any run as "failed"
-    runMetaEl.textContent = validationError;
-    runMetaEl.style.color = "var(--warn)";
-    setTimeout(() => { runMetaEl.style.color = ""; }, 4000);
+    canvasErrorEl.textContent = validationError;
+    canvasErrorEl.hidden = false;
+    setTimeout(() => { canvasErrorEl.hidden = true; }, 4000);
     return;
   }
+  canvasErrorEl.hidden = true;
 
   launchSessionBtn.disabled = true;
-  runMetaEl.style.color = "";
-  setRunStatus("running", "Creating session...");
+  setRunStatus("running", "Creating session…");
   try {
     const run = await apiPost("/api/runs", normalizeInputSpec());
     // Keep allSessions in sync immediately (no waiting for next poll)
@@ -1286,7 +1663,7 @@ launchSessionBtn.addEventListener("click", async () => {
     renderSessionList(allSessions);
     renderRun(run);
     showView("workspace");
-    startPolling(run.run_id);
+    startPolling(run.run_id); // sets currentRunId + starts timer if not already running
   } catch (error) {
     setRunStatus("failed", `Could not start session: ${error.message}`);
   } finally {
@@ -1363,33 +1740,174 @@ logPaginationEl.addEventListener("click", (event) => {
 });
 
 document.getElementById("new-session-btn").addEventListener("click", () => {
-  stopPolling();
+  // Clear the active selection but keep polling — other sessions may be live
   currentRunId = null;
   currentLogPage = 1;
-  renderRun(null);
   renderSessionList(allSessions);
   showView("workspace");
-  inputPromptEl.focus();
+  showNewSessionPane();
+  canvasErrorEl.hidden = true;
+  setTimeout(() => inputPromptEl.focus(), 80);
 });
 
 sessionListEl.addEventListener("click", (event) => {
+  // Rename button
+  const renameBtn = event.target.closest(".session-rename-sidebar-btn");
+  if (renameBtn) {
+    event.stopPropagation();
+    const runId = renameBtn.dataset.renameRunId;
+    if (runId) startSidebarRename(runId);
+    return;
+  }
+
+  // Restart button (for failed sessions)
+  const restartBtn = event.target.closest(".session-restart-sidebar-btn");
+  if (restartBtn) {
+    event.stopPropagation();
+    const runId = restartBtn.dataset.restartRunId;
+    if (runId) restartRun(runId);
+    return;
+  }
+
+  // Delete button
+  const deleteBtn = event.target.closest(".session-delete-btn");
+  if (deleteBtn) {
+    event.stopPropagation();
+    const runId = deleteBtn.dataset.deleteRunId;
+    if (runId) deleteRun(runId);
+    return;
+  }
+
   const item = event.target.closest(".session-item");
   if (!item) return;
   const runId = item.dataset.runId;
   if (!runId || runId === currentRunId) return;
 
-  stopPolling();
+  // Just switch which session is displayed — don't stop/restart the global
+  // poll timer. The poll already tracks ALL sessions simultaneously.
   currentRunId = runId;
   currentLogPage = 1;
   renderSessionList(allSessions);
   showView("workspace");
+
+  // Show this session immediately from cached data, then refresh
+  const cached = allSessions.find((s) => s.run_id === runId);
+  if (cached) renderRun(cached);
   refreshRun(runId);
 
-  // Resume live polling only if the session is still active
-  const session = allSessions.find((s) => s.run_id === runId);
-  if (session && (session.status === "running" || session.status === "queued")) {
-    startPolling(runId);
+  // Ensure polling is active if any live sessions exist
+  const hasLive = allSessions.some(
+    (s) => s.status === "running" || s.status === "queued"
+  );
+  if (hasLive && !pollTimer) startPolling(null);
+});
+
+pauseSessionBtn.addEventListener("click", async () => {
+  if (!currentRunId) return;
+  pauseSessionBtn.disabled = true;
+  // Optimistic UI: immediately show the pausing state
+  isPausingRequested = true;
+  proofCtrlRunningEl.hidden = true;
+  proofCtrlPausingEl.hidden = false;
+  startElapsedTimer(new Date());
+  // Accelerate polling so the transition to "paused" is detected quickly
+  restartPollingFast();
+  try {
+    await apiPost(`/api/runs/${currentRunId}/pause`, {});
+  } catch (error) {
+    // Rollback optimistic change if the request failed
+    isPausingRequested = false;
+    stopElapsedTimer();
+    proofCtrlPausingEl.hidden = true;
+    proofCtrlRunningEl.hidden = false;
+    setRunStatus("running", `Pause failed: ${error.message}`);
+  } finally {
+    pauseSessionBtn.disabled = false;
   }
+});
+
+resumeSessionBtn.addEventListener("click", async () => {
+  if (!currentRunId) return;
+  resumeSessionBtn.disabled = true;
+  // Optimistic UI: immediately show resuming state
+  proofCtrlPausedEl.hidden = true;
+  proofCtrlResumingEl.hidden = false;
+  restartPollingFast();
+  try {
+    await apiPost(`/api/runs/${currentRunId}/resume`, {});
+    // Ensure poll is running now that a session is live
+    if (!pollTimer) startPolling(currentRunId);
+  } catch (error) {
+    // Rollback
+    proofCtrlResumingEl.hidden = true;
+    proofCtrlPausedEl.hidden = false;
+    setRunStatus("paused", `Resume failed: ${error.message}`);
+    resumeSessionBtn.disabled = false;
+  }
+});
+
+copyResumeCmdBtn.addEventListener("click", () => {
+  if (!currentRunId) return;
+  const run = allSessions.find((s) => s.run_id === currentRunId);
+  if (!run || !run.session_id) return;
+  const cmd = `eurekaclaw resume ${run.session_id}`;
+  navigator.clipboard.writeText(cmd).then(() => {
+    const lbl = copyResumeCmdLabelEl;
+    const prev = lbl.textContent;
+    lbl.textContent = "Copied!";
+    setTimeout(() => { lbl.textContent = prev; }, 2000);
+  }).catch(() => {
+    // Fallback: select the session ID element text
+    const range = document.createRange();
+    range.selectNode(proofCtrlSessionIdEl);
+    window.getSelection()?.removeAllRanges();
+    window.getSelection()?.addRange(range);
+  });
+});
+
+// ── Session topbar rename ─────────────────────────────────────────────────
+
+sessionTopbarRenameBtnEl.addEventListener("click", () => {
+  if (!currentRunId) return;
+  const run = allSessions.find((s) => s.run_id === currentRunId);
+  sessionTopbarNameInputEl.value = run?.name || truncateSessionName(run) || "";
+  sessionTopbarNameEl.hidden = true;
+  sessionTopbarRenameBtnEl.hidden = true;
+  sessionTopbarNameInputEl.hidden = false;
+  sessionTopbarNameInputEl.focus();
+  sessionTopbarNameInputEl.select();
+});
+
+async function commitTopbarRename() {
+  const newName = sessionTopbarNameInputEl.value.trim();
+  sessionTopbarNameEl.hidden = false;
+  sessionTopbarRenameBtnEl.hidden = false;
+  sessionTopbarNameInputEl.hidden = true;
+  if (!newName || !currentRunId) return;
+  const run = allSessions.find((s) => s.run_id === currentRunId);
+  const oldName = run?.name || "";
+  if (newName === oldName) return;
+  await renameRun(currentRunId, newName);
+  sessionTopbarNameEl.textContent = newName;
+}
+
+sessionTopbarNameInputEl.addEventListener("blur", commitTopbarRename);
+sessionTopbarNameInputEl.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") sessionTopbarNameInputEl.blur();
+  if (e.key === "Escape") {
+    const run = allSessions.find((s) => s.run_id === currentRunId);
+    sessionTopbarNameEl.textContent = run?.name || truncateSessionName(run) || "";
+    sessionTopbarNameEl.hidden = false;
+    sessionTopbarRenameBtnEl.hidden = false;
+    sessionTopbarNameInputEl.hidden = true;
+  }
+});
+
+// ── Restart session from failed-session-note ──────────────────────────────
+
+restartSessionBtn.addEventListener("click", () => {
+  if (!currentRunId) return;
+  restartRun(currentRunId);
 });
 
 closeArtifactDrawerBtn.addEventListener("click", closeArtifactDrawer);
@@ -1491,15 +2009,25 @@ nextStepBtn.addEventListener("click", () => {
   flashTransitionTo("workspace");
 });
 
-
 document.getElementById("tutorial-btn").addEventListener("click", () => {
+  localStorage.removeItem(TUTORIAL_SKIP_KEY);
   currentWizardStep = 0;
   renderWizardStep(0);
   flashTransitionTo("onboarding");
 });
 
+skipTutorialBtn.addEventListener("click", () => {
+  localStorage.setItem("eurekaclaw_tutorial_skipped", "1");
+  flashTransitionTo("workspace");
+});
+
 renderWizardStep(currentWizardStep);
-showView("onboarding");
+// Skip tutorial automatically if user has opted out before
+if (localStorage.getItem(TUTORIAL_SKIP_KEY) === "1") {
+  showView("workspace");
+} else {
+  showView("onboarding");
+}
 loadCapabilities();
 loadConfig();
 loadMostRecentRun();
