@@ -4,6 +4,22 @@ Summary of all updates from `UPDATES.md`.
 
 ---
 
+## 2026-03-21
+
+### 1. ConsistencyChecker Severity-Based Retry Routing
+
+`ConsistencyChecker` now classifies every failure with a `severity` field and the outer iteration loop in `inner_loop_yaml.py` routes retries accordingly:
+
+| Severity | Retry path |
+|---|---|
+| `uncited` | `TheoremCrystallizer` only — no second check — proceed to theory review gate |
+| `major` | `LemmaDeveloper → Assembler → TheoremCrystallizer → ConsistencyChecker` (one attempt; second failure escalates to `all_wrong`) |
+| `all_wrong` | `ProofArchitect → LemmaDeveloper → Assembler → TheoremCrystallizer → ConsistencyChecker` |
+
+The LLM prompt in `ConsistencyChecker` now includes severity classification instructions. If the LLM omits the field, a heuristic infers it from `uncited_lemmas` vs `issues`.
+
+---
+
 ## 2026-03-20 (continued — PRs #23, #28, #29, #30, #31, #33)
 
 ### 8. Principled Prover Confidence Scoring

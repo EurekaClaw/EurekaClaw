@@ -605,23 +605,54 @@ class TheoryInnerLoopYaml:
                 logger.info("Pipeline complete: theorem proved and consistent.")
                 break
 
-            # On retry: decide which stages to re-run based on the failure type.
+            # On retry: route based on severity tag written by ConsistencyChecker.
             last_failure = state.failed_attempts[-1] if state.failed_attempts else None
-            uncited_issue = last_failure and any(
-                kw in last_failure.failure_reason.lower()
-                for kw in ("never cited", "uncited", "missing citation", "not cited")
-            )
-            if uncited_issue:
-                retry_stage_names = ("assembler", "theorem_crystallizer", "consistency_checker")
+            reason = (last_failure.failure_reason if last_failure else "").lower()
+
+            if "[severity:uncited]" in reason or any(
+                kw in reason for kw in ("never cited", "uncited", "missing citation", "not cited")
+            ):
+                # Minor: citation gaps only — re-crystallize, skip second check.
+                retry_stage_names = ("theorem_crystallizer",)
                 logger.info(
-                    "Consistency check failed (uncited lemmas) — re-running assembler + crystallizer (outer iter %d)",
-                    outer_iter + 1,
+                    "Consistency check failed (uncited) — re-running crystallizer only, "
+                    "skipping second check (outer iter %d)", outer_iter + 1,
+                )
+            elif "[severity:all_wrong]" in reason or (
+                # Escalate to all_wrong when a previous major retry also failed.
+                "[severity:major]" in reason
+                and outer_iter > 0
+                and any("[severity:major]" in (f.failure_reason or "").lower()
+                        for f in state.failed_attempts[:-1])
+            ):
+                # All wrong: restart from ProofArchitect.
+                retry_stage_names = (
+                    "proof_architect", "lemma_developer",
+                    "assembler", "theorem_crystallizer", "consistency_checker",
+                )
+                logger.info(
+                    "Consistency check failed (all_wrong) — restarting from ProofArchitect "
+                    "(outer iter %d)", outer_iter + 1,
+                )
+            elif "[severity:major]" in reason:
+                # Major: specific lemma(s) broken — re-prove from LemmaDeveloper.
+                retry_stage_names = (
+                    "lemma_developer", "assembler",
+                    "theorem_crystallizer", "consistency_checker",
+                )
+                logger.info(
+                    "Consistency check failed (major) — re-running from LemmaDeveloper "
+                    "(outer iter %d)", outer_iter + 1,
                 )
             else:
-                retry_stage_names = ("theorem_crystallizer", "consistency_checker")
+                # Default (no severity tag): treat as major.
+                retry_stage_names = (
+                    "lemma_developer", "assembler",
+                    "theorem_crystallizer", "consistency_checker",
+                )
                 logger.info(
-                    "Consistency check failed — re-running crystallizer (outer iter %d)",
-                    outer_iter + 1,
+                    "Consistency check failed (unknown severity) — re-running from LemmaDeveloper "
+                    "(outer iter %d)", outer_iter + 1,
                 )
             current_spec = [s for s in original_spec if s["name"] in retry_stage_names]
         else:
