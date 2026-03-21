@@ -1,7 +1,14 @@
 """Unit tests for the direction planning fallback in MetaOrchestrator."""
 
-import pytest
+import sys
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+
+# Stub out sentence_transformers before any eurekaclaw submodule is imported,
+# since embedding_utils.py imports it at module level and it may not be installed
+# in the test environment.
+sys.modules.setdefault("sentence_transformers", MagicMock())
 
 from eurekaclaw.knowledge_bus.bus import KnowledgeBus
 from eurekaclaw.types.artifacts import ResearchBrief

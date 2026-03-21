@@ -6,6 +6,20 @@ Summary of all updates from `UPDATES.md`.
 
 ## 2026-03-21
 
+### 3. Force Human Intervention When Ideation Returns 0 Directions
+
+Previously, in `prove` (detailed) mode, `_handle_direction_gate` silently auto-created a research direction from the user's conjecture when ideation returned 0 directions. The user was never notified and the pipeline continued without any human confirmation.
+
+**Fix:** The silent "detailed mode" auto-creation block has been removed. `_handle_manual_direction` is now called whenever `brief.directions` is empty, regardless of `input_mode`. In `prove` mode the user's conjecture is shown as a default — pressing Enter accepts it, or the user can type a different direction.
+
+**Relevant files:** `eurekaclaw/orchestrator/meta_orchestrator.py`, `tests/unit/test_direction_fallback.py`
+
+### 2. Pause Immediately Before Next Lemma
+
+The pause-flag check in `inner_loop_yaml.py` (`LemmaDeveloper` loop) has been moved to the **start** of each lemma iteration. Previously the check happened after a lemma completed, meaning a pause request could wait up to several minutes for the current lemma's LLM calls to finish. Now the pipeline halts before the next lemma's first LLM call.
+
+**Relevant file:** `eurekaclaw/agents/theory/inner_loop_yaml.py`
+
 ### 1. ConsistencyChecker Severity-Based Retry Routing
 
 `ConsistencyChecker` now classifies every failure with a `severity` field and the outer iteration loop in `inner_loop_yaml.py` routes retries accordingly:

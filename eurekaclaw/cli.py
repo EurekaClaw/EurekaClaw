@@ -48,8 +48,8 @@ def prove(conjecture: str, domain: str, mode: str, gate: str, output: str) -> No
 
     Example: eurekaclaw prove "The sample complexity of transformers is O(L*d*log(d)/eps^2)"
 
-    Press Ctrl+C at any time to pause.  The pipeline will finish the
-    current lemma and save a checkpoint.  Resume with:
+    Press Ctrl+C at any time to pause.  The pipeline will stop before the
+    next lemma and save a checkpoint.  Resume with:
         eurekaclaw resume <session-id>
     """
     _run_session(
@@ -328,7 +328,7 @@ def _install_pause_handler(cp: "ProofCheckpoint") -> None:  # type: ignore[name-
     def _handler(signum: int, frame: object) -> None:
         cp.request_pause()
         console.print(
-            "\n[yellow]Pause requested — finishing current lemma, then saving checkpoint...[/yellow]"
+            "\n[yellow]Pause requested — will stop before the next lemma and save checkpoint...[/yellow]"
         )
 
     signal.signal(signal.SIGINT, _handler)

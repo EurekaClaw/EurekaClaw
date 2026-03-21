@@ -168,12 +168,19 @@ save_artifacts()
 
 ## Direction Planning Fallback
 
-After the `IdeationAgent` runs, `MetaOrchestrator._handle_direction_gate()` calls `DivergentConvergentPlanner.diverge()` to generate 5 research directions. If the planner fails or returns an empty list (e.g. LLM parse error, API timeout), instead of silently proceeding with no direction the orchestrator **halts and prompts the user**:
+After `IdeationAgent` runs, `MetaOrchestrator._handle_direction_gate()` checks `brief.directions`. If the list is empty (ideation returned 0 directions, the planner failed, or a dependency was skipped), **human intervention is always required** regardless of `input_mode`:
+
+**Exploration / reference mode** — `DivergentConvergentPlanner.diverge()` is called first to attempt to generate 5 directions. If the planner also fails or returns empty, `_handle_manual_direction()` is called.
+
+**Prove / detailed mode** — The planner is skipped. `_handle_manual_direction()` is called directly, showing the user's conjecture as the default direction. The user presses Enter to accept it or types a new one.
+
+`_handle_manual_direction()` behavior:
 
 1. Prints up to 5 open problems found by the survey as context.
-2. Asks the user to type a hypothesis/direction manually.
-3. Constructs a `ResearchDirection` from the input and writes it to `ResearchBrief`.
-4. If the user enters nothing or presses Ctrl+C, raises `RuntimeError` and the session exits cleanly.
+2. If `brief.conjecture` is set, shows it as a suggested default.
+3. Asks the user to confirm or type a different direction (empty input accepts the conjecture default if available).
+4. Constructs a `ResearchDirection` from the input and writes it to `ResearchBrief`.
+5. If the user provides nothing and no conjecture default exists, or presses Ctrl+C, raises `RuntimeError` and the session exits cleanly.
 
 This is implemented in `_handle_manual_direction()` in `meta_orchestrator.py`.
 
