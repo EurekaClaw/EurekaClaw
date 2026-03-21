@@ -8,7 +8,7 @@ name: hypothesis_gen
 pipeline_stages:
 - ideation
 source: seed
-success_rate: null
+success_rate: 0.6366789999999999
 tags:
 - ideation
 - hypothesis

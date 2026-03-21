@@ -8,7 +8,7 @@ name: paper_structure
 pipeline_stages:
 - writing
 source: seed
-success_rate: null
+success_rate: 1.0
 tags:
 - writing
 - latex

@@ -8,7 +8,7 @@ name: empirical_validation
 pipeline_stages:
 - experiment
 source: seed
-success_rate: null
+success_rate: 1.0
 tags:
 - experiment
 - validation
