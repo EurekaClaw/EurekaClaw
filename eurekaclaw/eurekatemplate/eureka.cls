@@ -33,7 +33,7 @@
 
 \RequirePackage[top=2.12cm, bottom=3.20cm, left=2.5cm, right=2.5cm, columnsep=0.65cm]{geometry}
 \ifXeTeX\else
-\RequirePackage{microtype}
+\RequirePackage[expansion=false]{microtype}
 \fi
 \RequirePackage{placeins}
 \RequirePackage{setspace}
