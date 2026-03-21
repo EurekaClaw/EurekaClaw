@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 from pathlib import Path
 
@@ -35,16 +36,37 @@ class SkillRegistry:
         if not self._loaded:
             self._load()
 
+    @property
+    def _seed_stats_path(self) -> Path:
+        """Path to the JSON file that stores usage stats for seed skills."""
+        return settings.eurekaclaw_dir / "seed_skill_stats.json"
+
+    def _load_seed_stats(self) -> dict[str, dict]:
+        """Return {skill_name: {usage_count, success_rate}} from the stats file."""
+        if self._seed_stats_path.exists():
+            try:
+                return json.loads(self._seed_stats_path.read_text(encoding="utf-8"))
+            except Exception as e:
+                logger.warning("Failed to read seed skill stats: %s", e)
+        return {}
+
+    def _save_seed_stats(self, stats: dict[str, dict]) -> None:
+        self._seed_stats_path.parent.mkdir(parents=True, exist_ok=True)
+        self._seed_stats_path.write_text(
+            json.dumps(stats, indent=2), encoding="utf-8"
+        )
+
     def _load(self) -> None:
         self._skills.clear()
+        seed_stats = self._load_seed_stats()
         # 1. Seed skills bundled with the package (lowest priority)
         for path in sorted(_SEED_DIR.rglob("*.md")):
-            self._load_file(path, is_seed=True)
+            self._load_file(path, is_seed=True, seed_stats=seed_stats)
         # 2. Domain plugin skill dirs (medium priority)
         for extra_dir in self._extra_dirs:
             if extra_dir.exists():
                 for path in sorted(extra_dir.rglob("*.md")):
-                    self._load_file(path, is_seed=True)
+                    self._load_file(path, is_seed=True, seed_stats=seed_stats)
         # 3. User skills from ~/.eurekaclaw/skills/ (highest priority)
         self._skills_dir.mkdir(parents=True, exist_ok=True)
         for path in sorted(self._skills_dir.rglob("*.md")):
@@ -52,7 +74,9 @@ class SkillRegistry:
         self._loaded = True
         logger.debug("Loaded %d skills total", len(self._skills))
 
-    def _load_file(self, path: Path, is_seed: bool = False) -> None:
+    def _load_file(
+        self, path: Path, is_seed: bool = False, seed_stats: dict | None = None
+    ) -> None:
         try:
             post = frontmatter.load(str(path))
             meta_dict = dict(post.metadata)
@@ -61,6 +85,12 @@ class SkillRegistry:
             if is_seed and "source" not in meta_dict:
                 meta_dict["source"] = "seed"
             meta = SkillMeta.model_validate(meta_dict)
+            # Overlay usage stats from the external JSON so seed .md files
+            # are never modified by runtime activity.
+            if is_seed and seed_stats and meta.name in seed_stats:
+                entry = seed_stats[meta.name]
+                meta.usage_count = entry.get("usage_count", meta.usage_count)
+                meta.success_rate = entry.get("success_rate", meta.success_rate)
             record = SkillRecord(meta=meta, content=post.content, file_path=str(path))
             self._skills[meta.name] = record
         except Exception as e:
@@ -110,14 +140,14 @@ class SkillRegistry:
 
         Called by ContinualLearningLoop after session completes so skills that
         actually helped get promoted in future top_k retrieval.
-        """
-        import yaml
 
+        Seed skills: stats are written to ~/.eurekaclaw/seed_skill_stats.json
+                     so the bundled .md files are never modified.
+        Distilled skills: stats are written back into their own .md file in
+                          ~/.eurekaclaw/skills/ as before.
+        """
         skill = self.get(name)
-        if not skill or not skill.file_path:
-            return
-        path = Path(skill.file_path)
-        if not path.exists():
+        if not skill:
             return
 
         skill.meta.usage_count += 1
@@ -128,10 +158,27 @@ class SkillRegistry:
             # Exponential moving average (α=0.3) so recent outcomes matter more
             skill.meta.success_rate = 0.7 * prev_rate + 0.3 * (1.0 if success else 0.0)
 
-        meta_dict = skill.meta.model_dump(mode="json")
-        meta_dict = {k: v for k, v in meta_dict.items() if v is not None}
-        frontmatter_block = yaml.dump(meta_dict, default_flow_style=False, allow_unicode=True)
-        path.write_text(f"---\n{frontmatter_block}---\n\n{skill.content}")
+        if skill.meta.source == "seed":
+            # Persist to external JSON — never touch the .md file
+            stats = self._load_seed_stats()
+            stats[name] = {
+                "usage_count": skill.meta.usage_count,
+                "success_rate": skill.meta.success_rate,
+            }
+            self._save_seed_stats(stats)
+        else:
+            import yaml
+
+            if not skill.file_path:
+                return
+            path = Path(skill.file_path)
+            if not path.exists():
+                return
+            meta_dict = skill.meta.model_dump(mode="json")
+            meta_dict = {k: v for k, v in meta_dict.items() if v is not None}
+            frontmatter_block = yaml.dump(meta_dict, default_flow_style=False, allow_unicode=True)
+            path.write_text(f"---\n{frontmatter_block}---\n\n{skill.content}")
+
         logger.debug(
             "Updated skill stats: %s usage=%d success_rate=%.2f",
             name, skill.meta.usage_count, skill.meta.success_rate or 0,

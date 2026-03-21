@@ -15,7 +15,7 @@ tags:
 - novelty
 - cross-domain
 - divergent-thinking
-usage_count: 8
+usage_count: 0
 version: '1.0'
 ---
 
