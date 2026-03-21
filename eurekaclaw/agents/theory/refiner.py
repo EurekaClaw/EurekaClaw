@@ -66,7 +66,7 @@ class Refiner:
 
         try:
             response = await self.client.messages.create(
-                model=settings.eurekaclaw_model,
+                model=settings.active_model,
                 max_tokens=settings.max_tokens_formalizer,
                 system=REFINE_SYSTEM,
                 messages=[{
