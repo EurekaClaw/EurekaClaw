@@ -8,7 +8,7 @@ name: latex_algorithm_and_syntax
 pipeline_stages:
 - writing
 source: seed
-success_rate: 1.0
+success_rate: null
 tags:
 - writing
 - latex
@@ -17,7 +17,7 @@ tags:
 - syntax
 - compilation
 - paper
-usage_count: 5
+usage_count: 0
 version: '1.0'
 ---
 

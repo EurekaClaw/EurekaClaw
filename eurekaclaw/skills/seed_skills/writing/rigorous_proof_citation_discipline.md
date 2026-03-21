@@ -8,7 +8,7 @@ name: rigorous_proof_citation_discipline
 pipeline_stages:
 - writing
 source: seed
-success_rate: 1.0
+success_rate: null
 tags:
 - writing
 - proof
@@ -18,7 +18,7 @@ tags:
 - citation
 - latex
 - paper
-usage_count: 5
+usage_count: 0
 version: '1.0'
 ---
 

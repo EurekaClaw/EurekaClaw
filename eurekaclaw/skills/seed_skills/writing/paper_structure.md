@@ -8,7 +8,7 @@ name: paper_structure
 pipeline_stages:
 - writing
 source: seed
-success_rate: 1.0
+success_rate: null
 tags:
 - writing
 - latex
@@ -16,7 +16,7 @@ tags:
 - structure
 - theorem
 - proof
-usage_count: 6
+usage_count: 0
 version: '1.0'
 ---
 
