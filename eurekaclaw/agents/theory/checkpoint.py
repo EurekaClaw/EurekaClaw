@@ -71,8 +71,13 @@ class ProofCheckpoint:
             logger.warning("Could not remove pause flag: %s", e)
 
     # ------------------------------------------------------------------
-    # Checkpoint existence
+    # Checkpoint existence / path
     # ------------------------------------------------------------------
+
+    @property
+    def checkpoint_path(self) -> Path:
+        """Public path to the checkpoint file (for display purposes)."""
+        return self._checkpoint
 
     def exists(self) -> bool:
         """Return True if a saved checkpoint is available."""

@@ -180,11 +180,12 @@ class Verifier:
             data = self._parse_review(text)
 
             confidence = float(data.get("confidence", 0.5))
+            threshold = float(settings.verifier_pass_confidence)
             errors = data.get("errors", []) + data.get("gaps", [])
             passed = (
                 bool(data.get("verified", False))
                 and len(errors) == 0
-                and confidence >= settings.verifier_pass_confidence
+                and confidence >= threshold
             )
 
             return VerificationResult(
@@ -195,7 +196,7 @@ class Verifier:
                 errors=errors,
                 notes=(
                     f"{data.get('notes', '')} "
-                    f"[pass threshold={settings.verifier_pass_confidence:.2f}]"
+                    f"[pass threshold={threshold:.2f}]"
                 ).strip(),
             )
         except Exception as e:
