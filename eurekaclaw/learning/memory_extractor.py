@@ -28,6 +28,7 @@ from pathlib import Path
 from typing import Literal
 
 from eurekaclaw.config import settings
+from eurekaclaw.memory.embedding_utils import get_embedding # New import
 from eurekaclaw.llm import LLMClient, create_client
 
 logger = logging.getLogger(__name__)
@@ -89,19 +90,19 @@ class SessionMemoryExtractor:
         self.client: LLMClient = client or create_client()
         self._base_dir = settings.eurekaclaw_dir / "memories"
         self._base_dir.mkdir(parents=True, exist_ok=True)
-        self._index_path = self._base_dir / "_index.json"
-        self._fingerprints: set[str] = self._load_index()
 
-    def _load_index(self) -> set[str]:
-        if self._index_path.exists():
+    def _load_domain_index(self, domain_dir: Path) -> dict[str, dict]:
+        index_path = domain_dir / "_index.json"
+        if index_path.exists():
             try:
-                return set(json.loads(self._index_path.read_text()))
+                return json.loads(index_path.read_text())
             except Exception:
-                return set()
-        return set()
+                return {}
+        return {}
 
-    def _save_index(self) -> None:
-        self._index_path.write_text(json.dumps(sorted(self._fingerprints), indent=2))
+    def _save_domain_index(self, domain_dir: Path, index: dict[str, dict]) -> None:
+        index_path = domain_dir / "_index.json"
+        index_path.write_text(json.dumps(index, indent=2))
 
     def _fingerprint(self, content: str) -> str:
         return hashlib.sha256(content.strip().lower().encode()).hexdigest()[:16]
@@ -147,6 +148,7 @@ class SessionMemoryExtractor:
         saved: list[dict] = []
         domain_slug = re.sub(r"[^\w]", "_", domain.lower())[:30] if domain else "general"
         domain_dir = self._base_dir / domain_slug
+        domain_index = self._load_domain_index(domain_dir)
         domain_dir.mkdir(exist_ok=True)
 
         for category in ("domain_knowledge", "proof_strategy", "open_problems", "pitfalls"):
@@ -162,7 +164,7 @@ class SessionMemoryExtractor:
                     continue
 
                 fp = self._fingerprint(title + content)
-                if fp in self._fingerprints:
+                if any(entry_data.get("fingerprint") == fp for entry_data in domain_index.values()):
                     logger.debug("Skipping duplicate memory: %s", title)
                     continue
 
@@ -191,12 +193,20 @@ class SessionMemoryExtractor:
                     f"{content}\n"
                 )
                 path.write_text(md, encoding="utf-8")
-                self._fingerprints.add(fp)
+
+                # Generate and store embedding
+                embedding = get_embedding(f"{title} {content}")
+                domain_index[path.name] = {
+                    "fingerprint": fp,
+                    "created_at": datetime.utcnow().isoformat(),
+                    "embedding": embedding,
+                    "category": category,
+                }
                 saved.append({"title": title, "category": category, "path": str(path)})
                 logger.info("Saved memory [%s] '%s' → %s", category, title, path.name)
 
         if saved:
-            self._save_index()
+            self._save_domain_index(domain_dir, domain_index)
         return saved
 
     async def _try_merge(
@@ -254,27 +264,3 @@ class SessionMemoryExtractor:
             return json.loads(text)
         except Exception:
             return {}
-
-    def load_for_injection(self, domain: str, k: int = 4) -> str:
-        """Load the k most recent high-confidence memories for a domain, formatted for prompt injection."""
-        domain_slug = re.sub(r"[^\w]", "_", domain.lower())[:30] if domain else "general"
-        domain_dir = self._base_dir / domain_slug
-        if not domain_dir.exists():
-            # Fall back to general memories
-            domain_dir = self._base_dir / "general"
-        if not domain_dir.exists():
-            return ""
-
-        files = sorted(domain_dir.glob("*.md"), key=lambda f: f.stat().st_mtime, reverse=True)
-        selected = files[:k]
-        if not selected:
-            return ""
-
-        parts = ["<memories>"]
-        for f in selected:
-            text = f.read_text(encoding="utf-8")
-            # Strip frontmatter
-            body = re.sub(r"^---\n.*?---\n", "", text, flags=re.DOTALL).strip()
-            parts.append(body[:400])
-        parts.append("</memories>")
-        return "\n\n".join(parts)
