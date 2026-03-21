@@ -467,6 +467,18 @@ If a section has little content, write at least two sentences rather than omitti
             r"(?s)\\begin\{abstract\}.*?\\end\{abstract\}", "", text
         )
 
+        # 5b. Strip any \begin{thebibliography}...\end{thebibliography} blocks and
+        #     associated \bibliographystyle / \bibliography commands written by the
+        #     LLM.  A single, clean bibliography is always appended by
+        #     _generate_thebibliography() after this method returns, so any
+        #     LLM-generated copy would produce a duplicate.
+        text = re.sub(
+            r"(?s)\\begin\{thebibliography\}.*?\\end\{thebibliography\}", "", text
+        )
+        # Also strip standalone \bibliographystyle{...} and \bibliography{...} lines
+        text = re.sub(r"(?m)^[ \t]*\\bibliographystyle\{[^}]*\}[ \t]*\n?", "", text)
+        text = re.sub(r"(?m)^[ \t]*\\bibliography\{[^}]*\}[ \t]*\n?", "", text)
+
         # 6. Normalize broken or mis-cased environment names produced by the LLM.
         #    e.g. \begin{Proof} → \begin{proof}, \begin{le mma} → \begin{lemma}
         _ENV_FIXES = {

@@ -75,6 +75,9 @@ class Config(BaseSettings):
     experiment_mode: Literal["auto", "true", "false"] = Field(
         default="auto", alias="EXPERIMENT_MODE"
     )
+    paper_reader_use_pdf: bool = Field(default=True, alias="PAPER_READER_USE_PDF")
+    paper_reader_abstract_papers: int = Field(default=10, alias="PAPER_READER_ABSTRACT_PAPERS")
+    paper_reader_pdf_papers: int = Field(default=3, alias="PAPER_READER_PDF_PAPERS")
 
     # ---- Token limits per call type ----------------------------------------
     max_tokens_agent: int = Field(default=8192, alias="MAX_TOKENS_AGENT")

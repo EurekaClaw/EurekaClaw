@@ -49,6 +49,9 @@ Rules:
 - When a proof skeleton or decomposition is already available, do NOT force a
   large lemma DAG. A compact plan with only the genuinely nontrivial bottleneck
   lemmas plus the final result is preferred.
+- Treat literature results tagged "pdf_result_sections" as more grounded than
+  results tagged "abstract_summary". Use abstract-derived results as hints or
+  soft support unless the statement is clearly suitable for citation/adaptation.
 - Known lemmas should use results from the provided known-results list
 - Adapted/new lemmas should identify exactly what is novel
 - The final lemma should be the main result (provenance "new")
@@ -244,10 +247,14 @@ class ProofArchitect:
         lines = []
         for kr in state.known_results:
             lines.append(
-                f"• [{kr.result_type}] {kr.statement[:150]}"
+                f"• [{kr.result_type}] {kr.theorem_content[:150] or kr.statement[:150]}"
                 f"\n  informal: {kr.informal}"
+                f"\n  assumptions: {kr.assumptions[:160] or 'unspecified'}"
+                f"\n  proof idea: {kr.proof_idea[:160] or 'unspecified'}"
+                f"\n  reuse: {kr.reuse_judgment}"
                 f"\n  technique: {kr.proof_technique}"
                 f"\n  source: {kr.source_paper_title[:60]} (id: {kr.source_paper_id})"
+                f"\n  extraction: {kr.extraction_source}"
             )
         return "\n\n".join(lines)
 

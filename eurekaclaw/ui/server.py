@@ -50,6 +50,9 @@ _CONFIG_FIELDS: dict[str, str] = {
     "auto_verify_confidence": "AUTO_VERIFY_CONFIDENCE",
     "verifier_pass_confidence": "VERIFIER_PASS_CONFIDENCE",
     "output_format": "OUTPUT_FORMAT",
+    "paper_reader_use_pdf": "PAPER_READER_USE_PDF",
+    "paper_reader_abstract_papers": "PAPER_READER_ABSTRACT_PAPERS",
+    "paper_reader_pdf_papers": "PAPER_READER_PDF_PAPERS",
     "eurekaclaw_dir": "EUREKACLAW_DIR",
     # Token limits
     "max_tokens_agent": "MAX_TOKENS_AGENT",
@@ -64,6 +67,11 @@ _CONFIG_FIELDS: dict[str, str] = {
     "max_tokens_sketch": "MAX_TOKENS_SKETCH",
     "max_tokens_verifier": "MAX_TOKENS_VERIFIER",
     "max_tokens_compress": "MAX_TOKENS_COMPRESS",
+    "max_tokens_crystallizer": "MAX_TOKENS_CRYSTALLIZER",
+    "max_tokens_assembler": "MAX_TOKENS_ASSEMBLER",
+    "max_tokens_architect": "MAX_TOKENS_ARCHITECT",
+    "max_tokens_analyst": "MAX_TOKENS_ANALYST",
+    "max_tokens_sketch": "MAX_TOKENS_SKETCH",
 }
 
 
@@ -785,6 +793,8 @@ class UIRequestHandler(SimpleHTTPRequestHandler):
                 current = getattr(settings, field_name)
                 if isinstance(current, Path):
                     setattr(settings, field_name, Path(rendered))
+                elif isinstance(current, bool):
+                    setattr(settings, field_name, rendered.lower() == "true")
                 elif isinstance(current, int):
                     setattr(settings, field_name, int(rendered))
                 elif isinstance(current, float):

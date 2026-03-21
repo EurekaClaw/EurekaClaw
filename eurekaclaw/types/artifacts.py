@@ -133,7 +133,12 @@ class KnownResult(BaseModel):
     source_paper_id: str
     source_paper_title: str
     result_type: Literal["theorem", "lemma", "corollary", "algorithm", "technique"]
+    extraction_source: Literal["abstract_summary", "pdf_result_sections"] = "abstract_summary"
     statement: str
+    theorem_content: str = ""
+    assumptions: str = ""
+    proof_idea: str = ""
+    reuse_judgment: Literal["direct_reusable", "adaptable", "background_only", "unclear"] = "unclear"
     informal: str = ""
     proof_technique: str = ""   # e.g. "Azuma-Hoeffding", "elliptical potential lemma"
     notation: dict[str, str] = Field(default_factory=dict)  # symbol -> definition
