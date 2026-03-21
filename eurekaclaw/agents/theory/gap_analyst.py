@@ -27,6 +27,10 @@ research direction.  Your task is to identify the *gap*: what is not yet
 known, what the novel contribution of a new paper should be, and what
 the key technical challenges are.
 
+Each known result includes an extraction-source label:
+- "pdf_result_sections": extracted from theorem/result sections of the paper body; treat as more grounded
+- "abstract_summary": inferred from abstract-level summary; treat as lower-confidence guidance unless corroborated
+
 Be concrete about:
 1. Which specific result is missing (e.g. "no tight regret lower bound
    exists for this family of algorithms under sub-Gaussian noise")
@@ -104,9 +108,12 @@ class GapAnalyst:
         lines = []
         for kr in state.known_results:
             line = (
-                f"[{kr.result_type.upper()}] {kr.informal or kr.statement[:100]}"
+                f"[{kr.result_type.upper()}] {kr.informal or kr.theorem_content[:100] or kr.statement[:100]}"
                 f" — technique: {kr.proof_technique or 'unspecified'}"
-                f" (from: {kr.source_paper_title[:50]})"
+                f" — reuse: {kr.reuse_judgment}"
+                f"\n  assumptions: {kr.assumptions[:120] or 'unspecified'}"
+                f"\n  proof idea: {kr.proof_idea[:120] or 'unspecified'}"
+                f"\n  source: {kr.source_paper_title[:50]}, extraction: {kr.extraction_source}"
             )
             lines.append(line)
         return "\n".join(lines)

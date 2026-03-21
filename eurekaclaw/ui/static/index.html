@@ -417,6 +417,23 @@
                     <option value="markdown">markdown</option>
                   </select>
                 </label>
+                <label data-config-show="always" class="switch-field">
+                  <span class="switch-field-copy">
+                    <strong>PDF deep read</strong>
+                  </span>
+                  <span class="switch-control">
+                    <input type="checkbox" name="paper_reader_use_pdf" value="true" />
+                    <span class="switch-slider" aria-hidden="true"></span>
+                  </span>
+                </label>
+                <label data-config-show="always">
+                  <span>Coarse read papers</span>
+                  <input type="number" name="paper_reader_abstract_papers" min="1" max="20" step="1" />
+                </label>
+                <label data-config-show="always">
+                  <span>Deep read papers</span>
+                  <input type="number" name="paper_reader_pdf_papers" min="0" max="20" step="1" />
+                </label>
                 <label class="full-width" data-config-show="backend:anthropic auth:api_key">
                   <span>Anthropic API key</span>
                   <input type="password" name="anthropic_api_key" placeholder="Optional if using oauth" />

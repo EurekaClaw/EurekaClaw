@@ -32,6 +32,9 @@ Rules:
   - "known" for directly citable results
   - "adapted" for memory/literature results needing modification
   - "new" for genuinely new technical steps
+- Treat literature results tagged "pdf_result_sections" as more grounded than
+  "abstract_summary". Use abstract-derived items as hints unless the statement
+  is clearly stable enough to cite or adapt.
 - Do not create fake bookkeeping lemmas.
 - If no independent lemma is needed, return an empty list.
 
@@ -129,10 +132,14 @@ class KeyLemmaExtractor:
         lines = []
         for kr in state.known_results[:10]:
             lines.append(
-                f"• [{kr.result_type}] {kr.statement[:150]}"
+                f"• [{kr.result_type}] {kr.theorem_content[:150] or kr.statement[:150]}"
                 f"\n  informal: {kr.informal}"
+                f"\n  assumptions: {kr.assumptions[:160] or 'unspecified'}"
+                f"\n  proof idea: {kr.proof_idea[:160] or 'unspecified'}"
+                f"\n  reuse: {kr.reuse_judgment}"
                 f"\n  technique: {kr.proof_technique}"
                 f"\n  source: {kr.source_paper_title[:60]} (id: {kr.source_paper_id})"
+                f"\n  extraction: {kr.extraction_source}"
             )
         return "\n\n".join(lines)
 

@@ -980,7 +980,11 @@ async function deleteRun(runId) {
 }
 
 function configPayloadFromForm() {
-  return Object.fromEntries(new FormData(configFormEl).entries());
+  const payload = Object.fromEntries(new FormData(configFormEl).entries());
+  configFormEl.querySelectorAll('input[type="checkbox"]').forEach((field) => {
+    payload[field.name] = field.checked;
+  });
+  return payload;
 }
 
 function skillSearchText(skill) {
@@ -1353,7 +1357,11 @@ async function loadConfig() {
     Object.entries(data.config).forEach(([key, value]) => {
       const field = configFormEl.elements.namedItem(key);
       if (field) {
-        field.value = value ?? "";
+        if (field.type === "checkbox") {
+          field.checked = value === true || value === "true";
+        } else {
+          field.value = value ?? "";
+        }
         // Sync slider display label if present
         const label = document.getElementById(`${key}-val`);
         if (label) label.textContent = value ?? "";

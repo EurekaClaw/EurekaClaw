@@ -234,6 +234,225 @@ def eval_session(session_id: str) -> None:
     ))
 
 
+@main.command("replay-theory-tail")
+@click.argument("session_id")
+@click.option(
+    "--from",
+    "from_stage",
+    default="consistency_checker",
+    type=click.Choice(["assembler", "theorem_crystallizer", "consistency_checker"]),
+    show_default=True,
+    help="Replay theory tail stages starting from this stage.",
+)
+def replay_theory_tail(session_id: str, from_stage: str) -> None:
+    """Replay theory tail stages from a completed run.
+
+    This is useful when you want to quickly retest:
+    - assembler
+    - theorem crystallization
+    - consistency checking
+
+    without rerunning survey, planning, or lemma proving.
+    """
+    import atexit
+
+    from eurekaclaw.agents.theory.assembler import Assembler
+    from eurekaclaw.agents.theory.consistency_checker import ConsistencyChecker
+    from eurekaclaw.agents.theory.theorem_crystallizer import TheoremCrystallizer
+    from eurekaclaw.ccproxy_manager import maybe_start_ccproxy, stop_ccproxy
+    from eurekaclaw.knowledge_bus.bus import KnowledgeBus
+    from eurekaclaw.types.artifacts import TheoryState
+
+    # Match the main session runner: when Anthropic OAuth is enabled,
+    # ensure ccproxy is running and the Anthropic client env is wired up.
+    if settings.anthropic_auth_mode == "oauth":
+        try:
+            _ccproxy_proc = maybe_start_ccproxy()
+            if _ccproxy_proc:
+                atexit.register(stop_ccproxy, _ccproxy_proc)
+        except (RuntimeError, ValueError) as exc:
+            console.print(f"[red]ccproxy error: {exc}[/red]")
+            sys.exit(1)
+
+    session_dir = settings.runs_dir / session_id
+    if not session_dir.exists():
+        console.print(f"[red]Session not found: {session_dir}[/red]")
+        sys.exit(1)
+
+    theory_path = session_dir / "theory_state.json"
+    if not theory_path.exists():
+        console.print(f"[red]No theory_state.json found in {session_dir}[/red]")
+        sys.exit(1)
+
+    state = TheoryState.model_validate_json(theory_path.read_text())
+    bus = KnowledgeBus.load(session_id, session_dir)
+    bus.put_theory_state(state)
+
+    console.print(
+        f"\n[bold green]Replaying theory tail[/bold green] [cyan]{session_id[:8]}[/cyan]"
+        f"  from=[yellow]{from_stage}[/yellow]\n"
+    )
+
+    async def _run() -> TheoryState:
+        current = state
+        domain = ""
+        stage_order = {
+            "assembler": [
+                ("assembler", Assembler()),
+                ("theorem_crystallizer", TheoremCrystallizer()),
+                ("consistency_checker", ConsistencyChecker()),
+            ],
+            "theorem_crystallizer": [
+                ("theorem_crystallizer", TheoremCrystallizer()),
+                ("consistency_checker", ConsistencyChecker()),
+            ],
+            "consistency_checker": [
+                ("consistency_checker", ConsistencyChecker()),
+            ],
+        }[from_stage]
+
+        for stage_name, stage in stage_order:
+            console.print(f"[cyan]Running {stage_name}...[/cyan]")
+            current = await stage.run(current, domain=domain)
+            bus.put_theory_state(current)
+        return current
+
+    final_state = asyncio.run(_run())
+    theory_path.write_text(final_state.model_dump_json(indent=2))
+    bus.persist(session_dir)
+
+    _print_proof_result(final_state)
+    console.print(f"\n[green]Updated theory_state saved to[/green] {theory_path}\n")
+
+
+@main.command("test-paper-reader")
+@click.argument("session_id")
+@click.argument("paper_ref")
+@click.option(
+    "--mode",
+    default="both",
+    type=click.Choice(["abstract", "pdf", "both"]),
+    show_default=True,
+    help="Which PaperReader extraction path to test.",
+)
+@click.option(
+    "--direction",
+    default="",
+    help="Optional research direction override used in extraction prompts.",
+)
+def test_paper_reader(session_id: str, paper_ref: str, mode: str, direction: str) -> None:
+    """Test PaperReader on a single bibliography entry from an existing run.
+
+    PAPER_REF can be either:
+    - the exact paper_id / arxiv_id, or
+    - a case-insensitive substring of the paper title
+
+    This bypasses survey/planning and directly exercises PaperReader's
+    abstract and/or PDF extraction paths.
+    """
+    import atexit
+
+    from eurekaclaw.agents.theory.paper_reader import PaperReader
+    from eurekaclaw.ccproxy_manager import maybe_start_ccproxy, stop_ccproxy
+    from eurekaclaw.knowledge_bus.bus import KnowledgeBus
+    from eurekaclaw.types.artifacts import TheoryState
+
+    if settings.anthropic_auth_mode == "oauth":
+        try:
+            _ccproxy_proc = maybe_start_ccproxy()
+            if _ccproxy_proc:
+                atexit.register(stop_ccproxy, _ccproxy_proc)
+        except (RuntimeError, ValueError) as exc:
+            console.print(f"[red]ccproxy error: {exc}[/red]")
+            sys.exit(1)
+
+    session_dir = settings.runs_dir / session_id
+    if not session_dir.exists():
+        console.print(f"[red]Session not found: {session_dir}[/red]")
+        sys.exit(1)
+
+    bus = KnowledgeBus.load(session_id, session_dir)
+    bib = bus.get_bibliography()
+    if not bib or not bib.papers:
+        console.print(f"[red]No bibliography found in {session_dir}[/red]")
+        sys.exit(1)
+
+    ref_lower = paper_ref.strip().lower()
+    matches = [
+        p for p in bib.papers
+        if p.paper_id.lower() == ref_lower
+        or (p.arxiv_id or "").lower() == ref_lower
+        or ref_lower in p.title.lower()
+    ]
+    if not matches:
+        console.print(f"[red]No paper matched '{paper_ref}' in session {session_id}.[/red]")
+        sys.exit(1)
+    if len(matches) > 1:
+        console.print("[yellow]Multiple papers matched; using the most relevant one:[/yellow]")
+        matches = sorted(matches, key=lambda p: p.relevance_score, reverse=True)
+    paper = matches[0]
+
+    brief = bus.get_research_brief()
+    test_direction = (
+        direction
+        or (brief.selected_direction.hypothesis if brief and brief.selected_direction else "")
+        or paper.title
+    )
+    reader = PaperReader(bus)
+    state = TheoryState(session_id=session_id, theorem_id="paper_reader_test", informal_statement=test_direction)
+
+    console.print(
+        f"\n[bold green]Testing PaperReader[/bold green] [cyan]{session_id[:8]}[/cyan]"
+        f"\nPaper: [bold]{paper.title}[/bold]"
+        f"\nPaper ID: [cyan]{paper.paper_id}[/cyan]"
+        f"\nArXiv ID: [cyan]{paper.arxiv_id or '(none)'}[/cyan]"
+        f"\nMode: [yellow]{mode}[/yellow]\n"
+    )
+
+    async def _run_test() -> tuple[list, list]:
+        abstract_results = []
+        pdf_results = []
+        if mode in ("abstract", "both"):
+            console.print("[cyan]Running abstract extraction...[/cyan]")
+            abstract_results = await reader._extract_from_paper(
+                paper.paper_id,
+                paper.title,
+                paper.abstract,
+                test_direction,
+            )
+        if mode in ("pdf", "both"):
+            console.print("[cyan]Running PDF extraction...[/cyan]")
+            pdf_results = await reader._extract_from_paper_pdf(
+                paper.paper_id,
+                paper.title,
+                paper.arxiv_id or "",
+                test_direction,
+            )
+        return abstract_results, pdf_results
+
+    abstract_results, pdf_results = asyncio.run(_run_test())
+
+    def _print_results(label: str, results: list) -> None:
+        console.print(f"\n[bold]{label}[/bold]: {len(results)} result(s)")
+        for idx, item in enumerate(results[:8], 1):
+            console.print(
+                f"{idx}. [{item.result_type}] source={item.extraction_source} "
+                f"technique={item.proof_technique or 'unspecified'}"
+            )
+            console.print(f"   {item.statement[:220]}")
+
+    if mode in ("abstract", "both"):
+        _print_results("Abstract extraction", abstract_results)
+    if mode in ("pdf", "both"):
+        _print_results("PDF extraction", pdf_results)
+
+    if mode == "both":
+        console.print(
+            f"\n[green]Summary:[/green] abstract={len(abstract_results)} result(s), "
+            f"pdf={len(pdf_results)} result(s)"
+        )
+
+
 @main.command()
 @click.argument("skillname", default="")
 @click.option("--force", "-f", is_flag=True, help="Overwrite skills that are already installed.")

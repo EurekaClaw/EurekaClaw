@@ -26,6 +26,7 @@ dependencies = [
     "arxiv>=2.1",
     "bibtexparser>=1.4",
     "requests>=2.31",
+    "docling>=2.0",
 ]
 
 [project.optional-dependencies]

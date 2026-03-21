@@ -23,6 +23,12 @@ Your goal is to synthesize what prior sessions suggest about:
 - special cases worth checking
 - reusable theorems or lemmas from prior sessions
 
+Known literature results include an extraction-source label:
+- "pdf_result_sections": extracted from theorem/result sections of the paper body; more grounded
+- "abstract_summary": inferred from abstract-level summary; useful but lower-confidence
+
+Prefer grounded PDF-derived results when deciding what is truly reusable.
+
 Return a concise structured note with these headings:
 1. Forward analysis
 2. Backward analysis
@@ -64,6 +70,10 @@ templates such as:
 - mixing + discretization
 - lower bound / change of measure
 
+When known results are provided, prefer those tagged "pdf_result_sections" over
+"abstract_summary" when deciding which literature tools/results are reliable enough
+to anchor the proof strategy.
+
 Return JSON:
 {
   "problem_type": "...",
@@ -94,6 +104,10 @@ You build proof skeletons for theoretical proofs.
 Do not force a lemma DAG. Start from the target quantity, propose only the
 essential decomposition, identify the main tool for each term, and say which
 steps truly need independent lemmas.
+
+If known results are given, treat "pdf_result_sections" items as more grounded than
+"abstract_summary" items. Use abstract-derived items as soft guidance rather than
+as fully reliable theorem statements.
 
 Be brief and skeleton-first:
 - Prefer bullets over paragraphs.
@@ -178,7 +192,12 @@ class MemoryGuidedAnalyzer:
             return state
 
         known_results = "\n".join(
-            f"- {item.statement[:160]} (technique: {item.proof_technique})"
+            f"- {item.theorem_content[:160] or item.statement[:160]} "
+            f"(assumptions: {item.assumptions[:80] or 'unspecified'}; "
+            f"proof idea: {item.proof_idea[:80] or 'unspecified'}; "
+            f"reuse: {item.reuse_judgment}; "
+            f"technique: {item.proof_technique}; "
+            f"extraction: {item.extraction_source})"
             for item in state.known_results[:8]
         ) or "(none)"
 
@@ -216,7 +235,12 @@ class TemplateSelector:
 
     async def run(self, state: TheoryState, domain: str = "") -> TheoryState:
         known_results = "\n".join(
-            f"- {item.statement[:160]} (technique: {item.proof_technique})"
+            f"- {item.theorem_content[:160] or item.statement[:160]} "
+            f"(assumptions: {item.assumptions[:80] or 'unspecified'}; "
+            f"proof idea: {item.proof_idea[:80] or 'unspecified'}; "
+            f"reuse: {item.reuse_judgment}; "
+            f"technique: {item.proof_technique}; "
+            f"extraction: {item.extraction_source})"
             for item in state.known_results[:8]
         ) or "(none)"
 
@@ -267,7 +291,12 @@ class ProofSkeletonBuilder:
 
     async def run(self, state: TheoryState, domain: str = "") -> TheoryState:
         known_results = "\n".join(
-            f"- {item.statement[:160]} (technique: {item.proof_technique})"
+            f"- {item.theorem_content[:160] or item.statement[:160]} "
+            f"(assumptions: {item.assumptions[:80] or 'unspecified'}; "
+            f"proof idea: {item.proof_idea[:80] or 'unspecified'}; "
+            f"reuse: {item.reuse_judgment}; "
+            f"technique: {item.proof_technique}; "
+            f"extraction: {item.extraction_source})"
             for item in state.known_results[:8]
         ) or "(none)"
 
