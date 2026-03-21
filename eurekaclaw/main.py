@@ -128,6 +128,8 @@ def save_artifacts(result: ResearchOutput, out_dir: str | Path) -> Path:
             tex_path = out / "paper.tex"
             tex_path.write_text(result.latex_paper, encoding="utf-8")
             logger.info("LaTeX paper saved to %s/paper.tex", out)
+            # Insert stubs for any \ref{sec:*} labels the LLM referenced but never wrote
+            _stub_missing_sections(tex_path)
             # Fix any cite keys that don't have a matching \bibitem in the tex file
             _fix_missing_citations(tex_path)
             _compile_pdf(tex_path, settings.latex_bin)
@@ -157,7 +159,7 @@ def _copy_template_assets(out_dir: Path) -> None:
         logger.warning("Template directory not found: %s", template_dir)
         return
 
-    for filename in ("eureka.cls", "logo-claw.png"):
+    for filename in ("eureka.cls", "logo-claw.png", "smile.sty"):
         src = template_dir / filename
         if src.exists():
             shutil.copy2(src, out_dir / filename)
@@ -170,6 +172,76 @@ def _copy_template_assets(out_dir: Path) -> None:
         if fonts_dst.exists():
             shutil.rmtree(fonts_dst)
         shutil.copytree(fonts_src, fonts_dst)
+
+
+def _stub_missing_sections(tex_path: Path) -> None:
+    r"""Insert minimal stub sections for \ref{sec:*} labels not defined in the file.
+
+    When the LLM writes "Section~\ref{sec:related_work} discusses..." in the
+    Introduction but never actually writes that section, pdflatex renders the
+    cross-reference as "??".  This function detects dangling sec: refs and inserts
+    a one-line stub \section{} before \end{document} so all refs resolve cleanly.
+    """
+    import re as _re
+
+    text = tex_path.read_text(encoding="utf-8")
+
+    defined_labels = set(_re.findall(r"\\label\{([^}]+)\}", text))
+    referenced_sec = set(_re.findall(r"\\(?:ref|cref|Cref|autoref)\{(sec:[^}]+)\}", text))
+    missing = referenced_sec - defined_labels
+    if not missing:
+        return
+
+    _LABEL_TO_TITLE = {
+        "sec:introduction":  "Introduction",
+        "sec:related_work":  "Related Work",
+        "sec:related":       "Related Work",
+        "sec:preliminaries": "Preliminaries",
+        "sec:background":    "Background",
+        "sec:main_results":  "Main Results",
+        "sec:results":       "Results",
+        "sec:experiments":   "Experiments",
+        "sec:experiment":    "Experiments",
+        "sec:limitations":   "Limitations",
+        "sec:limitation":    "Limitations",
+        "sec:conclusion":    "Conclusion",
+        "sec:conclusions":   "Conclusion",
+        "sec:discussion":    "Discussion",
+        "sec:proofs":        "Proofs",
+        "sec:proof":         "Proofs",
+        "sec:appendix":      "Appendix",
+    }
+    _ORDER = [
+        "sec:related_work", "sec:related",
+        "sec:limitations", "sec:limitation",
+        "sec:conclusion", "sec:conclusions",
+        "sec:discussion",
+        "sec:experiments", "sec:experiment",
+        "sec:proofs", "sec:proof",
+        "sec:appendix",
+    ]
+
+    ordered_missing = sorted(
+        missing,
+        key=lambda lbl: (_ORDER.index(lbl) if lbl in _ORDER else len(_ORDER), lbl),
+    )
+
+    stubs = []
+    for label in ordered_missing:
+        title = _LABEL_TO_TITLE.get(label)
+        if not title:
+            key = label[4:] if label.startswith("sec:") else label
+            title = " ".join(w.capitalize() for w in key.split("_"))
+        stubs.append(
+            f"\\section{{{title}}}\\label{{{label}}}\n"
+            f"% This section stub was inserted automatically because the LLM\n"
+            f"% referenced \\label{{{label}}} but never wrote the section.\n"
+        )
+        logger.info("_stub_missing_sections: inserted stub for \\label{%s}", label)
+
+    stub_block = "\n".join(stubs) + "\n"
+    text = text.replace(r"\end{document}", stub_block + r"\end{document}", 1)
+    tex_path.write_text(text, encoding="utf-8")
 
 
 def _fix_missing_citations(tex_path: Path) -> None:

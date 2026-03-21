@@ -2,10 +2,23 @@
 
 from __future__ import annotations
 
+import asyncio
+import logging
 from abc import ABC, abstractmethod
 from typing import Any
 
 from eurekaclaw.llm.types import NormalizedMessage
+
+logger = logging.getLogger(__name__)
+
+# Substrings in the exception message that indicate a transient error worth retrying.
+_RETRYABLE_FRAGMENTS = (
+    "429", "rate limit", "rate_limit",
+    "overloaded", "529",
+    "timeout", "timed out",
+    "empty content",
+    "service unavailable", "502", "503",
+)
 
 
 class _MessagesNamespace:
@@ -24,14 +37,40 @@ class _MessagesNamespace:
         tools: list[dict[str, Any]] | None = None,
         **kwargs: Any,
     ) -> NormalizedMessage:
-        return await self._owner._create(
-            model=model,
-            max_tokens=max_tokens,
-            messages=messages,
-            system=system,
-            tools=tools,
-            **kwargs,
-        )
+        from eurekaclaw.config import settings
+
+        attempts = max(1, settings.llm_retry_attempts)
+        wait_min = settings.llm_retry_wait_min
+        wait_max = settings.llm_retry_wait_max
+
+        last_exc: Exception = RuntimeError("unreachable")
+        for attempt in range(attempts):
+            try:
+                response = await self._owner._create(
+                    model=model,
+                    max_tokens=max_tokens,
+                    messages=messages,
+                    system=system,
+                    tools=tools,
+                    **kwargs,
+                )
+                if not response.content:
+                    raise ValueError("LLM returned empty content list")
+                return response
+            except Exception as exc:
+                last_exc = exc
+                err_str = str(exc).lower()
+                is_retryable = any(frag in err_str for frag in _RETRYABLE_FRAGMENTS)
+                if not is_retryable or attempt == attempts - 1:
+                    raise
+                wait = min(wait_min * (2 ** attempt), wait_max)
+                logger.warning(
+                    "LLM call failed (attempt %d/%d, retrying in %ds): %s",
+                    attempt + 1, attempts, wait, exc,
+                )
+                await asyncio.sleep(wait)
+
+        raise last_exc  # unreachable but satisfies type checker
 
 
 class LLMClient(ABC):

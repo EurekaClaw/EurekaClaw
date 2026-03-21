@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING
@@ -127,7 +128,21 @@ class SkillEvolver:
                 content_lines.append(line)
 
         content = "\n".join(content_lines).strip()
-        skill_name = f"distilled_{session_id[:8]}_{uuid.uuid4().hex[:6]}"
+
+        # Derive a human-readable name from the H1 title in the skill content.
+        raw_title = ""
+        for line in content_lines:
+            stripped = line.strip()
+            if stripped.startswith("# "):
+                raw_title = stripped[2:].strip()
+                break
+        uid = uuid.uuid4().hex[:6]
+        if raw_title:
+            title_slug = re.sub(r"[^a-z0-9]+", "_", raw_title.lower()).strip("_")[:40]
+            skill_name = f"distilled_{title_slug}_{uid}"
+            description = description or raw_title
+        else:
+            skill_name = f"distilled_{session_id[:8]}_{uid}"
 
         meta = SkillMeta(
             name=skill_name,
