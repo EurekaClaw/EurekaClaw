@@ -75,7 +75,7 @@ class Assembler:
 
         try:
             response = await self.client.messages.create(
-                model=settings.eurekaclaw_model,
+                model=settings.active_model,
                 max_tokens=settings.max_tokens_assembler,
                 system=ASSEMBLE_SYSTEM,
                 messages=[{

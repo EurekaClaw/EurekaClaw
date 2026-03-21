@@ -100,7 +100,7 @@ class TheoremCrystallizer:
 
         try:
             response = await self.client.messages.create(
-                model=settings.eurekaclaw_model,
+                model=settings.active_model,
                 max_tokens=max_tokens,
                 system=CRYSTALLIZE_SYSTEM,
                 messages=[{

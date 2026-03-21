@@ -42,6 +42,10 @@ class Config(BaseSettings):
     # Overrides EUREKACLAW_MODEL when LLM_BACKEND=openai_compat.
     openai_compat_model: str = Field(default="", alias="OPENAI_COMPAT_MODEL")
 
+    # Minimax (LLM_BACKEND=minimax)
+    minimax_api_key: str = Field(default="", alias="MINIMAX_API_KEY")
+    minimax_model: str = Field(default="MiniMax-Text-01", alias="MINIMAX_MODEL")
+
     # ---- External APIs -----------------------------------------------------
     brave_search_api_key: str = Field(default="", alias="BRAVE_SEARCH_API_KEY")
     serpapi_key: str = Field(default="", alias="SERPAPI_KEY")
@@ -120,6 +124,37 @@ class Config(BaseSettings):
         of ``settings.eurekaclaw_fast_model`` directly.
         """
         return self.eurekaclaw_fast_model or self.eurekaclaw_model
+
+    @property
+    def active_model(self) -> str:
+        """Return the model name to send to the configured LLM backend.
+
+        Unlike ``eurekaclaw_model`` (which is always the Anthropic name),
+        this resolves to the correct model string for whatever backend is
+        active — Minimax, OpenAI-compat, or Anthropic.
+        """
+        backend = self.llm_backend
+        if backend == "minimax":
+            return self.minimax_model
+        if backend in ("openai_compat", "openrouter", "local"):
+            return self.openai_compat_model or self.eurekaclaw_model
+        return self.eurekaclaw_model
+
+    @property
+    def active_fast_model(self) -> str:
+        """Like ``active_model`` but for lightweight/fast tasks.
+
+        For backends that serve a single model (e.g. a self-hosted vLLM
+        instance), falls back to ``active_model`` when no dedicated fast
+        model is configured.
+        """
+        backend = self.llm_backend
+        if backend == "minimax":
+            # Minimax exposes one model per endpoint; fast == main
+            return self.minimax_model
+        if backend in ("openai_compat", "openrouter", "local"):
+            return self.openai_compat_model or self.eurekaclaw_fast_model or self.eurekaclaw_model
+        return self.fast_model
 
     @property
     def skills_dir(self) -> Path:

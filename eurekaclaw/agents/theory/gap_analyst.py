@@ -68,12 +68,11 @@ class GapAnalyst:
             if brief and brief.selected_direction
             else state.informal_statement or domain
         )
-
         known_summary = self._summarize_known(state)
 
         try:
             response = await self.client.messages.create(
-                model=settings.eurekaclaw_model,
+                model=settings.active_model,
                 max_tokens=settings.max_tokens_formalizer,
                 system=GAP_SYSTEM,
                 messages=[{

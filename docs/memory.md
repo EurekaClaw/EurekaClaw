@@ -134,10 +134,12 @@ Only entries with `confidence >= 0.5` are saved. A sha256 fingerprint index (`_i
 At the start of each session, `BaseAgent.build_system_prompt()` calls:
 
 ```python
-memory.load_for_injection(domain, k=4)
+memory.load_for_injection(domain, k=4, query=task_description)
 ```
 
-This loads the 4 most recent high-confidence `.md` files for the domain, strips frontmatter, and injects the content into the system prompt as `<memories>...</memories>`.
+This selects the 4 most **relevant** high-confidence `.md` files for the domain using cosine similarity against `query`, strips frontmatter, and injects the content into the system prompt as `<memories>...</memories>`.
+
+**Semantic ranking:** each memory file's embedding is stored in `_index.json` at write time (via `eurekaclaw/memory/embedding_utils.py`). At retrieval time, candidates are scored by `cosine_similarity(query_embedding, memory_embedding)` and the top-k are returned. Falls back to recency ordering if embeddings are unavailable.
 
 ---
 

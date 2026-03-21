@@ -172,7 +172,7 @@ class Verifier:
         try:
             verifier_pass_threshold = self._threshold(settings.verifier_pass_confidence, 0.90)
             response = await self.client.messages.create(
-                model=settings.fast_model,
+                model=settings.active_fast_model,
                 max_tokens=settings.max_tokens_verifier,
                 system=PEER_REVIEW_SYSTEM,
                 messages=[{
@@ -190,6 +190,7 @@ class Verifier:
             data = self._parse_review(text)
 
             confidence = float(data.get("confidence", 0.5))
+            threshold = float(settings.verifier_pass_confidence)
             errors = data.get("errors", []) + data.get("gaps", [])
             passed = (
                 bool(data.get("verified", False))

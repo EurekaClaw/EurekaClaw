@@ -1,0 +1,130 @@
+"""Unit tests for the direction planning fallback in MetaOrchestrator."""
+
+import pytest
+from unittest.mock import AsyncMock, MagicMock, patch
+
+from eurekaclaw.knowledge_bus.bus import KnowledgeBus
+from eurekaclaw.types.artifacts import ResearchBrief
+
+
+@pytest.fixture
+def brief():
+    return ResearchBrief(
+        session_id="test-session",
+        input_mode="exploration",
+        domain="bandit theory",
+        query="tight regret bounds",
+        open_problems=["No tight lower bound for heavy-tailed rewards"],
+    )
+
+
+@pytest.fixture
+def bus(brief):
+    b = KnowledgeBus(brief.session_id)
+    b.put_research_brief(brief)
+    return b
+
+
+def _make_orchestrator(bus):
+    """Build a MetaOrchestrator with all heavy dependencies mocked out."""
+    from eurekaclaw.orchestrator.meta_orchestrator import MetaOrchestrator
+
+    with patch("eurekaclaw.orchestrator.meta_orchestrator.create_client"), \
+         patch("eurekaclaw.orchestrator.meta_orchestrator.build_default_registry"), \
+         patch("eurekaclaw.orchestrator.meta_orchestrator.SkillRegistry"), \
+         patch("eurekaclaw.orchestrator.meta_orchestrator.SkillInjector"), \
+         patch("eurekaclaw.orchestrator.meta_orchestrator.MemoryManager"), \
+         patch("eurekaclaw.orchestrator.meta_orchestrator.SurveyAgent"), \
+         patch("eurekaclaw.orchestrator.meta_orchestrator.IdeationAgent"), \
+         patch("eurekaclaw.orchestrator.meta_orchestrator.TheoryAgent"), \
+         patch("eurekaclaw.orchestrator.meta_orchestrator.ExperimentAgent"), \
+         patch("eurekaclaw.orchestrator.meta_orchestrator.WriterAgent"), \
+         patch("eurekaclaw.orchestrator.meta_orchestrator.DivergentConvergentPlanner"), \
+         patch("eurekaclaw.orchestrator.meta_orchestrator.GateController"), \
+         patch("eurekaclaw.orchestrator.meta_orchestrator.PipelineManager"), \
+         patch("eurekaclaw.orchestrator.meta_orchestrator.TaskRouter"), \
+         patch("eurekaclaw.orchestrator.meta_orchestrator.ContinualLearningLoop"):
+        orch = MetaOrchestrator(bus=bus)
+    return orch
+
+
+@pytest.mark.asyncio
+async def test_fallback_called_when_diverge_returns_empty(bus, brief):
+    """When diverge() returns [], _handle_manual_direction should be called."""
+    orch = _make_orchestrator(bus)
+    orch.planner.diverge = AsyncMock(return_value=[])
+
+    with patch.object(orch, "_handle_manual_direction", new_callable=AsyncMock) as mock_manual:
+        await orch._handle_direction_gate(brief)
+        mock_manual.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_fallback_called_when_diverge_raises(bus, brief):
+    """When diverge() throws, _handle_manual_direction should be called."""
+    orch = _make_orchestrator(bus)
+    orch.planner.diverge = AsyncMock(side_effect=RuntimeError("LLM parse error"))
+
+    with patch.object(orch, "_handle_manual_direction", new_callable=AsyncMock) as mock_manual:
+        await orch._handle_direction_gate(brief)
+        mock_manual.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_fallback_not_called_when_diverge_succeeds(bus, brief):
+    """When diverge() returns directions normally, no fallback should occur."""
+    from eurekaclaw.types.artifacts import ResearchDirection
+    orch = _make_orchestrator(bus)
+
+    direction = ResearchDirection(
+        direction_id="d1", title="Test", hypothesis="H1",
+        novelty_score=0.8, soundness_score=0.8, transformative_score=0.7,
+    )
+    direction.compute_composite()
+    orch.planner.diverge = AsyncMock(return_value=[direction])
+    orch.planner.converge = AsyncMock(return_value=direction)
+
+    with patch.object(orch, "_handle_manual_direction", new_callable=AsyncMock) as mock_manual:
+        await orch._handle_direction_gate(brief)
+        mock_manual.assert_not_called()
+
+    updated = bus.get_research_brief()
+    assert updated.selected_direction is not None
+    assert updated.selected_direction.direction_id == "d1"
+
+
+@pytest.mark.asyncio
+async def test_manual_direction_sets_brief(bus, brief):
+    """User input should be stored as the selected direction on the bus."""
+    orch = _make_orchestrator(bus)
+
+    with patch("eurekaclaw.orchestrator.meta_orchestrator.console") as mock_console:
+        mock_console.input = MagicMock(return_value="UCB1 achieves O(sqrt(KT log T)) regret")
+        await orch._handle_manual_direction(brief)
+
+    updated = bus.get_research_brief()
+    assert updated.selected_direction is not None
+    assert "UCB1" in updated.selected_direction.hypothesis
+    assert len(updated.directions) == 1
+
+
+@pytest.mark.asyncio
+async def test_manual_direction_empty_input_raises(bus, brief):
+    """Empty user input should raise RuntimeError."""
+    orch = _make_orchestrator(bus)
+
+    with patch("eurekaclaw.orchestrator.meta_orchestrator.console") as mock_console:
+        mock_console.input = MagicMock(return_value="")
+        with pytest.raises(RuntimeError):
+            await orch._handle_manual_direction(brief)
+
+
+@pytest.mark.asyncio
+async def test_manual_direction_ctrl_c_raises(bus, brief):
+    """Ctrl+C (KeyboardInterrupt / EOFError) should raise RuntimeError."""
+    orch = _make_orchestrator(bus)
+
+    with patch("eurekaclaw.orchestrator.meta_orchestrator.console") as mock_console:
+        mock_console.input = MagicMock(side_effect=EOFError)
+        with pytest.raises(RuntimeError):
+            await orch._handle_manual_direction(brief)

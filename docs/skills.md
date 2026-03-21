@@ -222,8 +222,15 @@ The MAB domain plugin ships four seed skills:
 ## Installing Seed Skills
 
 ```bash
-eurekaclaw install-skills          # copy seeds to ~/.eurekaclaw/skills/
-eurekaclaw install-skills --force  # overwrite existing copies
+eurekaclaw install-skills                      # copy seeds to ~/.eurekaclaw/skills/
+eurekaclaw install-skills --force              # overwrite existing copies
+eurekaclaw install-skills <skillname>          # install a skill from ClawHub
+```
+
+The `<skillname>` form fetches a skill from the [ClawHub](https://clawhub.ai/) registry using the `clawhub` CLI (must be installed separately). Example:
+
+```bash
+eurekaclaw install-skills steipete/github
 ```
 
 This command is a convenience for inspection and manual editing only. Agents do **not** require it — seed skills are always available directly from the package.
@@ -240,7 +247,7 @@ Understanding where skills physically live prevents confusion about why `~/.eure
 |---|---|---|
 | `eurekaclaw/skills/seed_skills/` | Package developers (you) | Committed to the repo; bundled with `pip install` |
 | `eurekaclaw/domains/<domain>/skills/` | Domain plugin authors | Registered via `add_skills_dir()` at plugin load time |
-| `~/.eurekaclaw/skills/` | `install-skills` CLI + `SkillEvolver` | On demand; user-editable |
+| `~/.eurekaclaw/skills/` | `install-skills` CLI + `SkillEvolver` + ClawHub | On demand; user-editable |
 
 ### Load order at runtime
 
@@ -288,7 +295,15 @@ Session completes
                             └── SkillRegistry.upsert()  →  ~/.eurekaclaw/skills/<name>.md
 ```
 
-#### 3. Manual user skills
+#### 3. ClawHub skills
+
+```bash
+eurekaclaw install-skills <author>/<skillname>
+```
+
+Downloads the skill from the [ClawHub](https://clawhub.ai/) registry via the `clawhub` CLI and places it in `~/.eurekaclaw/skills/`. Requires `clawhub` to be installed (`pip install clawhub` or equivalent).
+
+#### 4. Manual user skills
 
 Place any `.md` file with valid YAML frontmatter directly in `~/.eurekaclaw/skills/`. It will be loaded on the next session. Use `source: manual` in the frontmatter to distinguish from distilled skills.
 

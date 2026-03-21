@@ -7,6 +7,7 @@ from pathlib import Path
 
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
+from rich.prompt import Prompt
 
 from eurekaclaw.agents.base import BaseAgent
 from eurekaclaw.agents.experiment.agent import ExperimentAgent
@@ -189,6 +190,9 @@ class MetaOrchestrator:
                 # Always-on summary card — visible regardless of gate_mode
                 self.gate.print_stage_summary(task.name)
 
+                if task.name == "survey":
+                    await self._handle_empty_survey_fallback(pipeline)
+
             self.bus.put_pipeline(pipeline)
 
         # --- Phase 4: Post-run continual learning ---
@@ -258,17 +262,64 @@ class MetaOrchestrator:
 
         # --- Exploration / reference mode: run full divergent-convergent ---
         console.print("[blue]Generating 5 research directions...[/blue]")
+        directions = []
         try:
             directions = await self.planner.diverge(brief)
-            best = await self.planner.converge(directions, brief)
-            brief.directions = directions
-            brief.selected_direction = best
-            self.bus.put_research_brief(brief)
-            console.print(f"[green]Best direction selected: {best.title}[/green]")
-            console.print(f"  Composite score: {best.composite_score:.2f}")
-            console.print(f"  Hypothesis: {best.hypothesis[:200]}")
+            if directions:
+                best = await self.planner.converge(directions, brief)
+                brief.directions = directions
+                brief.selected_direction = best
+                self.bus.put_research_brief(brief)
+                console.print(f"[green]Best direction selected: {best.title}[/green]")
+                console.print(f"  Composite score: {best.composite_score:.2f}")
+                console.print(f"  Hypothesis: {best.hypothesis[:200]}")
         except Exception as e:
             logger.exception("Direction planning failed: %s", e)
+
+        if not directions:
+            await self._handle_manual_direction(brief)
+
+    async def _handle_manual_direction(self, brief: "ResearchBrief") -> None:
+        """Fallback: planner produced no directions — ask the user to supply one."""
+        import uuid
+        from eurekaclaw.types.artifacts import ResearchDirection
+
+        console.print(
+            "\n[yellow]⚠  The planner could not generate research directions automatically.[/yellow]"
+        )
+        if brief.open_problems:
+            console.print("\n[bold]Open problems found by survey:[/bold]")
+            for p in brief.open_problems[:5]:
+                console.print(f"  • {str(p)[:120]}")
+
+        console.print(
+            "\n[bold]Please enter a research direction / hypothesis to pursue.[/bold]\n"
+            "[dim](e.g. \"UCB1 achieves O(√(KT log T)) regret in the stochastic MAB setting\")[/dim]\n"
+        )
+        try:
+            hypothesis = console.input("→ ").strip()
+        except (KeyboardInterrupt, EOFError):
+            console.print("\n[red]No direction provided — cannot continue.[/red]")
+            raise RuntimeError("No research direction available and user did not provide one.")
+
+        if not hypothesis:
+            console.print("[red]Empty input — cannot continue.[/red]")
+            raise RuntimeError("No research direction available and user did not provide one.")
+
+        direction = ResearchDirection(
+            direction_id=str(uuid.uuid4()),
+            title=hypothesis[:80],
+            hypothesis=hypothesis,
+            approach_sketch="User-provided direction — formalize, decompose into lemmas, attempt proof.",
+            novelty_score=0.8,
+            soundness_score=0.8,
+            transformative_score=0.7,
+        )
+        direction.compute_composite()
+        brief.directions = [direction]
+        brief.selected_direction = direction
+        self.bus.put_research_brief(brief)
+        console.print(f"[green]Direction set to: {direction.title}[/green]\n")
 
     async def _handle_theory_review_gate(
         self, pipeline: "TaskPipeline", brief: "ResearchBrief"
@@ -324,6 +375,67 @@ class MetaOrchestrator:
             console.print(
                 "[yellow]Sketch still flagged — proceeding to writer anyway.[/yellow]\n"
             )
+
+    async def _handle_empty_survey_fallback(self, pipeline: TaskPipeline) -> None:
+        """If the survey found 0 papers, pause and ask the user for paper IDs."""
+        bib = self.bus.get_bibliography()
+        has_papers = False
+        if bib:
+            # Safely check whether there are any gathered papers
+            bib_dict = bib.model_dump()
+            papers = bib_dict.get("papers") or bib_dict.get("entries") or []
+            has_papers = len(papers) > 0
+
+        if has_papers:
+            return
+
+        console.print("\n[yellow]⚠ Survey stage completed but found 0 papers.[/yellow]")
+        paper_input = Prompt.ask(
+            "[bold cyan]Please provide a comma-separated list of paper IDs/titles to retry, or press Enter to proceed without papers[/bold cyan]"
+        )
+
+        if not paper_input.strip():
+            return
+
+        survey_task = next((t for t in pipeline.tasks if t.name == "survey"), None)
+        if not survey_task:
+            return
+
+        # Inject the manual overrides and ready the task for re-execution
+        feedback = f"Please specifically use and analyze these papers: {paper_input.strip()}"
+        survey_task.description = (survey_task.description or "") + f"\n\n[User provided papers]: {feedback}"
+        survey_task.retries = 0
+        survey_task.status = TaskStatus.PENDING
+
+        # Enable exact match schema on the arXiv tool specifically for this retry
+        arxiv_tool = self.tool_registry.get("arxiv_search")
+        if arxiv_tool:
+            arxiv_tool.exact_match_mode = True
+
+        console.print(f"\n[yellow]Re-running survey agent with your provided papers...[/yellow]")
+        agent = self.router.resolve(survey_task)
+
+        with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), console=console) as progress:
+            prog_task = progress.add_task("survey (revision)...", total=None)
+            result = await agent.execute(survey_task)
+            progress.update(prog_task, completed=True)
+
+        # Restore standard schema behavior after execution
+        if arxiv_tool:
+            arxiv_tool.exact_match_mode = False
+
+        if result.failed:
+            survey_task.mark_failed(result.error)
+            console.print(f"[red]Survey revision failed: {result.error[:100]}[/red]")
+        else:
+            task_outputs = dict(result.output)
+            if result.text_summary:
+                task_outputs["text_summary"] = result.text_summary
+            if result.token_usage:
+                task_outputs["token_usage"] = result.token_usage
+            survey_task.mark_completed(task_outputs)
+            console.print("[green]✓ Survey revision complete.[/green]")
+            self.gate.print_stage_summary("survey")
 
     def _dependencies_met(self, task: Task, pipeline: TaskPipeline) -> bool:
         for dep_id in task.depends_on:
