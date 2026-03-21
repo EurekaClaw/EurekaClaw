@@ -24,7 +24,12 @@ class ArxivSearchTool(BaseTool):
             "properties": {
                 "query": {
                     "type": "string",
-                    "description": "Search query string. Can include title:, author:, abs: prefixes.",
+                    "description": (
+                        "Search query string. Use space-separated keywords for broad, "
+                        "relevance-ranked results (e.g. \"sparse attention\" Rademacher "
+                        "complexity kernel transformer). Do NOT use abs:, title:, or AND "
+                        "operators — they restrict to exact matches and return far fewer papers."
+                    ),
                 },
                 "max_results": {
                     "type": "integer",

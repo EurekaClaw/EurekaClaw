@@ -18,7 +18,7 @@ tags:
 - citation
 - latex
 - paper
-usage_count: 6
+usage_count: 7
 version: '1.0'
 ---
 
