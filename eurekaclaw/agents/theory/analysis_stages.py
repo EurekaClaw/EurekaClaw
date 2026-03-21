@@ -137,7 +137,9 @@ class MemoryGuidedAnalyzer:
         if not self.memory:
             return state
 
-        memory_block = self.memory.load_for_injection(domain, k=4)
+        # Construct a query for semantic retrieval of domain insights
+        insight_query = "\n".join(filter(None, [state.informal_statement, state.research_gap]))
+        memory_block = self.memory.load_for_injection(domain, k=4, query=insight_query)
         theorem_nodes = self.memory.retrieve_relevant_theorems(
             query="\n".join(filter(None, [state.informal_statement, state.research_gap])),
             domain=domain,

@@ -124,7 +124,8 @@ class ConsistencyChecker:
 
         return state
 
-    async def _check(self, state: TheoryState) -> ConsistencyResult:
+    async def _check(self, state: TheoryState, required_lemma_ids: list[str]) -> ConsistencyResult:
+        ids_str = ", ".join(required_lemma_ids) if required_lemma_ids else "(none)"
         proof_excerpt = self._build_proof_context(state)
         try:
             response = await self.client.messages.create(

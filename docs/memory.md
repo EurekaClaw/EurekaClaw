@@ -22,7 +22,8 @@ Storage layout under `~/.eurekaclaw/` (configurable via `EUREKACLAW_DIR`):
 │   └── knowledge_graph.json   ← Tier 3: theorem dependency graph
 ├── memories/
 │   └── <domain>/
-│       └── YYYYMMDD_<slug>.md ← Tier 4: per-domain insight files
+│       ├── YYYYMMDD_<slug>.md ← Tier 4: per-domain insight files
+│       └── _index.json        ← Tier 4: index for semantic search
 └── skills/                    ← skill files updated by ContinualLearningLoop
 ```
 

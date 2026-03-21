@@ -46,41 +46,23 @@ def _compute_cite_keys(papers: list) -> list[str]:
 LATEX_PREAMBLE = r"""\nonstopmode
 \documentclass[]{eureka}
 
-%% Additional packages not already loaded by eureka.cls
-\usepackage{amsthm}
+%% SMiLe group math macro package — loads amsmath, amssymb, amsthm, bm,
+%% bold/calligraphic/blackboard fonts, norms, brackets, operators, and
+%% theorem environments with \ifx\undefined guards.
+\usepackage{smile}
+
+%% Extra packages not provided by smile.sty
 \usepackage{xargs}
 \usepackage{tabularx}
-\usepackage[toc,page,header]{appendix}
 
-%% Theorem environments (eureka.cls does not define these)
-\newtheorem{theorem}{Theorem}
-\newtheorem{lemma}[theorem]{Lemma}
-\newtheorem{corollary}[theorem]{Corollary}
-\newtheorem{definition}[theorem]{Definition}
-\newtheorem{proposition}[theorem]{Proposition}
-\newtheorem{assumption}[theorem]{Assumption}
-\newtheorem{conjecture}[theorem]{Conjecture}
-\newtheorem{claim}[theorem]{Claim}
-\newtheorem{example}[theorem]{Example}
-\newtheorem{fact}[theorem]{Fact}
-\newtheorem{observation}[theorem]{Observation}
-\newtheorem{maintheorem}[theorem]{Main Theorem}
-\newtheorem{remark}{Remark}
-\newtheorem{auxlemma}[theorem]{Lemma}
+%% Theorem environments not defined by smile.sty (guarded against redefinition)
+\ifx\observation\undefined\newtheorem{observation}[theorem]{Observation}\fi
+\ifx\maintheorem\undefined\newtheorem{maintheorem}[theorem]{Main Theorem}\fi
+\ifx\auxlemma\undefined\newtheorem{auxlemma}[theorem]{Lemma}\fi
 
-%% Common math macros
-\newcommand{\R}{\mathbb{R}}
-\newcommand{\N}{\mathbb{N}}
-\newcommand{\Z}{\mathbb{Z}}
-\newcommand{\E}{\mathbb{E}}
-\newcommand{\Prob}{\mathbb{P}}
+%% Operators not provided by smile.sty
 \DeclareMathOperator{\softmax}{softmax}
 \DeclareMathOperator{\Att}{Att}
-\DeclareMathOperator*{\argmax}{arg\,max}
-\DeclareMathOperator*{\argmin}{arg\,min}
-\newcommand{\norm}[1]{\left\lVert#1\right\rVert}
-\newcommand{\abs}[1]{\left|#1\right|}
-\newcommand{\inner}[2]{\langle #1, #2 \rangle}
 
 %% Header: EurekaClaw logo on the first page
 \setleftheadercontent{%%
@@ -147,6 +129,61 @@ Every theorem, lemma, proposition, corollary, or claim must either be proved in 
 Do not leave theorem-like statements unsupported.
 Before finalizing the LaTeX, sanity-check environment matching, brace balance, required packages, and custom macro definitions.
 Make the paper self-contained — a reader should understand it without other references.
+
+MATH NOTATION — the preamble loads smile.sty which defines the macros below.
+Use ONLY these macros (or plain LaTeX math). Do NOT redefine them and do NOT
+introduce \\newcommand for anything already listed here.
+
+  Blackboard bold — use these, NOT \\mathbb{} directly:
+    \\RR (ℝ)  \\EE (𝔼)  \\PP (ℙ)  \\NN (ℕ)  \\ZZ (ℤ)  \\QQ (ℚ)  \\CC (ℂ)
+    \\VV  \\II  \\TT  \\XX  \\YY  \\SSS  \\MM  \\LL  \\KK
+
+  Calligraphic — use these, NOT \\mathcal{} directly:
+    \\cA \\cB \\cC \\cD \\cE \\cF \\cG \\cH \\cI \\cJ \\cK \\cL \\cM
+    \\cN \\cO \\cP \\cQ \\cR \\cS \\cT \\cU \\cV \\cW \\cX \\cY \\cZ
+
+  Bold vectors/matrices (mathbf family — \\xb, \\Wb, …):
+    lowercase: \\ab \\bbb \\cbb \\db \\eb \\fb \\gb \\hb \\ib \\jb \\kb \\lb \\mb
+               \\nbb \\ob \\pb \\qb \\rb \\sbb \\tb \\ub \\vb \\wb \\xb \\yb \\zb
+    uppercase: \\Ab \\Bb \\Cb \\Db \\Eb \\Fb \\Gb \\Hb \\Ib \\Jb \\Kb \\Lb \\Mb
+               \\Nb \\Ob \\Pb \\Qb \\Rb \\Sbb \\Tb \\Ub \\Vb \\Wb \\Xb \\Yb \\Zb
+
+  Bold vectors/matrices (bm family — \\bx, \\bW, …):
+    lowercase: \\ba \\bb \\bc \\bd \\be \\bbf \\bg \\bh \\bj \\bk \\bl \\bbm
+               \\bn \\bo \\bp \\bq \\br \\bs \\bt \\bu \\bv \\bw \\bx \\by \\bz
+    uppercase: \\bA \\bB \\bC \\bD \\bE \\bF \\bG \\bH \\bI \\bJ \\bK \\bL \\bM
+               \\bN \\bO \\bP \\bQ \\bR \\bS \\bT \\bU \\bV \\bW \\bX \\bY \\bZ
+
+  Bold greek:
+    \\balpha \\bbeta \\bgamma \\bepsilon \\bvarepsilon \\bzeta \\btheta \\bvartheta
+    \\bkappa \\blambda \\bmu \\bnu \\bxi \\bpi \\bsigma \\btau \\bphi \\bvarphi
+    \\bchi \\bpsi \\bomega
+    \\bGamma \\bDelta \\bTheta \\bLambda \\bXi \\bPi \\bSigma \\bPhi \\bPsi \\bOmega
+
+  Norms and brackets:
+    \\norm{x}          fixed-size ||x||
+    \\nbr{x}           auto-sized \\|x\\|
+    \\bignorm{x}       large ||x||
+    \\opnorm{x}{p}     triple-bar operator norm
+    \\inner{x}{y}      auto-sized ⟨x, y⟩
+    \\dotp{x}{y}       fixed-size ⟨x, y⟩
+    \\rbr{x}           auto-sized ( )
+    \\sbr{x}           auto-sized [ ]
+    \\cbr{x}           auto-sized { }
+    \\abr{x}           auto-sized | |
+
+  Operators (already defined — do NOT redefine with \\DeclareMathOperator):
+    \\argmin  \\argmax  \\minimize  \\sign  \\tr  \\diag  \\Var  \\Cov  \\Cor
+
+  Other:
+    \\zero  \\one              bold 0 / 1 vectors
+    \\smallfrac{a}{b}         textstyle fraction
+    \\given                   conditional bar: p(y \\given x)
+    \\ud                      upright d for integrals: \\int f(x)\\ud x
+    \\hat{} → \\widehat{}     (auto-redefined by smile.sty)
+    \\tilde{} → \\widetilde{} (auto-redefined by smile.sty)
+
+  Do NOT use or define: \\R \\N \\Z \\E \\Prob  — use \\RR \\NN \\ZZ \\EE \\PP instead.
 """
 
 _MARKDOWN_SYSTEM_PROMPT = """\
@@ -297,6 +334,20 @@ Key references to cite (use EXACTLY these \\cite{{}} keys — they match the ref
 Write the full paper body (abstract through conclusion) in LaTeX.
 Use \\begin{{theorem}}...\\end{{theorem}} environments.
 Include all proofs using \\begin{{proof}}...\\end{{proof}}.
+
+MANDATORY SECTIONS — you MUST include ALL of the following \\section{{}} commands with
+their \\label{{}} exactly as shown, in this order. Every section the introduction
+roadmap mentions must actually appear in the paper body:
+
+  \\section{{Introduction}}\\label{{sec:introduction}}
+  \\section{{Preliminaries}}\\label{{sec:preliminaries}}
+  \\section{{Main Results}}\\label{{sec:main_results}}
+  \\section{{Related Work}}\\label{{sec:related_work}}
+  \\section{{Limitations}}\\label{{sec:limitations}}
+  \\section{{Conclusion}}\\label{{sec:conclusion}}
+
+Do NOT reference a section with \\ref{{}} or \\cref{{}} unless you are going to write it.
+If a section has little content, write at least two sentences rather than omitting it.
 """
 
         try:
