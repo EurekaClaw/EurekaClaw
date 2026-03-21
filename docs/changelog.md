@@ -4,7 +4,7 @@ Summary of all updates from `UPDATES.md`.
 
 ---
 
-## 2026-03-20 (continued — PRs #23, #28, #29, #30, #31)
+## 2026-03-20 (continued — PRs #23, #28, #29, #30, #31, #33)
 
 ### 8. Principled Prover Confidence Scoring
 
@@ -135,6 +135,14 @@ eurekaclaw install-skills <skillname>
 ```
 
 `install-skills` with no argument continues to install all bundled seed skills. The `clawhub` CLI must be installed separately. The implementation lives in `eurekaclaw/skills/from_hub.py`.
+
+### 19. Bug Fix: pause AttributeError (PR #33)
+
+`cli.py` referenced `exc.paused_before_stage` but `ProofPausedException` stores the field as `stage_name`. Fixed both call sites so pausing a run no longer crashes with `AttributeError`.
+
+### 20. Direction Planning Fallback (PR #33)
+
+When `DivergentConvergentPlanner.diverge()` returns an empty list or throws an exception, the orchestrator now halts and prompts the user to enter a research direction manually instead of silently continuing with no direction. The survey's open problems are shown as context. Empty input or Ctrl+C raises `RuntimeError` and exits cleanly.
 
 ---
 

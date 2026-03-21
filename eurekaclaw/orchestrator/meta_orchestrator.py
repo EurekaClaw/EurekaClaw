@@ -262,17 +262,64 @@ class MetaOrchestrator:
 
         # --- Exploration / reference mode: run full divergent-convergent ---
         console.print("[blue]Generating 5 research directions...[/blue]")
+        directions = []
         try:
             directions = await self.planner.diverge(brief)
-            best = await self.planner.converge(directions, brief)
-            brief.directions = directions
-            brief.selected_direction = best
-            self.bus.put_research_brief(brief)
-            console.print(f"[green]Best direction selected: {best.title}[/green]")
-            console.print(f"  Composite score: {best.composite_score:.2f}")
-            console.print(f"  Hypothesis: {best.hypothesis[:200]}")
+            if directions:
+                best = await self.planner.converge(directions, brief)
+                brief.directions = directions
+                brief.selected_direction = best
+                self.bus.put_research_brief(brief)
+                console.print(f"[green]Best direction selected: {best.title}[/green]")
+                console.print(f"  Composite score: {best.composite_score:.2f}")
+                console.print(f"  Hypothesis: {best.hypothesis[:200]}")
         except Exception as e:
             logger.exception("Direction planning failed: %s", e)
+
+        if not directions:
+            await self._handle_manual_direction(brief)
+
+    async def _handle_manual_direction(self, brief: "ResearchBrief") -> None:
+        """Fallback: planner produced no directions — ask the user to supply one."""
+        import uuid
+        from eurekaclaw.types.artifacts import ResearchDirection
+
+        console.print(
+            "\n[yellow]⚠  The planner could not generate research directions automatically.[/yellow]"
+        )
+        if brief.open_problems:
+            console.print("\n[bold]Open problems found by survey:[/bold]")
+            for p in brief.open_problems[:5]:
+                console.print(f"  • {str(p)[:120]}")
+
+        console.print(
+            "\n[bold]Please enter a research direction / hypothesis to pursue.[/bold]\n"
+            "[dim](e.g. \"UCB1 achieves O(√(KT log T)) regret in the stochastic MAB setting\")[/dim]\n"
+        )
+        try:
+            hypothesis = console.input("→ ").strip()
+        except (KeyboardInterrupt, EOFError):
+            console.print("\n[red]No direction provided — cannot continue.[/red]")
+            raise RuntimeError("No research direction available and user did not provide one.")
+
+        if not hypothesis:
+            console.print("[red]Empty input — cannot continue.[/red]")
+            raise RuntimeError("No research direction available and user did not provide one.")
+
+        direction = ResearchDirection(
+            direction_id=str(uuid.uuid4()),
+            title=hypothesis[:80],
+            hypothesis=hypothesis,
+            approach_sketch="User-provided direction — formalize, decompose into lemmas, attempt proof.",
+            novelty_score=0.8,
+            soundness_score=0.8,
+            transformative_score=0.7,
+        )
+        direction.compute_composite()
+        brief.directions = [direction]
+        brief.selected_direction = direction
+        self.bus.put_research_brief(brief)
+        console.print(f"[green]Direction set to: {direction.title}[/green]\n")
 
     async def _handle_theory_review_gate(
         self, pipeline: "TaskPipeline", brief: "ResearchBrief"

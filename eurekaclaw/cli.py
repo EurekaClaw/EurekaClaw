@@ -471,7 +471,7 @@ def _run_session(
         result = asyncio.run(session.run(spec))
     except ProofPausedException as exc:
         console.print(
-            f"\n[yellow]Proof paused before stage '{exc.paused_before_stage}'.[/yellow]"
+            f"\n[yellow]Proof paused before stage '{exc.stage_name}'.[/yellow]"
             f"\nResume with:  [bold]eurekaclaw resume {exc.session_id}[/bold]\n"
         )
         return
