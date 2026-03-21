@@ -4,6 +4,14 @@ Summary of all updates from `UPDATES.md`.
 
 ---
 
+## 2026-03-20 (2)
+
+### Direction Planning Fallback
+
+When `DivergentConvergentPlanner.diverge()` returns an empty list or throws an exception, the orchestrator now halts and prompts the user to enter a research direction manually instead of silently continuing with no direction. The survey's open problems are shown as context. Empty input or Ctrl+C raises `RuntimeError` and exits cleanly.
+
+---
+
 ## 2026-03-20
 
 ### 1. Theory Review Gate

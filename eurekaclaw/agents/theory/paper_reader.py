@@ -135,7 +135,6 @@ class PaperReader:
             if brief and brief.selected_direction
             else state.informal_statement or domain
         )
-
         # Sort by relevance, take top _MAX_PAPERS
         papers = sorted(bib.papers, key=lambda p: p.relevance_score, reverse=True)
         papers = papers[:_MAX_PAPERS]

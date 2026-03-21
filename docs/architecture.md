@@ -166,6 +166,17 @@ save_artifacts()
           └── pdflatex (pass 3 — finalize)
 ```
 
+## Direction Planning Fallback
+
+After the `IdeationAgent` runs, `MetaOrchestrator._handle_direction_gate()` calls `DivergentConvergentPlanner.diverge()` to generate 5 research directions. If the planner fails or returns an empty list (e.g. LLM parse error, API timeout), instead of silently proceeding with no direction the orchestrator **halts and prompts the user**:
+
+1. Prints up to 5 open problems found by the survey as context.
+2. Asks the user to type a hypothesis/direction manually.
+3. Constructs a `ResearchDirection` from the input and writes it to `ResearchBrief`.
+4. If the user enters nothing or presses Ctrl+C, raises `RuntimeError` and the session exits cleanly.
+
+This is implemented in `_handle_manual_direction()` in `meta_orchestrator.py`.
+
 ## Theory Review Gate
 
 After the TheoryAgent completes and before the WriterAgent runs, the `MetaOrchestrator` executes the `theory_review_gate` orchestrator task. This gate is **independent of `gate_mode`** and always fires.

@@ -68,7 +68,6 @@ class GapAnalyst:
             if brief and brief.selected_direction
             else state.informal_statement or domain
         )
-
         known_summary = self._summarize_known(state)
 
         try:
