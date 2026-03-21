@@ -33,6 +33,19 @@ def _to_str_list(items: list) -> list[str]:
     return result
 
 
+def _coerce_authors(authors: object) -> list[str]:
+    """Coerce the authors field to list[str].
+
+    The LLM sometimes returns authors as a comma-separated string instead of
+    a list, or as a list of dicts with a 'name' key.
+    """
+    if isinstance(authors, list):
+        return [a.get("name", str(a)) if isinstance(a, dict) else str(a) for a in authors]
+    if isinstance(authors, str):
+        return [a.strip() for a in authors.split(",") if a.strip()]
+    return []
+
+
 class SurveyAgent(BaseAgent):
     """Searches arXiv, Semantic Scholar, and web for relevant literature.
 
@@ -115,7 +128,7 @@ papers (5-8), open_problems (3-5), key_mathematical_objects, research_frontier, 
                 Paper(
                     paper_id=p.get("arxiv_id") or p.get("s2_id") or p.get("title", "")[:20],
                     title=p.get("title", ""),
-                    authors=p.get("authors", []),
+                    authors=_coerce_authors(p.get("authors", [])),
                     year=p.get("year"),
                     abstract=p.get("abstract", ""),
                     venue=p.get("venue", ""),

@@ -94,11 +94,17 @@ Return as JSON: {{"directions": [{{...}}, ...]}}
             # Convert to ResearchDirection objects and store on brief
             directions = []
             for d in directions_data:
+                def _as_str(v: object) -> str:
+                    """Coerce LLM value to string (it sometimes returns a dict)."""
+                    if isinstance(v, dict):
+                        return v.get("statement", v.get("text", str(v)))
+                    return str(v) if v is not None else ""
+
                 rd = ResearchDirection(
                     direction_id=str(uuid.uuid4()),
-                    title=d.get("title", "Research Direction"),
-                    hypothesis=d.get("hypothesis", d.get("formal_statement", "")),
-                    approach_sketch=d.get("proof_sketch", d.get("approach", "")),
+                    title=_as_str(d.get("title", "Research Direction")),
+                    hypothesis=_as_str(d.get("hypothesis", d.get("formal_statement", ""))),
+                    approach_sketch=_as_str(d.get("proof_sketch", d.get("approach", ""))),
                     novelty_score=float(d.get("novelty_score", 0.5)),
                     soundness_score=float(d.get("feasibility_score", 0.5)),
                     transformative_score=float(d.get("impact_score", 0.5)),
