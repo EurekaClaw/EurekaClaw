@@ -90,6 +90,45 @@ eurekaclaw from-papers 1602.01783 2301.00774 \
 
 ---
 
+### `pause` — Pause a running session
+
+```bash
+eurekaclaw pause <session_id>
+```
+
+**Arguments:**
+- `session_id` — Session ID of the running proof to pause (found in the console header at startup)
+
+Writes a `pause.flag` file to `~/.eurekaclaw/sessions/<session_id>/`. The theory agent detects this flag at the next stage boundary, saves a checkpoint, and exits cleanly with a `ProofPausedException`. The partial proof state is preserved in `~/.eurekaclaw/sessions/<session_id>/checkpoint.json`.
+
+You can also pause by pressing **Ctrl+C** during a run. EurekaClaw intercepts `SIGINT` and writes the pause flag instead of raising `KeyboardInterrupt`, giving the agent time to reach a clean checkpoint boundary.
+
+**Example:**
+```bash
+# In a separate terminal while a proof is running:
+eurekaclaw pause abc12345
+```
+
+---
+
+### `resume` — Resume a paused session
+
+```bash
+eurekaclaw resume <session_id>
+```
+
+**Arguments:**
+- `session_id` — Session ID of the paused proof to continue
+
+Loads the checkpoint from `~/.eurekaclaw/sessions/<session_id>/checkpoint.json` and re-runs the theory agent starting from the saved stage, with all previously proved lemmas already in `TheoryState`. Passes the same domain and query as the original session.
+
+**Example:**
+```bash
+eurekaclaw resume abc12345
+```
+
+---
+
 ### `skills` — List available skills
 
 ```bash
@@ -167,6 +206,33 @@ All three research commands (`prove`, `explore`, `from-papers`) write artifacts 
 ├── research_brief.json    Planning state (directions, selected direction)
 └── experiment_result.json Numerical validation results (if run)
 ```
+
+Paused sessions also write a checkpoint to `~/.eurekaclaw/sessions/<session_id>/checkpoint.json`.
+
+## Theory Review Gate
+
+After the Theory Agent finishes and before the Writer runs, EurekaClaw displays a numbered proof sketch and asks for approval:
+
+```
+──────────────── Proof Sketch Review ────────────────
+  L1  [✓] arm_pull_count_bound  verified
+       For arm a with mean gap Δ_a ...
+  L2  [~] regret_decomposition  low confidence
+       Total regret decomposes as ...
+  L3  [✓] main_theorem          verified
+       UCB1 achieves O(√(KT log T)) regret ...
+──────────────────────────────────────────────────────
+
+Does this proof sketch look correct?
+  y  — Proceed to writing
+  n  — Flag the most logically problematic step
+→
+```
+
+- **y / Enter** — proceed to the WriterAgent
+- **n** — you are asked which step has the most critical logical gap (e.g. `L2` or the full lemma ID) and to describe the issue. The TheoryAgent re-runs once with your feedback injected into its task, then shows the updated sketch one more time.
+
+The theory review gate is **always shown** regardless of `--gate` mode.
 
 ## Exit Codes
 

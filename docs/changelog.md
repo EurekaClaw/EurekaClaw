@@ -4,6 +4,59 @@ Summary of all updates from `UPDATES.md`.
 
 ---
 
+## 2026-03-20
+
+### 1. Theory Review Gate
+
+A new `theory_review_gate` orchestrator task is inserted between the TheoryAgent and WriterAgent in `default_pipeline.yaml`. It is always shown, regardless of `--gate` mode.
+
+- Displays a numbered lemma chain (L1, L2, …) with `✓ verified` / `~ low confidence` tags.
+- **y / Enter** → proceed to writer.
+- **n** → user specifies the most problematic step (by number or ID) and describes the issue. The TheoryAgent re-runs once with the feedback injected into its task description, then shows the updated sketch once more.
+
+### 2. Pause / Resume
+
+Two new CLI commands and a graceful `SIGINT` handler:
+
+| Command | Description |
+|---|---|
+| `eurekaclaw pause <session_id>` | Write `pause.flag`; theory agent stops at next stage boundary and saves `checkpoint.json` |
+| `eurekaclaw resume <session_id>` | Load checkpoint and continue from the saved stage |
+| **Ctrl+C** during `prove` | Same as `pause` — writes flag instead of raising `KeyboardInterrupt` |
+
+Checkpoint file: `~/.eurekaclaw/sessions/<session_id>/checkpoint.json`
+
+### 3. ProofArchitect Improvements
+
+- **`source=None` crash fixed:** `item.get("source") or ""` instead of `item.get("source", "")` so a JSON `null` value never passes through as `None`.
+- **3-layer fallback:** full plan (4–10 lemmas) → 3-lemma simplified plan → single `main_result`. Single-goal is now truly a last resort.
+
+### 4. Citation Quality Improvements
+
+- **Assembler** prompt requires explicit `[lemma_id]` citations in the assembled proof (e.g., `By [arm_pull_count_bound], …`).
+- **ConsistencyChecker** receives the list of proved lemma IDs and verifies all appear in the proof; returns `uncited_lemmas`.
+- **Retry routing:** when ConsistencyChecker failure is citation-related ("uncited" / "missing citation"), the retry loop re-runs the Assembler as well as the Crystallizer — not just the Crystallizer.
+
+### 5. TheoremCrystallizer Fixes
+
+- `max_tokens` raised from 1500 → 2500 to prevent mid-expression truncation of LaTeX formulas.
+- Added explicit no-truncation constraint for math environments.
+
+### 6. Knowledge Graph Write Timing
+
+Tier 3 KG writes now trigger whenever `proven_count > 0` (i.e., after any lemma is proved), not only when the full consistency check passes. Lemma nodes and dependency edges are preserved even when crystallization fails.
+
+### 7. Bug Fixes
+
+| File | Bug | Fix |
+|---|---|---|
+| `agents/theory/inner_loop_yaml.py` | `cp.delete()` AttributeError at checkpoint clear | `cp.delete()` → `cp.clear()` |
+| `agents/theory/inner_loop_yaml.py` | `ProofPausedException` swallowed by bare `except Exception` | Added `isinstance(e, ProofPausedException): raise` before handler |
+| `agents/theory/agent.py` | `ProofPausedException` swallowed in agent execute | Added explicit re-raise |
+| `orchestrator/meta_orchestrator.py` | `_init_brief` created a new session UUID, mismatching `pause.flag` path | `session_id` reuses `bus.session_id` |
+
+---
+
 ## 2026-03-19
 
 ### 1. Robust Lemma Decomposer Parsing
