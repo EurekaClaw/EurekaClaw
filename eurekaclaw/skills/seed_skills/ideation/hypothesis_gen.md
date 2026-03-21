@@ -8,14 +8,14 @@ name: hypothesis_gen
 pipeline_stages:
 - ideation
 source: seed
-success_rate: 0.6366789999999999
+success_rate: 0.7456752999999998
 tags:
 - ideation
 - hypothesis
 - novelty
 - cross-domain
 - divergent-thinking
-usage_count: 0
+usage_count: 9
 version: '1.0'
 ---
 
