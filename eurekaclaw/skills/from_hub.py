@@ -41,6 +41,9 @@ def install_from_hub(skillname: str, dest: str) -> None:
         if os.path.exists(src):
             shutil.rmtree(src)
 
+        if os.path.exists(os.path.join(skills_dir, "skills")):
+            shutil.rmtree(os.path.join(skills_dir, "skills"))
+
         return True
     except FileNotFoundError:
         return False  # clawhub CLI not found, skip hub installation
