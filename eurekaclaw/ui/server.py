@@ -543,6 +543,8 @@ class UIRequestHandler(SimpleHTTPRequestHandler):
                     setattr(settings, field_name, Path(rendered))
                 elif isinstance(current, int):
                     setattr(settings, field_name, int(rendered))
+                elif isinstance(current, float):
+                    setattr(settings, field_name, float(rendered))
                 else:
                     setattr(settings, field_name, rendered)
 

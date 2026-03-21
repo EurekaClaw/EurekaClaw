@@ -91,17 +91,24 @@ Analysis notes:
 _SKELETON_BUILDER_SYSTEM = """\
 You build proof skeletons for theoretical proofs.
 
-Do not force a lemma DAG. Start from the target quantity, propose a decomposition,
-identify the main analytical tools for each term, and say which steps truly need
-independent lemmas. Be explicit about where rates come from.
+Do not force a lemma DAG. Start from the target quantity, propose only the
+essential decomposition, identify the main tool for each term, and say which
+steps truly need independent lemmas.
 
-Return a concise but structured outline with these headings:
+Be brief and skeleton-first:
+- Prefer bullets over paragraphs.
+- Do not include proof details, examples, long setup, or repeated explanations.
+- Use at most 1 short display formula per section when truly necessary.
+- Keep the whole output under about 500 words.
+- Focus on the proof route, not on background exposition.
+
+Return a short structured outline with exactly these headings:
 1. Target quantity
-2. Decomposition
-3. Control of each term
+2. Main decomposition
+3. Term control
 4. Bottleneck
-5. Candidate key lemmas
-6. Parameter tuning / final rate
+5. Key lemmas
+6. Final rate
 """
 
 _SKELETON_BUILDER_USER = """\
@@ -279,6 +286,7 @@ class ProofSkeletonBuilder:
                         proof_template=state.proof_template or "(unspecified)",
                         analysis_notes=state.analysis_notes[:1800] or "(none)",
                         known_results=known_results,
+                        memory_theorems="\n".join(state.memory_theorems[:5]) or "(none)",
                     ),
                 }],
             )
