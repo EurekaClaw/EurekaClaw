@@ -250,7 +250,7 @@ class WriterAgent(BaseAgent):
             proven_proofs = "\n\n".join(
                 (
                     f"**Lemma** [{lid}]{' [LOW CONFIDENCE — not formally verified]' if not rec.verified else ''}:"
-                    f" {node.statement}\n\n**Proof**: {rec.proof_text[:1500]}"
+                    f" {node.statement}\n\n**Proof**: {rec.proof_text[:600]}"
                 )
                 for node, rec, lid in lemma_entries
                 if node is not None
@@ -260,7 +260,7 @@ class WriterAgent(BaseAgent):
                 (
                     f"% {'[LOW CONFIDENCE — not formally verified]' if not rec.verified else '[verified]'}\n"
                     f"\\begin{{lemma}}[{lid}]\n{node.statement}\n\\end{{lemma}}\n"
-                    f"\\begin{{proof}}\n{rec.proof_text[:1500]}\n\\end{{proof}}"
+                    f"\\begin{{proof}}\n{rec.proof_text[:600]}\n\\end{{proof}}"
                 )
                 for node, rec, lid in lemma_entries
                 if node is not None
@@ -294,7 +294,7 @@ Main theorem: {theory_state.formal_statement}
 Informal: {theory_state.informal_statement}
 
 Proven lemmas (use in Results section):
-{proven_proofs[:3000] or "(no proven lemmas)"}
+{proven_proofs[:8000] or "(no proven lemmas)"}
 
 Experimental results:
 {exp_summary or "(no experiments run)"}
@@ -323,7 +323,7 @@ Main theorem: {theory_state.formal_statement}
 Informal: {theory_state.informal_statement}
 
 Proven lemmas (use in Proofs section):
-{proven_proofs[:3000] or "(no proven lemmas)"}
+{proven_proofs[:8000] or "(no proven lemmas)"}
 
 Experimental results:
 {exp_summary or "(no experiments run)"}
@@ -377,6 +377,9 @@ If a section has little content, write at least two sentences rather than omitti
                     tokens["input"] += extra.get("input", 0)
                     tokens["output"] += extra.get("output", 0)
                     latex_body = self._extract_latex(text)
+                # Ensure every lemma has a proof block (LLM may omit them for
+                # low-confidence lemmas, placing the unverified marker outside any proof).
+                latex_body = self._inject_missing_proofs(latex_body, theory_state)
                 abstract_text = self._extract_abstract(text) or (
                     f"We present theoretical results in {brief.domain}. "
                     f"Our main contribution is: {theory_state.informal_statement[:200]}"
@@ -504,6 +507,94 @@ If a section has little content, write at least two sentences rather than omitti
         text = WriterAgent._close_open_environments(text)
 
         return text.strip()
+
+    @staticmethod
+    def _inject_missing_proofs(text: str, theory_state) -> str:  # type: ignore[override]
+        """Post-processing: ensure every lemma/auxlemma environment has a proof block.
+
+        The LLM sometimes omits \\begin{proof}...\\end{proof} for low-confidence
+        lemmas, placing the \\textcolor{orange} unverified marker directly after
+        \\end{lemma} instead.  This method scans the extracted LaTeX body and,
+        for each lemma that lacks a following proof, injects one using the stored
+        proof_text from theory_state.proven_lemmas.
+        """
+        import re
+
+        if not (theory_state and getattr(theory_state, "proven_lemmas", None)):
+            return text
+
+        # Build per-lemma proof text (strip Markdown headers/bold so it's plain text)
+        proof_map: dict[str, str] = {}
+        verified_map: dict[str, bool] = {}
+        for lid, rec in theory_state.proven_lemmas.items():
+            pt = (rec.proof_text or "").strip()
+            pt = re.sub(r"(?m)^#{1,3}[^\n]*\n?", "", pt).strip()   # MD headers
+            pt = re.sub(r"\*\*([^*]+)\*\*", r"\1", pt)              # MD bold
+            pt = re.sub(r"\*([^*]+)\*",     r"\1", pt)              # MD italic
+            pt = re.sub(r"(?m)^\s*[-*]\s+", "- ", pt)               # unify bullets
+            if pt:
+                proof_map[lid] = pt[:1200]
+            verified_map[lid] = bool(getattr(rec, "verified", False))
+
+        prov_map: dict[str, str] = {}
+        src_map:  dict[str, str] = {}
+        for pp in getattr(theory_state, "proof_plan", None) or []:
+            prov_map[pp.lemma_id] = pp.provenance
+            src_map[pp.lemma_id]  = getattr(pp, "source", "") or ""
+
+        _UNVERIFIED = r"\textcolor{orange}{\textbf{[Unverified step — see discussion]}}"
+
+        def make_proof_block(lid: str) -> str:
+            body = proof_map.get(lid, "")
+            if not body:
+                prov = prov_map.get(lid, "new")
+                src  = src_map.get(lid, "")
+                body = f"See {src}." if (prov == "known" and src) else \
+                       "(Proof sketch — see supplementary material.)"
+            suffix = f"\n{_UNVERIFIED}" if not verified_map.get(lid, True) else ""
+            return f"\\begin{{proof}}\n{body}\n\\end{{proof}}{suffix}"
+
+        LEMMA_BEGIN = re.compile(r"\\begin\{(?:lemma|auxlemma)\}(?:\[([^\]]*)\])?")
+        LEMMA_END   = re.compile(r"\\end\{(?:lemma|auxlemma)\}")
+        PROOF_BEGIN = re.compile(r"\\begin\{proof\}")
+        # Noise between \end{lemma} and \begin{proof}:
+        # whitespace, \textcolor{X}{\textbf{Y}}, \clearpage
+        NOISE = re.compile(
+            r"(?:\s+|\\textcolor\{[^}]*\}\{(?:[^{}]|\{[^{}]*\})*\}|\\clearpage\b)*"
+        )
+
+        parts: list[str] = []
+        pos = 0
+        while True:
+            m_begin = LEMMA_BEGIN.search(text, pos)
+            if not m_begin:
+                parts.append(text[pos:])
+                break
+
+            lemma_id = (m_begin.group(1) or "").strip()
+
+            m_end = LEMMA_END.search(text, m_begin.end())
+            if not m_end:
+                parts.append(text[pos:])
+                break
+
+            # Emit text up to and including \end{lemma}
+            parts.append(text[pos : m_end.end()])
+            pos = m_end.end()
+
+            # Skip noise (whitespace + misplaced \textcolor markers)
+            m_noise = NOISE.match(text, pos)
+            scan_pos = m_noise.end() if (m_noise and m_noise.end() > pos) else pos
+
+            if PROOF_BEGIN.match(text, scan_pos):
+                # Proof already present — leave this lemma's trailing text intact
+                continue
+
+            # No proof: inject one and swallow the misplaced noise/markers
+            parts.append(f"\n{make_proof_block(lemma_id)}\n")
+            pos = scan_pos
+
+        return "".join(parts)
 
     @staticmethod
     def _close_open_environments(text: str) -> str:
