@@ -271,37 +271,59 @@
                   <span>Theory iterations</span>
                   <input type="number" name="theory_max_iterations" min="1" />
                 </label>
-                <fieldset class="token-limits-group full-width" data-config-show="always">
-                  <legend>Token limits per call type</legend>
-                  <label class="slider-label">
-                    <span>Agent loop <em id="max_tokens_agent-val"></em></span>
-                    <input type="range" name="max_tokens_agent" min="1024" max="32768" step="512" oninput="document.getElementById('max_tokens_agent-val').textContent=this.value" />
-                  </label>
-                  <label class="slider-label">
-                    <span>Prover <em id="max_tokens_prover-val"></em></span>
-                    <input type="range" name="max_tokens_prover" min="512" max="16384" step="256" oninput="document.getElementById('max_tokens_prover-val').textContent=this.value" />
-                  </label>
-                  <label class="slider-label">
-                    <span>Planner <em id="max_tokens_planner-val"></em></span>
-                    <input type="range" name="max_tokens_planner" min="512" max="16384" step="256" oninput="document.getElementById('max_tokens_planner-val').textContent=this.value" />
-                  </label>
-                  <label class="slider-label">
-                    <span>Decomposer <em id="max_tokens_decomposer-val"></em></span>
-                    <input type="range" name="max_tokens_decomposer" min="256" max="8192" step="256" oninput="document.getElementById('max_tokens_decomposer-val').textContent=this.value" />
-                  </label>
-                  <label class="slider-label">
-                    <span>Formalizer / Refiner <em id="max_tokens_formalizer-val"></em></span>
-                    <input type="range" name="max_tokens_formalizer" min="256" max="8192" step="256" oninput="document.getElementById('max_tokens_formalizer-val').textContent=this.value" />
-                  </label>
-                  <label class="slider-label">
-                    <span>Verifier <em id="max_tokens_verifier-val"></em></span>
-                    <input type="range" name="max_tokens_verifier" min="128" max="4096" step="128" oninput="document.getElementById('max_tokens_verifier-val').textContent=this.value" />
-                  </label>
-                  <label class="slider-label">
-                    <span>Context compress <em id="max_tokens_compress-val"></em></span>
-                    <input type="range" name="max_tokens_compress" min="128" max="2048" step="128" oninput="document.getElementById('max_tokens_compress-val').textContent=this.value" />
-                  </label>
-                </fieldset>
+                <details class="full-width token-limits-details" data-config-show="always">
+                  <summary>Token limits per call type</summary>
+                  <fieldset class="token-limits-group">
+                    <label class="slider-label">
+                      <span>Agent loop - default budget for generic agents <em id="max_tokens_agent-val"></em></span>
+                      <input type="range" name="max_tokens_agent" min="1024" max="32768" step="512" oninput="document.getElementById('max_tokens_agent-val').textContent=this.value" />
+                    </label>
+                    <label class="slider-label">
+                      <span>Prover - generates full lemma proofs <em id="max_tokens_prover-val"></em></span>
+                      <input type="range" name="max_tokens_prover" min="512" max="32768" step="256" oninput="document.getElementById('max_tokens_prover-val').textContent=this.value" />
+                    </label>
+                    <label class="slider-label">
+                      <span>Planner - general planning and task breakdown <em id="max_tokens_planner-val"></em></span>
+                      <input type="range" name="max_tokens_planner" min="512" max="16384" step="256" oninput="document.getElementById('max_tokens_planner-val').textContent=this.value" />
+                    </label>
+                    <label class="slider-label">
+                      <span>Architect - builds the overall proof plan <em id="max_tokens_architect-val"></em></span>
+                      <input type="range" name="max_tokens_architect" min="512" max="16384" step="256" oninput="document.getElementById('max_tokens_architect-val').textContent=this.value" />
+                    </label>
+                    <label class="slider-label">
+                      <span>Decomposer - extracts key lemmas or subgoals <em id="max_tokens_decomposer-val"></em></span>
+                      <input type="range" name="max_tokens_decomposer" min="256" max="16384" step="256" oninput="document.getElementById('max_tokens_decomposer-val').textContent=this.value" />
+                    </label>
+                    <label class="slider-label">
+                      <span>Assembler - assembles the full proof narrative <em id="max_tokens_assembler-val"></em></span>
+                      <input type="range" name="max_tokens_assembler" min="512" max="32768" step="256" oninput="document.getElementById('max_tokens_assembler-val').textContent=this.value" />
+                    </label>
+                    <label class="slider-label">
+                      <span>Formalizer / Refiner - formalization, refinement, and theory analysis <em id="max_tokens_formalizer-val"></em></span>
+                      <input type="range" name="max_tokens_formalizer" min="256" max="16384" step="256" oninput="document.getElementById('max_tokens_formalizer-val').textContent=this.value" />
+                    </label>
+                    <label class="slider-label">
+                      <span>TheoremCrystallizer - writes the final theorem statement <em id="max_tokens_crystallizer-val"></em></span>
+                      <input type="range" name="max_tokens_crystallizer" min="256" max="32768" step="256" oninput="document.getElementById('max_tokens_crystallizer-val').textContent=this.value" />
+                    </label>
+                    <label class="slider-label">
+                      <span>Analyst - memory-guided analysis and proof framing <em id="max_tokens_analyst-val"></em></span>
+                      <input type="range" name="max_tokens_analyst" min="256" max="16384" step="256" oninput="document.getElementById('max_tokens_analyst-val').textContent=this.value" />
+                    </label>
+                    <label class="slider-label">
+                      <span>Sketch - short proof sketch or outline generation <em id="max_tokens_sketch-val"></em></span>
+                      <input type="range" name="max_tokens_sketch" min="256" max="8192" step="256" oninput="document.getElementById('max_tokens_sketch-val').textContent=this.value" />
+                    </label>
+                    <label class="slider-label">
+                      <span>Verifier - review, consistency, and proof checks <em id="max_tokens_verifier-val"></em></span>
+                      <input type="range" name="max_tokens_verifier" min="128" max="16384" step="128" oninput="document.getElementById('max_tokens_verifier-val').textContent=this.value" />
+                    </label>
+                    <label class="slider-label">
+                      <span>Context compress - summarizes long chat history <em id="max_tokens_compress-val"></em></span>
+                      <input type="range" name="max_tokens_compress" min="128" max="4096" step="128" oninput="document.getElementById('max_tokens_compress-val').textContent=this.value" />
+                    </label>
+                  </fieldset>
+                </details>
                 <label data-config-show="always">
                   <span>Auto verify confidence</span>
                   <input type="number" name="auto_verify_confidence" min="0" max="1" step="0.01" />
