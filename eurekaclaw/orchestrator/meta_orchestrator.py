@@ -331,43 +331,6 @@ class MetaOrchestrator:
 
     async def _handle_empty_survey_fallback(self, pipeline: TaskPipeline) -> None:
         """If the survey found 0 papers, pause and ask the user for paper IDs."""
-        paper_input = self.gate.survey_empty_prompt()
-        if not paper_input:
-            return
-
-        survey_task = next((t for t in pipeline.tasks if t.name == "survey"), None)
-        if not survey_task:
-            return
-
-        # Inject the manual overrides and ready the task for re-execution
-        feedback = f"Please specifically use and analyze these papers: {paper_input}"
-        survey_task.description = (survey_task.description or "") + f"\n\n[User provided papers]: {feedback}"
-        survey_task.retries = 0
-        survey_task.status = TaskStatus.PENDING
-
-        console.print(f"\n[yellow]Re-running survey agent with your provided papers...[/yellow]")
-        agent = self.router.resolve(survey_task)
-
-        with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), console=console) as progress:
-            prog_task = progress.add_task("survey (revision)...", total=None)
-            result = await agent.execute(survey_task)
-            progress.update(prog_task, completed=True)
-
-        if result.failed:
-            survey_task.mark_failed(result.error)
-            console.print(f"[red]Survey revision failed: {result.error[:100]}[/red]")
-        else:
-            task_outputs = dict(result.output)
-            if result.text_summary:
-                task_outputs["text_summary"] = result.text_summary
-            if result.token_usage:
-                task_outputs["token_usage"] = result.token_usage
-            survey_task.mark_completed(task_outputs)
-            console.print("[green]✓ Survey revision complete.[/green]")
-            self.gate.print_stage_summary("survey")
-
-    async def _handle_empty_survey_fallback(self, pipeline: TaskPipeline) -> None:
-        """If the survey found 0 papers, pause and ask the user for paper IDs."""
         bib = self.bus.get_bibliography()
         has_papers = False
         if bib:
@@ -397,6 +360,11 @@ class MetaOrchestrator:
         survey_task.retries = 0
         survey_task.status = TaskStatus.PENDING
 
+        # Enable exact match schema on the arXiv tool specifically for this retry
+        arxiv_tool = self.tool_registry.get("arxiv_search")
+        if arxiv_tool:
+            arxiv_tool.exact_match_mode = True
+
         console.print(f"\n[yellow]Re-running survey agent with your provided papers...[/yellow]")
         agent = self.router.resolve(survey_task)
 
@@ -404,6 +372,10 @@ class MetaOrchestrator:
             prog_task = progress.add_task("survey (revision)...", total=None)
             result = await agent.execute(survey_task)
             progress.update(prog_task, completed=True)
+
+        # Restore standard schema behavior after execution
+        if arxiv_tool:
+            arxiv_tool.exact_match_mode = False
 
         if result.failed:
             survey_task.mark_failed(result.error)
