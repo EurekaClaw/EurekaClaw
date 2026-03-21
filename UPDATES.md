@@ -1,5 +1,48 @@
 # EurekaClaw Updates
 
+# 2026-03-20 (xuheng branch)
+
+## 1. Minimax Backend Support
+
+Added `LLM_BACKEND=minimax` as a first-class shortcut alongside `openrouter` and `local`.
+
+| File | Change |
+|------|--------|
+| `config.py` | Added `minimax_api_key` / `minimax_model` fields; added `active_model` and `active_fast_model` properties that resolve to the correct model string for the active backend |
+| `llm/factory.py` | Registered `minimax` alias → `https://api.minimaxi.chat/v1`; picks up `MINIMAX_API_KEY` and `MINIMAX_MODEL` automatically |
+| `.env.example` | Documented `LLM_BACKEND=minimax`, `MINIMAX_API_KEY`, `MINIMAX_MODEL` |
+
+## 2. `active_model` / `active_fast_model` Rollout
+
+All hardcoded `settings.eurekaclaw_model` and `settings.fast_model` calls have been replaced with `settings.active_model` and `settings.active_fast_model` respectively, making the full inference pipeline backend-agnostic.
+
+Affected files: `agents/base.py`, `agents/theory/assembler.py`, `agents/theory/consistency_checker.py`, `agents/theory/counterexample.py`, `agents/theory/decomposer.py`, `agents/theory/formalizer.py`, `agents/theory/gap_analyst.py`, `agents/theory/proof_architect.py`, `agents/theory/prover.py`, `agents/theory/refiner.py`, `agents/theory/resource_analyst.py`, `agents/theory/theorem_crystallizer.py`, `agents/theory/verifier.py`, `agents/survey/agent.py`, `orchestrator/planner.py`, `evaluation/evaluator.py`, `learning/prm_scorer.py`, `skills/evolver.py`.
+
+## 3. PDF Extraction Pipeline for PaperReader
+
+`agents/theory/paper_reader.py` gains a new `_extract_from_paper_pdf()` method backed by [Docling](https://github.com/docling-project/docling).
+
+**Pipeline:**
+1. Fetch the full paper PDF from `https://arxiv.org/pdf/{arxiv_id}` via Docling (handles HTTP + layout analysis).
+2. `_extract_math_sections()` filters the resulting Markdown to theorem/lemma-bearing sections (≤ 8 000 chars) using regex patterns on heading names and bold theorem labels.
+3. The existing LLM prompt runs over the filtered excerpt instead of just the abstract, yielding far more extracted `KnownResult` objects.
+
+Docling is optional: install with `pip install 'eurekaclaw[pdf]'`. Falls back gracefully if not installed.
+
+| File | Change |
+|------|--------|
+| `agents/theory/paper_reader.py` | Added `_extract_math_sections()`, `_RESULT_HEADING_RE`, `_RESULT_BODY_RE`, `_extract_from_paper_pdf()` |
+| `pyproject.toml` | Added `[pdf]` optional extra: `docling>=2.0` |
+
+## 4. Bug Fixes
+
+| File | Fix |
+|------|-----|
+| `agents/survey/agent.py` | `_parse_survey_output`: moved `text.index("```", start)` inside the `try` block and catches `ValueError` in addition to `json.JSONDecodeError`, preventing `"substring not found"` crash when the LLM returns an unclosed ` ```json ` fence |
+| `agents/theory/inner_loop_yaml.py` | `cp.delete()` → `cp.clear()` (correct method name on `ProofCheckpoint`) |
+
+---
+
 # 2026-03-19 (shiyuan branch)
 
 ## 1. Robust Lemma Decomposer Parsing
