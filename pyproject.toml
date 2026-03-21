@@ -25,6 +25,7 @@ dependencies = [
     "numpy>=1.26",
     "arxiv>=2.1",
     "bibtexparser>=1.4",
+    "sentence-transformers>=3.0",
 ]
 
 [project.optional-dependencies]
