@@ -90,7 +90,7 @@ class KeyLemmaExtractor:
         try:
             response = await self.client.messages.create(
                 model=settings.eurekaclaw_model,
-                max_tokens=2200,
+                max_tokens=settings.max_tokens_decomposer,
                 system=EXTRACTOR_SYSTEM,
                 messages=[{
                     "role": "user",

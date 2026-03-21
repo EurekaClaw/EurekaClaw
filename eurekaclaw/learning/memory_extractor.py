@@ -129,7 +129,7 @@ class SessionMemoryExtractor:
         try:
             response = await self.client.messages.create(
                 model=settings.fast_model,
-                max_tokens=1500,
+                max_tokens=settings.max_tokens_formalizer,
                 system="You extract lasting research insights from proof sessions. Be concise and precise.",
                 messages=[{"role": "user", "content": _EXTRACT_PROMPT.format(
                     domain=domain or "mathematical research",
@@ -232,7 +232,7 @@ class SessionMemoryExtractor:
             try:
                 response = await self.client.messages.create(
                     model=settings.fast_model,
-                    max_tokens=256,
+                    max_tokens=settings.max_tokens_compress,
                     system="You decide whether two memory entries should be merged.",
                     messages=[{"role": "user", "content": _MERGE_PROMPT.format(
                         existing=existing_content[200:600],

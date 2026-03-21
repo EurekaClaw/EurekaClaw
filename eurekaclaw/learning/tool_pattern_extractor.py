@@ -136,7 +136,7 @@ class ToolPatternExtractor:
         try:
             response = await self.client.messages.create(
                 model=settings.fast_model,
-                max_tokens=1024,
+                max_tokens=settings.max_tokens_compress,
                 system="You extract reusable research tool-use patterns from successful proofs.",
                 messages=[{"role": "user", "content": _PATTERN_PROMPT.format(
                     domain=domain or "mathematical research",

@@ -178,7 +178,7 @@ class MemoryGuidedAnalyzer:
         try:
             response = await self.client.messages.create(
                 model=settings.fast_model,
-                max_tokens=1200,
+                max_tokens=settings.max_tokens_analyst,
                 system=_MEMORY_ANALYSIS_SYSTEM,
                 messages=[{
                     "role": "user",
@@ -216,7 +216,7 @@ class TemplateSelector:
         try:
             response = await self.client.messages.create(
                 model=settings.fast_model,
-                max_tokens=900,
+                max_tokens=settings.max_tokens_analyst,
                 system=_TEMPLATE_SELECTOR_SYSTEM,
                 messages=[{
                     "role": "user",
@@ -267,7 +267,7 @@ class ProofSkeletonBuilder:
         try:
             response = await self.client.messages.create(
                 model=settings.eurekaclaw_model,
-                max_tokens=1600,
+                max_tokens=settings.max_tokens_analyst,
                 system=_SKELETON_BUILDER_SYSTEM,
                 messages=[{
                     "role": "user",

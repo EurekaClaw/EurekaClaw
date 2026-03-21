@@ -63,7 +63,7 @@ class ProofSketchGenerator:
             model=settings.eurekaclaw_model,
             system=_SKETCH_SYSTEM,
             messages=[{"role": "user", "content": user_msg}],
-            max_tokens=600,
+            max_tokens=settings.max_tokens_sketch,
         )
         return response.content[0].text.strip()
 
@@ -78,6 +78,6 @@ class ProofSketchGenerator:
             model=settings.eurekaclaw_model,
             system=_SKETCH_SYSTEM,
             messages=[{"role": "user", "content": user_msg}],
-            max_tokens=600,
+            max_tokens=settings.max_tokens_sketch,
         )
         return response.content[0].text.strip()

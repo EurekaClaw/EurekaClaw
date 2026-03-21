@@ -68,17 +68,40 @@ class TheoremCrystallizer:
         self.client: LLMClient = client or create_client()
 
     async def run(self, state: TheoryState, domain: str = "") -> TheoryState:
-        """Populate state.formal_statement from state.assembled_proof."""
+        """Populate state.formal_statement from state.assembled_proof.
+
+        If the previous consistency check flagged the theorem as truncated,
+        retry with a shorter input and a larger token budget so the LLM has
+        room to complete the formula.
+        """
         if not state.assembled_proof:
             logger.warning("TheoremCrystallizer: no assembled_proof — skipping")
             return state
 
-        proof_excerpt = self._build_proof_context(state)
+        # Detect if the last failure was a truncation so we can compensate.
+        last_failure = state.failed_attempts[-1] if state.failed_attempts else None
+        is_truncation_retry = last_failure and any(
+            kw in last_failure.failure_reason.lower()
+            for kw in ("truncated", "truncation", "ends mid", "incomplete formula",
+                       "cut off", "mid-expression")
+        )
+
+        if is_truncation_retry:
+            # Use a minimal context so the model can spend tokens on the output.
+            proof_excerpt = state.assembled_proof[:2000]
+            max_tokens = settings.max_tokens_agent  # larger budget
+            logger.info(
+                "TheoremCrystallizer: truncation retry — using short context (%d chars), "
+                "max_tokens=%d", len(proof_excerpt), max_tokens,
+            )
+        else:
+            proof_excerpt = self._build_proof_context(state)
+            max_tokens = settings.max_tokens_crystallizer
 
         try:
             response = await self.client.messages.create(
                 model=settings.eurekaclaw_model,
-                max_tokens=1800,
+                max_tokens=max_tokens,
                 system=CRYSTALLIZE_SYSTEM,
                 messages=[{
                     "role": "user",

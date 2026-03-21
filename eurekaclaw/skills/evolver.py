@@ -84,7 +84,7 @@ class SkillEvolver:
         try:
             response = await self.client.messages.create(
                 model=settings.fast_model,
-                max_tokens=1024,
+                max_tokens=settings.max_tokens_compress,
                 messages=[{"role": "user", "content": DISTILL_PROMPT.format(evidence=evidence)}],
             )
             if not response.content:

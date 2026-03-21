@@ -74,7 +74,7 @@ class GapAnalyst:
         try:
             response = await self.client.messages.create(
                 model=settings.eurekaclaw_model,
-                max_tokens=1024,
+                max_tokens=settings.max_tokens_formalizer,
                 system=GAP_SYSTEM,
                 messages=[{
                     "role": "user",

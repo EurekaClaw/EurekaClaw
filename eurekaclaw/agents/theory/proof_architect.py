@@ -192,7 +192,7 @@ class ProofArchitect:
         try:
             response = await self.client.messages.create(
                 model=settings.eurekaclaw_model,
-                max_tokens=3000,
+                max_tokens=settings.max_tokens_architect,
                 system=ARCHITECT_SYSTEM,
                 messages=[{
                     "role": "user",
@@ -219,7 +219,7 @@ class ProofArchitect:
         try:
             response = await self.client.messages.create(
                 model=settings.eurekaclaw_model,
-                max_tokens=1500,
+                max_tokens=settings.max_tokens_architect // 2,
                 system=ARCHITECT_SYSTEM_SIMPLE,
                 messages=[{
                     "role": "user",

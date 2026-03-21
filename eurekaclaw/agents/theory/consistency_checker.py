@@ -130,7 +130,7 @@ class ConsistencyChecker:
         try:
             response = await self.client.messages.create(
                 model=settings.fast_model,
-                max_tokens=700,
+                max_tokens=settings.max_tokens_verifier,
                 system=CHECK_SYSTEM,
                 messages=[{
                     "role": "user",

@@ -115,7 +115,7 @@ class PaperReader:
         try:
             response = await self.client.messages.create(
                 model=settings.fast_model,
-                max_tokens=2048,
+                max_tokens=settings.max_tokens_formalizer,
                 system=EXTRACT_SYSTEM,
                 messages=[{
                     "role": "user",
