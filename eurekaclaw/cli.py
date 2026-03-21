@@ -465,52 +465,21 @@ def install_skills(force: bool, skillname: str = "") -> None:
     from eurekaclaw.skills.registry import _SEED_DIR
     import shutil
     from eurekaclaw.utils import copy_file
-    from eurekaclaw.skills.from_hub import install_from_hub
+    from eurekaclaw.skills.from_hub import install_from_hub, install_seed_skills
 
     settings.ensure_dirs()
     dest = settings.skills_dir
-
-    count = 0
-    skipped = 0
     
     if skillname:
-        # Install specific skill from clawhub
         success = install_from_hub(skillname, dest)
-        print(success)
-        exit()
         if not success:
             console.print(f"[red]Failed to install skill '{skillname}' from clawhub.[/red]")
             sys.exit(1)
-        console.print(f"[green]Installed skill from clawhub: {skillname}[/green]")
-        # try:
-        #     from eurekaclaw.clawhub import fetch_skill
-        #     skill_content = fetch_skill(skillname)
-        #     dst = dest / f"{skillname}.md"
-        #     with open(dst, "w") as f:
-        #         f.write(skill_content)
-        #     console.print(f"[green]Installed skill from clawhub: {skillname}[/green]")
-        #     count = 1
-        # except Exception as exc:
-        #     console.print(f"[red]Failed to install '{skillname}' from clawhub: {exc}[/red]")
-        #     sys.exit(1)
+        console.print(f"[green]Installed skill from clawhub: {skillname} to {dest}[/green]")
     else:
-        # Install all seed skills
-        for src in sorted(_SEED_DIR.rglob("*.md")):
-            copyed = copy_file(src, dest, overwrite=force)
-            if not copyed:
-                skipped += 1
-                continue
-            # dst = dest / src.name
-            # if dst.exists() and not force:
-            #     skipped += 1
-            #     continue
-            # shutil.copy2(src, dst)
-            count += 1
-            console.print(f"[green]Installed or Updated: {src.name}[/green]")
-
-    console.print(f"[green]Installed {count} skill(s) to {dest}[/green]")
-    if skipped:
-        console.print(f"[dim]Skipped {skipped} already-installed skills (use --force to overwrite)[/dim]")
+        install_seed_skills(dest)
+        console.print(f"[green]Installed seed skills to {dest}[/green]")
+    
 
 
 @main.command()
