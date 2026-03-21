@@ -156,6 +156,11 @@ class LemmaDeveloper:
 
             goal_proved = True
             for lemma_id in list(state.open_goals):
+                # --- Pause check BEFORE starting this lemma ---
+                # Stop immediately so checkpoint preserves all lemmas proved so far.
+                if checkpoint and checkpoint.is_pause_requested():
+                    return state
+
                 logger.info("Attempting proof of lemma: %s", lemma_id)
 
                 # --- Tier 1: collect in-session past failures for this lemma ---
@@ -304,10 +309,10 @@ class LemmaDeveloper:
                     state.open_goals.remove(lemma_id)
                     self.bus.put_theory_state(state)
 
-                # --- Lemma-level pause check ---
-                # Check after every lemma (proved or accepted) so the user
-                # can pause between lemma attempts without losing progress.
-                # The caller's run() will save the checkpoint and raise.
+                # --- Lemma-level pause check (fallback) ---
+                # Primary check is at the TOP of this loop (before prover.attempt).
+                # This fallback catches the case where pause was requested during
+                # the very last LLM call of this lemma.
                 if checkpoint and checkpoint.is_pause_requested():
                     return state
 
