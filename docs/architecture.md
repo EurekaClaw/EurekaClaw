@@ -30,11 +30,14 @@ InputSpec (conjecture / domain / paper_ids)
  │       ├── TheoremCrystallizer                               │
  │       └── ConsistencyChecker                                │
  │                                                             │
- │  6. ExperimentAgent (optional) ───────────► ExperimentResult│
+ │  6. [theory_review_gate] ─── human review ► approved proof │
+ │       (always shown; y=proceed, n=re-run theory with fix)   │
  │                                                             │
- │  7. WriterAgent ──────────────────────────► LaTeX paper     │
+ │  7. ExperimentAgent (optional) ───────────► ExperimentResult│
+ │                                                             │
+ │  8. WriterAgent ──────────────────────────► LaTeX paper     │
  │                                             + PDF           │
- │  8. ContinualLearningLoop ────────────────► new skills      │
+ │  9. ContinualLearningLoop ────────────────► new skills      │
  └─────────────────────────────────────────────────────────────┘
         │
         ▼
@@ -162,6 +165,34 @@ save_artifacts()
           ├── pdflatex (pass 2 — resolve citations)
           └── pdflatex (pass 3 — finalize)
 ```
+
+## Theory Review Gate
+
+After the TheoryAgent completes and before the WriterAgent runs, the `MetaOrchestrator` executes the `theory_review_gate` orchestrator task. This gate is **independent of `gate_mode`** and always fires.
+
+**Flow:**
+1. `GateController.theory_review_prompt()` prints a numbered lemma list with `✓ verified` / `~ low confidence` tags for each proved lemma, plus any open goals.
+2. The user is asked: **y** (proceed) or **n** (flag the most problematic step).
+3. On rejection:
+   - User enters the lemma number (`L3`) or ID, and a description of the logical gap.
+   - `MetaOrchestrator._handle_theory_review_gate()` finds the theory task, injects the feedback as `[User feedback]: ...`, resets it to `PENDING`, and re-runs the TheoryAgent once.
+   - After the revision, the updated sketch is shown again for a final look (no further retry).
+4. On second rejection, the pipeline proceeds to the WriterAgent anyway with a warning.
+
+## Pause / Resume
+
+The TheoryAgent supports graceful pausing at stage boundaries via `ProofCheckpoint` (`agents/theory/checkpoint.py`).
+
+**Pause flow:**
+- `eurekaclaw pause <session_id>` or **Ctrl+C** writes `~/.eurekaclaw/sessions/<session_id>/pause.flag`.
+- At each stage boundary in `inner_loop_yaml._run_once()`, `ProofCheckpoint.is_pause_requested()` is checked.
+- When detected: clears the flag, saves `checkpoint.json` (current stage + full `TheoryState`), raises `ProofPausedException`.
+- `ProofPausedException` propagates through both `_run_once` and `agent.py` (explicit re-raise in both `except Exception` handlers).
+
+**Resume flow:**
+- `eurekaclaw resume <session_id>` loads `checkpoint.json`, reconstructs `TheoryState`, and re-runs the TheoryAgent starting at the saved stage.
+
+**Checkpoint file:** `~/.eurekaclaw/sessions/<session_id>/checkpoint.json`
 
 ## Post-Run Learning
 
