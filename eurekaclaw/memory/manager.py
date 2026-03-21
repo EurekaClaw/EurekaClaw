@@ -8,13 +8,17 @@ Four tiers:
                       (used for prompt injection in future runs)
 
 All tiers live under ~/.eurekaclaw/:
-  memory/persistent.json       ← tier 2
-  memory/knowledge_graph.json  ← tier 3
-  memories/<domain>/<date>.md  ← tier 4  (written by SessionMemoryExtractor)
+  memory/persistent.json            ← tier 2
+  memory/knowledge_graph.json       ← tier 3
+  memories/<domain>/<date>.md       ← tier 4 (written by SessionMemoryExtractor)
+  memories/<domain>/_index.json     ← tier 4 (index for semantic search)
 """
 
 from __future__ import annotations
 
+import json
+import re
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -22,6 +26,7 @@ from eurekaclaw.config import settings
 from eurekaclaw.memory.episodic import EpisodicMemory
 from eurekaclaw.memory.knowledge_graph import KnowledgeGraph
 from eurekaclaw.memory.persistent import PersistentMemory
+from eurekaclaw.memory.embedding_utils import get_embedding, cosine_similarity # New imports
 from eurekaclaw.types.memory import CrossRunRecord, EpisodicEntry, KnowledgeNode
 
 
@@ -116,17 +121,67 @@ class MemoryManager:
         return [node for _score, node in scored[:limit]]
 
     # --- Tier 4: Domain markdown memories ---------------------------------
+    def _get_domain_memories_path(self, domain: str) -> Path:
+        domain_slug = re.sub(r"[^\w]", "_", domain.lower())[:30] if domain else "general"
+        return settings.eurekaclaw_dir / "memories" / domain_slug
 
-    def load_for_injection(self, domain: str, k: int = 4) -> str:
-        """Load top-k domain memories as a formatted block for prompt injection.
+    def _load_domain_index(self, domain_path: Path) -> dict[str, dict]:
+        index_path = domain_path / "_index.json"
+        if index_path.exists():
+            try:
+                return json.loads(index_path.read_text())
+            except Exception:
+                return {}
+        return {}
 
-        Delegates to SessionMemoryExtractor which manages the markdown files
-        at ~/.eurekaclaw/memories/<domain>/. Returns empty string if none exist.
-        This is the canonical way for injectors/agents to access cross-session
-        memories — no code outside memory/ should import SessionMemoryExtractor.
+    def load_for_injection(self, domain: str, k: int = 4, query: str | None = None) -> str:
+        """Load top-k domain memories as a formatted block for prompt injection,
+        optionally using semantic search.
         """
-        try:
-            from eurekaclaw.learning.memory_extractor import SessionMemoryExtractor
-            return SessionMemoryExtractor().load_for_injection(domain, k=k)
-        except Exception:
+        domain_path = self._get_domain_memories_path(domain)
+        if not domain_path.exists():
             return ""
+
+        domain_index = self._load_domain_index(domain_path)
+        insight_files_with_data = []
+
+        for filename, data in domain_index.items():
+            file_path = domain_path / filename
+            if file_path.exists():
+                insight_files_with_data.append({
+                    "filename": filename,
+                    "file_path": file_path,
+                    "created_at": data.get("created_at", datetime.min.isoformat()),
+                    "embedding": data.get("embedding") # Retrieve stored embedding
+                })
+
+        selected_insights = []
+        if query and insight_files_with_data:
+            try:
+                query_embedding = get_embedding(query)
+                scored_insights = []
+                for insight in insight_files_with_data:
+                    if insight["embedding"]: # Only consider insights that have an embedding
+                        similarity = cosine_similarity(query_embedding, insight["embedding"])
+                        scored_insights.append((similarity, insight))
+                
+                # Sort by similarity in descending order
+                scored_insights.sort(key=lambda x: x[0], reverse=True)
+                selected_insights = [item[1] for item in scored_insights[:k]]
+            except Exception as e:
+                # If embedding or similarity calculation fails, fall back to chronological
+                # logger.warning(f"Semantic search failed for domain {domain}: {e}. Falling back to chronological.")
+                pass # Fallback handled below
+
+        if not selected_insights: # If semantic search failed or no query, use chronological
+            insight_files_with_data.sort(key=lambda x: x["created_at"], reverse=True)
+            selected_insights = insight_files_with_data[:k]
+
+        parts = ["<memories>"]
+        for insight in selected_insights:
+            text = insight["file_path"].read_text(encoding="utf-8")
+            # Strip frontmatter
+            body = re.sub(r"^---\n.*?---\n", "", text, flags=re.DOTALL).strip()
+            parts.append(body[:400]) # Truncate to 400 chars as per original logic
+        parts.append("</memories>")
+        return "\n\n".join(parts)
