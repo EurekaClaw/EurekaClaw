@@ -53,6 +53,12 @@ class ProofCheckpoint:
     # Pause flag
     # ------------------------------------------------------------------
 
+    def request_pause(self) -> None:
+        """Write the pause flag file to request a graceful stop."""
+        self._dir.mkdir(parents=True, exist_ok=True)
+        self._pause_flag.touch()
+        logger.info("Pause flag written for session %s", self.session_id)
+
     def is_pause_requested(self) -> bool:
         """Return True if the pause flag file exists."""
         return self._pause_flag.exists()
