@@ -732,6 +732,14 @@ def _run_session(
             f"\nResume with:  [bold]eurekaclaw resume {exc.session_id}[/bold]\n"
         )
         return
+    except asyncio.CancelledError:
+        # Pause fired during a non-theory stage (survey, ideation, etc.)
+        # No theory checkpoint exists yet, but session state is written to disk.
+        console.print(
+            f"\n[yellow]Session interrupted during early pipeline stage.[/yellow]"
+            f"\nNo checkpoint available — restart with the same command to try again.\n"
+        )
+        return
 
     out = save_artifacts(result, output_dir or "./results")
     console.print(f"[green]Artifacts saved to {out}[/green]")
