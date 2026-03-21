@@ -402,17 +402,42 @@ class GateController:
             console.print("\n[dim]Input interrupted — proceeding.[/dim]")
             return True, "", ""
 
-        if answer in ("y", "yes", ""):
+        if answer == "" or answer[0] in ("y", "yes", ""):
             console.print("[green]Proof approved — proceeding to writer.[/green]\n")
             return True, "", ""
 
         # Rejection: ask which lemma and what the issue is
         console.print()
+        
+        all_valid_ids = set(lemma_ids)
+        if state.open_goals:
+            all_valid_ids.update(state.open_goals)
+
+        while True:
+            try:
+                lemma_ref = console.input(
+                    "[bold]Which step has the most critical logical gap?[/bold]\n"
+                    "[dim]Enter lemma number (e.g. L3) or ID:[/dim] → "
+                ).strip()
+            except (KeyboardInterrupt, EOFError):
+                console.print("\n[dim]Input interrupted — proceeding anyway.[/dim]")
+                return True, "", ""
+
+            # Resolve "L3" → actual lemma id
+            resolved_id = lemma_ref
+            if lemma_ref.upper().startswith("L") and lemma_ref[1:].isdigit():
+                idx = int(lemma_ref[1:]) - 1
+                if 0 <= idx < len(lemma_ids):
+                    resolved_id = lemma_ids[idx]
+                    break
+                else:
+                    console.print(f"[red]Invalid lemma number. Please enter a number between L1 and L{len(lemma_ids)}.[/red]\n")
+            elif resolved_id in all_valid_ids:
+                break
+            else:
+                console.print("[red]Invalid input. Please enter a valid lemma number (e.g., L1) or exact ID.[/red]\n")
+
         try:
-            lemma_ref = console.input(
-                "[bold]Which step has the most critical logical gap?[/bold]\n"
-                "[dim]Enter lemma number (e.g. L3) or ID:[/dim] → "
-            ).strip()
             reason = console.input(
                 "\n[bold]Describe the issue[/bold]\n"
                 "[dim](Be specific — the theory agent will retry with your feedback):[/dim] → "
@@ -420,13 +445,6 @@ class GateController:
         except (KeyboardInterrupt, EOFError):
             console.print("\n[dim]Input interrupted — proceeding anyway.[/dim]")
             return True, "", ""
-
-        # Resolve "L3" → actual lemma id
-        resolved_id = lemma_ref
-        if lemma_ref.upper().startswith("L") and lemma_ref[1:].isdigit():
-            idx = int(lemma_ref[1:]) - 1
-            if 0 <= idx < len(lemma_ids):
-                resolved_id = lemma_ids[idx]
 
         console.print(
             f"\n[yellow]Flagged:[/yellow] [cyan]{resolved_id}[/cyan]\n"
