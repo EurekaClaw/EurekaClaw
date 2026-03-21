@@ -119,7 +119,7 @@ for each open_goal:
 
 | Severity | Meaning | Retry path |
 |---|---|---|
-| `uncited` | Proof logic is sound but proved lemmas are not cited in the assembled text | Re-run `TheoremCrystallizer` only — **no second ConsistencyChecker pass** — then proceed directly to the theory review gate |
+| `uncited` | Proof logic is sound but proved lemmas are not cited in the assembled text | Re-run `TheoremCrystallizer` inline, then immediately mark proof as `proved` and exit the outer loop — **no second ConsistencyChecker pass** |
 | `major` | A specific lemma is incorrect or the logical link between two lemmas is broken | Re-run `LemmaDeveloper → Assembler → TheoremCrystallizer → ConsistencyChecker` (one attempt). If this also fails, escalate to `all_wrong` |
 | `all_wrong` | Fundamental proof breakdown — wrong approach or multiple incorrect lemmas | Re-run from `ProofArchitect` (new proof plan) through the full pipeline |
 

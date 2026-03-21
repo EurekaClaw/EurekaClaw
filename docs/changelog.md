@@ -6,6 +6,14 @@ Summary of all updates from `UPDATES.md`.
 
 ## 2026-03-21
 
+### 5. Fix Infinite Loop on ConsistencyChecker `uncited` Severity
+
+The `uncited` retry path in `inner_loop_yaml.py` previously set `current_spec` to only `theorem_crystallizer`. After the crystallizer ran, no `ConsistencyChecker` was invoked, so `state.status` never reached `"proved"` and the outer iteration loop re-triggered the same `uncited` branch on every iteration — a deadlock.
+
+**Fix:** The `uncited` branch now runs `TheoremCrystallizer` inline, then immediately sets `state.status = "proved"` and `break`s out of the outer loop. This matches the spec: uncited failures mean proof logic is sound, only citation gaps need fixing, so no second consistency check is required.
+
+**Relevant file:** `eurekaclaw/agents/theory/inner_loop_yaml.py`
+
 ### 4. Immediate Pause on Ctrl+C (Cancel Running LLM Call)
 
 Previously, Ctrl+C only wrote a pause flag and the pipeline waited until the next lemma boundary to stop — potentially waiting several minutes for the current LLM call to complete.

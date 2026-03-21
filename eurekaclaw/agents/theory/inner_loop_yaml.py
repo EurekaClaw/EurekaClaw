@@ -635,12 +635,23 @@ class TheoryInnerLoopYaml:
             if "[severity:uncited]" in reason or any(
                 kw in reason for kw in ("never cited", "uncited", "missing citation", "not cited")
             ):
-                # Minor: citation gaps only — re-crystallize, skip second check.
-                retry_stage_names = ("theorem_crystallizer",)
+                # Minor: citation gaps only — re-crystallize, then mark proved
+                # without a second ConsistencyChecker pass (proof logic is sound).
+                # Run the crystallizer inline here so we can force status afterwards.
                 logger.info(
                     "Consistency check failed (uncited) — re-running crystallizer only, "
                     "skipping second check (outer iter %d)", outer_iter + 1,
                 )
+                retry_spec = [s for s in original_spec if s["name"] == "theorem_crystallizer"]
+                for s in retry_spec:
+                    inst = self._instantiate(s["class"])
+                    state = await self._run_once(inst, state, domain, int(s.get("max_retries", 1)))
+                    self.bus.put_theory_state(state)
+                state.status = "proved"
+                self.bus.put_theory_state(state)
+                cp.clear()
+                logger.info("Uncited retry complete — marking as proved.")
+                break
             elif "[severity:all_wrong]" in reason or (
                 # Escalate to all_wrong when a previous major retry also failed.
                 "[severity:major]" in reason
