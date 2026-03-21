@@ -601,7 +601,7 @@ class TheoryInnerLoopYaml:
 
             # After a full pass: if proved, we're done.
             if state.status == "proved":
-                cp.delete()
+                cp.clear()
                 logger.info("Pipeline complete: theorem proved and consistent.")
                 break
 

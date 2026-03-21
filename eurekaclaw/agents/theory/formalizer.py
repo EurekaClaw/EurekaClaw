@@ -84,7 +84,7 @@ class Formalizer:
             # Limit context keys to the most recent 8 lemmas to save tokens
             context_keys = list(state.lemma_dag.keys())[-8:]
             response = await self.client.messages.create(
-                model=settings.fast_model,  # formalization is deterministic
+                model=settings.active_fast_model,  # formalization is deterministic
                 max_tokens=settings.max_tokens_formalizer,
                 system=FORMALIZE_SYSTEM,
                 messages=[{

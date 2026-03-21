@@ -47,7 +47,7 @@ class DivergentConvergentPlanner:
         math_objects = ", ".join(brief.key_mathematical_objects[:8])
 
         response = await self.client.messages.create(
-            model=settings.eurekaclaw_model,
+            model=settings.active_model,
             max_tokens=settings.max_tokens_planner,
             system=DIVERGE_SYSTEM,
             messages=[{
@@ -91,7 +91,7 @@ Return JSON: {{"directions": [
         )
 
         response = await self.client.messages.create(
-            model=settings.eurekaclaw_model,
+            model=settings.active_model,
             max_tokens=settings.max_tokens_planner // 2,
             system=CONVERGE_SYSTEM,
             messages=[{

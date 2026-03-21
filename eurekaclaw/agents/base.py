@@ -251,7 +251,7 @@ class BaseAgent(ABC):
         history_text = "\n".join(lines)
         try:
             response = await self.client.messages.create(
-                model=settings.fast_model,
+                model=settings.active_fast_model,
                 max_tokens=settings.max_tokens_compress,
                 system=_COMPRESS_SYSTEM,
                 messages=[{"role": "user", "content": f"Conversation so far:\n{history_text}\n\nWrite the progress summary now."}],
@@ -288,7 +288,7 @@ class BaseAgent(ABC):
             with attempt:
                 try:
                     return await self.client.messages.create(
-                        model=settings.eurekaclaw_model,
+                        model=settings.active_model,
                         max_tokens=_max_tokens,
                         system=system,
                         messages=messages,
@@ -297,7 +297,7 @@ class BaseAgent(ABC):
                 except Exception as e:
                     logger.error(
                         "LLM call failed (model=%s): %s: %s",
-                        settings.eurekaclaw_model, type(e).__name__, e,
+                        settings.active_model, type(e).__name__, e,
                     )
                     raise
 

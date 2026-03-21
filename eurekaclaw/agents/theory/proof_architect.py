@@ -191,7 +191,7 @@ class ProofArchitect:
         """Try the full provenance-annotated plan. Returns lemma list or None."""
         try:
             response = await self.client.messages.create(
-                model=settings.eurekaclaw_model,
+                model=settings.active_model,
                 max_tokens=3000,
                 system=ARCHITECT_SYSTEM,
                 messages=[{

@@ -89,7 +89,7 @@ class LemmaDecomposer:
             context = ", ".join(context_keys) if context_keys else "none"
 
             response = await self.client.messages.create(
-                model=settings.eurekaclaw_model,
+                model=settings.active_model,
                 max_tokens=settings.max_tokens_decomposer,
                 system=DECOMPOSE_SYSTEM,
                 messages=[{
