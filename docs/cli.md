@@ -32,8 +32,10 @@ eurekaclaw prove "<conjecture>" [OPTIONS]
 
 **Example:**
 ```bash
-eurekaclaw prove "The sample complexity of transformers is O(L·d·log(d)/ε²)" \
-  --domain "machine learning theory" --output ./results
+eurekaclaw prove "UCB1 achieves O(sqrt(KT log T)) expected cumulative regret in the stochastic multi-armed bandit setting" \
+  --domain "multi-armed bandit theory" \
+  --gate human \
+  --output ./results
 ```
 
 ---

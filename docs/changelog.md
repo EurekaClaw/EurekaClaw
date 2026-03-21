@@ -4,6 +4,14 @@ Summary of all updates from `UPDATES.md`.
 
 ---
 
+## 2026-03-20 (3)
+
+### Bug Fix: pause AttributeError
+
+`cli.py` referenced `exc.paused_before_stage` but `ProofPausedException` stores the field as `stage_name`. Fixed both call sites so pausing a run no longer crashes with `AttributeError`.
+
+---
+
 ## 2026-03-20 (2)
 
 ### Direction Planning Fallback

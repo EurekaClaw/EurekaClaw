@@ -185,7 +185,7 @@ def resume(session_id: str) -> None:
         _print_proof_result(final_state)
     except ProofPausedException as exc:
         console.print(
-            f"\n[yellow]Paused again before stage '{exc.paused_before_stage}'.[/yellow]"
+            f"\n[yellow]Paused again before stage '{exc.stage_name}'.[/yellow]"
             f"\nResume with:  [bold]eurekaclaw resume {session_id}[/bold]\n"
         )
     except KeyboardInterrupt:
@@ -440,7 +440,7 @@ def _run_session(
         result = asyncio.run(session.run(spec))
     except ProofPausedException as exc:
         console.print(
-            f"\n[yellow]Proof paused before stage '{exc.paused_before_stage}'.[/yellow]"
+            f"\n[yellow]Proof paused before stage '{exc.stage_name}'.[/yellow]"
             f"\nResume with:  [bold]eurekaclaw resume {exc.session_id}[/bold]\n"
         )
         return
