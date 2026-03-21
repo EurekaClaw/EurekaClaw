@@ -834,7 +834,7 @@ class UIRequestHandler(SimpleHTTPRequestHandler):
         if parsed.path.startswith("/api/runs/") and parsed.path.endswith("/restart"):
             run_id = parsed.path.removeprefix("/api/runs/").removesuffix("/restart")
             result = self.state.restart_run(run_id)
-            if "error" in result:
+            if result.get("error"):  # snapshot always has "error" key; check truthiness
                 self._send_json(result, status=HTTPStatus.BAD_REQUEST)
             else:
                 self._send_json(result, status=HTTPStatus.CREATED)

@@ -428,7 +428,10 @@ function startSidebarRename(runId) {
 
 async function restartRun(runId) {
   const btn = document.getElementById("restart-session-btn");
-  if (btn) { btn.disabled = true; btn.querySelector("span") && (btn.querySelector("span").textContent = "Restarting…"); }
+  const btnLabel = btn && btn.querySelector("span");
+  const originalLabel = btnLabel ? btnLabel.textContent : "";
+  if (btn) { btn.disabled = true; }
+  if (btnLabel) btnLabel.textContent = "Restarting…";
   try {
     const newRun = await apiPost(`/api/runs/${runId}/restart`, {});
     allSessions = [newRun, ...allSessions.filter((s) => s.run_id !== newRun.run_id)];
@@ -439,7 +442,12 @@ async function restartRun(runId) {
     if (!pollTimer) startPolling(newRun.run_id);
   } catch (error) {
     if (btn) { btn.disabled = false; }
-    setRunStatus("failed", `Restart failed: ${error.message}`);
+    if (btnLabel) btnLabel.textContent = originalLabel;
+    // Show a clean error message — not the raw JSON body
+    const msg = (() => {
+      try { return JSON.parse(error.message).error || error.message; } catch { return error.message; }
+    })();
+    setRunStatus("failed", `Restart failed: ${msg}`);
   }
 }
 
