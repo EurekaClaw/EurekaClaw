@@ -3,12 +3,14 @@ import requests
 import os
 import eurekaclaw
 from eurekaclaw.types import skills
-from eurekaclaw.utils import copy_file
+from eurekaclaw.utils import copy_file, copy_directory
 import shutil
+import pathlib
 
 CLAWHUB_REGISTRY = "https://clawhub.ai/"  # base registry API URL
+SEED_SKILL_REPO = "https://github.com/EurekaClaw/SeedSkills.git"
 
-def install_from_hub(skillname: str, dest: str) -> None:
+def install_from_hub(skillname: str, dest: pathlib.Path) -> None:
     """
     Check if a skill exists on ClawHub, and install it if found.
 
@@ -18,34 +20,56 @@ def install_from_hub(skillname: str, dest: str) -> None:
     """
     # 1. Check if the skill exists on ClawHub
     try:
-        skills_dir = os.path.join(os.path.dirname(eurekaclaw.__file__), "skills")
+        if not os.path.exists(dest):
+            os.makedirs(dest)
+        parent_dir = dest.parent
         result = subprocess.run(
             ["clawhub", "install", skillname],
             check=True,
             text=True,
-            cwd=skills_dir,
+            cwd=parent_dir,
             # stdout="/dev"
         )
-        print(f"Successfully installed '{skillname}'.")
-        # remove the folder skills_dir / .clawhub/
-        clawhub_dir = os.path.join(skills_dir, ".clawhub")
-        if os.path.exists(clawhub_dir):
-            shutil.rmtree(clawhub_dir)
-    
-        src = os.path.join(skills_dir, "skills", skillname)
-        dst = os.path.join(dest, skillname)
-        if os.path.exists(dst):
-            shutil.rmtree(dst)
-        shutil.copytree(src, dst)
-
-        if os.path.exists(src):
-            shutil.rmtree(src)
-
+        # print(f"Successfully installed '{skillname}'.")
         return True
+    
     except FileNotFoundError:
         return False  # clawhub CLI not found, skip hub installation
     
     except subprocess.CalledProcessError as e:
         # print(f"Error installing '{skillname}': {e.stderr}")
         return False  # installation failed, skill may not exist or other error
-    
+
+
+def install_seed_skills(dest: pathlib.Path) -> None:
+    """
+    Install the seed skills from the SeedSkills repository on GitHub.
+    """
+    try:
+        if not os.path.exists(dest):
+            os.makedirs(dest)
+        result = subprocess.run(
+            ["git", "clone", SEED_SKILL_REPO],
+            check=True,
+            text=True,
+            cwd=dest,
+        )
+        repo_path = os.path.join(dest, "SeedSkills")
+
+        for item in os.listdir(repo_path):
+            if item != ".git" and os.path.isdir(os.path.join(repo_path, item)):
+                src = os.path.join(repo_path, item)
+                dst = os.path.join(dest, item)
+                copy_directory(src, dst, overwrite=True)
+        
+        shutil.rmtree(repo_path)
+
+        # print("Successfully installed seed skills.")
+    except subprocess.CalledProcessError as e:
+        print(f"Error installing seed skills: {e.stderr}")
+
+
+if __name__ == "__main__":
+    eurekaclaw_dir = pathlib.Path.home() / ".eurekaclaw" / "skills"
+    install_from_hub("self-improving-agent", eurekaclaw_dir)
+    install_seed_skills(eurekaclaw_dir)
