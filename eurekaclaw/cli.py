@@ -153,7 +153,7 @@ def resume(session_id: str) -> None:
 
     state, meta = cp.load()
     domain = meta.get("domain", "")
-    brief_raw = meta.get("research_brief", {})
+    brief_raw = json.loads(meta.get("research_brief_json", "{}") or "{}")
     next_stage = meta.get("next_stage", "?")
 
     console.print(
@@ -185,7 +185,7 @@ def resume(session_id: str) -> None:
         _print_proof_result(final_state)
     except ProofPausedException as exc:
         console.print(
-            f"\n[yellow]Paused again before stage '{exc.paused_before_stage}'.[/yellow]"
+            f"\n[yellow]Paused again before stage '{exc.stage_name}'.[/yellow]"
             f"\nResume with:  [bold]eurekaclaw resume {session_id}[/bold]\n"
         )
     except KeyboardInterrupt:
