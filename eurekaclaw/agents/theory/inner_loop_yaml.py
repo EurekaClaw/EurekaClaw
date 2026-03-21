@@ -24,6 +24,7 @@ Selecting this loop vs. the original:
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import datetime
 from pathlib import Path
@@ -545,19 +546,36 @@ class TheoryInnerLoopYaml:
                 logger.info("[%s] %s", name, description)
                 instance = self._instantiate(class_name)
 
-                if mode == "iterative":
-                    max_iter = int(stage_spec.get("max_iterations", settings.theory_max_iterations))
-                    stagnation = int(stage_spec.get("stagnation_window", settings.stagnation_window))
-                    state = await instance.run_iterative(
+                try:
+                    if mode == "iterative":
+                        max_iter = int(stage_spec.get("max_iterations", settings.theory_max_iterations))
+                        stagnation = int(stage_spec.get("stagnation_window", settings.stagnation_window))
+                        state = await instance.run_iterative(
+                            state,
+                            max_iterations=max_iter,
+                            stagnation_window=stagnation,
+                            domain=domain,
+                            checkpoint=cp,
+                        )
+                    else:
+                        max_retries = int(stage_spec.get("max_retries", 1))
+                        state = await self._run_once(instance, state, domain, max_retries)
+                except asyncio.CancelledError:
+                    # Ctrl+C fired mid-stage — save checkpoint at this stage boundary.
+                    # proven_lemmas contains all lemmas completed before the interrupt.
+                    save_stage = name if mode == "iterative" else name
+                    save_spec = current_spec[idx:] if mode == "iterative" else current_spec[idx:]
+                    cp.save(
                         state,
-                        max_iterations=max_iter,
-                        stagnation_window=stagnation,
+                        next_stage=save_stage,
+                        outer_iter=outer_iter,
+                        current_spec=save_spec,
+                        original_spec=original_spec,
                         domain=domain,
-                        checkpoint=cp,
+                        research_brief_json=brief_json,
                     )
-                else:
-                    max_retries = int(stage_spec.get("max_retries", 1))
-                    state = await self._run_once(instance, state, domain, max_retries)
+                    self.bus.put_theory_state(state)
+                    raise ProofPausedException(session_id, name)
 
                 self.bus.put_theory_state(state)
 

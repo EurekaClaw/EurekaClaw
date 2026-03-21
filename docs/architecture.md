@@ -184,6 +184,26 @@ After `IdeationAgent` runs, `MetaOrchestrator._handle_direction_gate()` checks `
 
 This is implemented in `_handle_manual_direction()` in `meta_orchestrator.py`.
 
+## Pause / Resume
+
+The proof pipeline supports immediate pause at any point during execution.
+
+**Triggering a pause:**
+- `Ctrl+C` in the terminal running `eurekaclaw prove` or `eurekaclaw resume`
+- `eurekaclaw pause <session-id>` from a separate terminal
+
+**How it works:**
+
+`cli.py` wraps every proof coroutine in `_run_with_pause_support(coro, cp)`:
+- Registers a SIGINT handler via `loop.add_signal_handler` that calls `task.cancel()`
+- Runs a background 1-second poller that watches for the `pause.flag` file (written by `eurekaclaw pause`) and cancels the task if found
+
+When the task is cancelled, `inner_loop_yaml.run()` catches `asyncio.CancelledError` at the stage boundary, saves a checkpoint (`~/.eurekaclaw/sessions/<id>/checkpoint.json`) with all lemmas proved so far, and raises `ProofPausedException`.
+
+**Checkpoint contents:** proven lemmas, open goals, current outer iteration, remaining stage spec, research brief.
+
+**Resuming:** `eurekaclaw resume <session-id>` reloads the checkpoint and continues from the saved stage.
+
 ## Theory Review Gate
 
 After the TheoryAgent completes and before the WriterAgent runs, the `MetaOrchestrator` executes the `theory_review_gate` orchestrator task. This gate is **independent of `gate_mode`** and always fires.

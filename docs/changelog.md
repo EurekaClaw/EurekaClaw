@@ -6,6 +6,18 @@ Summary of all updates from `UPDATES.md`.
 
 ## 2026-03-21
 
+### 4. Immediate Pause on Ctrl+C (Cancel Running LLM Call)
+
+Previously, Ctrl+C only wrote a pause flag and the pipeline waited until the next lemma boundary to stop — potentially waiting several minutes for the current LLM call to complete.
+
+**New behavior:** Ctrl+C (or `eurekaclaw pause <session-id>` from another terminal) now immediately cancels the running asyncio task, interrupting any in-flight LLM call. `inner_loop_yaml.run()` catches `asyncio.CancelledError`, saves a checkpoint containing all lemmas proved before the interrupt, then raises `ProofPausedException`. Resume picks up exactly where it left off.
+
+**Implementation:**
+- `cli.py`: replaced `_install_pause_handler` + `asyncio.run()` with `_run_with_pause_support(coro, cp)`, which uses `loop.add_signal_handler` to cancel the task on SIGINT, and a 1-second background poller to detect pause flags written by an external `eurekaclaw pause` process.
+- `inner_loop_yaml.py`: each stage execution is wrapped in `try/except asyncio.CancelledError` — on cancellation, checkpoint is saved and `ProofPausedException` is raised.
+
+**Relevant files:** `eurekaclaw/cli.py`, `eurekaclaw/agents/theory/inner_loop_yaml.py`
+
 ### 3. Force Human Intervention When Ideation Returns 0 Directions
 
 Previously, in `prove` (detailed) mode, `_handle_direction_gate` silently auto-created a research direction from the user's conjecture when ideation returned 0 directions. The user was never notified and the pipeline continued without any human confirmation.
