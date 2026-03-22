@@ -549,8 +549,13 @@ def _run_with_pause_support(
         if _task_ref:
             _task_ref[0].cancel()
 
+    import sys as _sys
+
     try:
-        loop.add_signal_handler(signal.SIGINT, _pause_now)
+        if _sys.platform == "win32":
+            signal.signal(signal.SIGINT, lambda *_: _pause_now())
+        else:
+            loop.add_signal_handler(signal.SIGINT, _pause_now)
 
         async def _wrap() -> "Any":
             task = asyncio.current_task()
@@ -578,7 +583,10 @@ def _run_with_pause_support(
         return loop.run_until_complete(_wrap())
     finally:
         try:
-            loop.remove_signal_handler(signal.SIGINT)
+            if _sys.platform == "win32":
+                signal.signal(signal.SIGINT, signal.SIG_DFL)
+            else:
+                loop.remove_signal_handler(signal.SIGINT)
         except Exception:
             pass
         loop.close()
