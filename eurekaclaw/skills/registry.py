@@ -193,3 +193,11 @@ class SkillRegistry:
     def reload(self) -> None:
         self._loaded = False
         self._ensure_loaded()
+
+
+if __name__ == "__main__":
+    registry = SkillRegistry()
+    all_skills = registry.load_all()
+    print(f"Loaded {len(all_skills)} skills:")
+    for skill in all_skills:
+        print(f"- {skill.meta.name} (role={skill.meta.agent_roles}, tags={skill.meta.tags})")

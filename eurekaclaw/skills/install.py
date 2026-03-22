@@ -8,7 +8,8 @@ import shutil
 import pathlib
 
 CLAWHUB_REGISTRY = "https://clawhub.ai/"  # base registry API URL
-SEED_SKILL_REPO = "https://github.com/EurekaClaw/SeedSkills.git"
+SEED_SKILL_REPO = "https://github.com/EurekaClaw/seed_skills.git"
+SEED_SKILL_FOLDER = "seed_skills"
 
 def install_from_hub(skillname: str, dest: pathlib.Path) -> None:
     """
@@ -54,7 +55,7 @@ def install_seed_skills(dest: pathlib.Path) -> None:
             text=True,
             cwd=dest,
         )
-        repo_path = os.path.join(dest, "SeedSkills")
+        repo_path = os.path.join(dest, SEED_SKILL_FOLDER)
 
         for item in os.listdir(repo_path):
             if item != ".git" and os.path.isdir(os.path.join(repo_path, item)):
