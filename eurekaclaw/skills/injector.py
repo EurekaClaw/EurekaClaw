@@ -9,6 +9,9 @@ from eurekaclaw.skills.registry import SkillRegistry
 from eurekaclaw.types.skills import SkillRecord
 from eurekaclaw.types.tasks import Task
 
+from sentence_transformers import SentenceTransformer  # type: ignore
+import numpy as np  # type: ignore
+
 logger = logging.getLogger(__name__)
 
 
@@ -37,12 +40,10 @@ class SkillInjector:
         if strategy == "tag":
             return self._tag_retrieval(task.agent_role, role, k)
         if strategy == "semantic":
-            return self._semantic_retrieval(task, role, k)
-        # # hybrid: tag filter first, then rank by description similarity
-        candidates = self._tag_retrieval(task.agent_role, role, k * 3)
-        # if len(candidates) <= k:
-        #     return candidates
-        return self._rank_by_text_similarity(candidates, task, k)
+            query = f"{task.name} {task.description} {role}"
+            return self._semantic_retrieval(query, role, k)
+        else:
+            return self._tag_retrieval(task.agent_role, role, k)
 
     def _tag_retrieval(self, task_role: str, role: str, k: int) -> list[SkillRecord]:
         by_role = self.registry.get_by_role(role)
@@ -64,28 +65,31 @@ class SkillInjector:
         combined = must_have_skills + optional_skills
         return combined[:k]
 
-    def _semantic_retrieval(self, task: Task, role: str, k: int) -> list[SkillRecord]:
+    def _semantic_retrieval(self, query: str, role: str, k: int) -> list[SkillRecord]:
         """Embedding-based retrieval using sentence-transformers."""
-        try:
-            from sentence_transformers import SentenceTransformer  # type: ignore
-            import numpy as np  # type: ignore
+        model = SentenceTransformer("all-MiniLM-L6-v2")
+        q_emb = model.encode(query)
 
-            model = SentenceTransformer("all-MiniLM-L6-v2")
-            query = f"{task.name} {task.description} {role}"
-            q_emb = model.encode(query)
+        by_role = self.registry.get_by_role(role)
+        by_role = set(s.meta.name for s in by_role)
+        if self.selected_skills:
+            must_have = set(s.meta.name for s in self.selected_skills)
+            must_have = must_have & by_role
+        else:
+            must_have = set()
 
-            skills = self.registry.load_all()
-            scored = []
-            for skill in skills:
-                text = f"{skill.meta.name} {skill.meta.description} {' '.join(skill.meta.tags)}"
-                s_emb = model.encode(text)
-                score = float(np.dot(q_emb, s_emb) / (np.linalg.norm(q_emb) * np.linalg.norm(s_emb) + 1e-9))
-                scored.append((score, skill))
-            scored.sort(key=lambda x: x[0], reverse=True)
-            return [s for _, s in scored[:k]]
-        except ImportError:
-            logger.debug("sentence-transformers not available, falling back to tag retrieval")
-            return self._tag_retrieval(task, role, k)
+        skills = self.registry.load_all()
+        scored = []
+        for skill in skills:
+            text = f"{skill.meta.name} {skill.meta.description} {' '.join(skill.meta.tags)}"
+            s_emb = model.encode(text)
+            score = float(np.dot(q_emb, s_emb) / (np.linalg.norm(q_emb) * np.linalg.norm(s_emb) + 1e-9))
+            scored.append((score, skill.meta.name))
+
+        optional_scored = [(s, name) for s, name in scored if name not in must_have]
+        optional_scored.sort(key=lambda x: x[0], reverse=True)
+        final = [self.registry.get(name) for name in must_have] + [self.registry.get(name) for _, name in optional_scored]
+        return final[:k]
 
     def _rank_by_text_similarity(self, candidates: list[SkillRecord], task: Task, k: int) -> list[SkillRecord]:
         """Simple keyword overlap ranking as fallback."""
@@ -130,4 +134,7 @@ if __name__ == "__main__":    # Quick test
     registry = SkillRegistry(skills_dir=pathlib.Path.home() / ".eurekaclaw/skills")
     injector = SkillInjector(registry, selected_skills=["eluder_dimension", "compactness_argument"])
     top_skills = injector._tag_retrieval(AgentRole.SURVEY, AgentRole.THEORY, 3)
+    print([s.meta.name for s in top_skills])
+
+    top_skills = injector._semantic_retrieval("test query", AgentRole.THEORY, 3)
     print([s.meta.name for s in top_skills])
