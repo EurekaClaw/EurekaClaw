@@ -42,7 +42,7 @@ $ eurekaclaw prove "Find recent papers on sparse attention + prove efficiency bo
 | 🖥️ | **Runs Locally** | Use Ollama, vLLM, or any OpenAI-compatible endpoint — data stays private |
 | 🧠 | **Continual Learning** | Distills proof strategies into skills after every session, improving over time |
 | 🧪 | **Experiment Runner** *(under development)* | Numerically validates theoretical bounds; flags low-confidence lemmas |
-| 🌐 | **Browser UI** | Visual interface with live progress, settings sliders, and results viewer |
+| 🌐 | **Browser UI** | React + TypeScript interface — live agent track, proof sketch, pause/resume, skills manager |
 
 ---
 
@@ -67,12 +67,12 @@ The macOS/Linux installer clones the repo, creates a virtual environment, instal
 <details>
 <summary>Manual install (all platforms)</summary>
 
-**Requirements:** Python ≥ 3.11, Git
+**Requirements:** Python ≥ 3.11, Node.js ≥ 20, Git
 
 ```bash
 git clone https://github.com/EurekaClaw/EurekaClaw_dev_zero
 cd EurekaClaw_dev_zero
-pip install -e "."
+make install                  # pip install -e "." + npm install (frontend)
 ```
 </details>
 
@@ -86,18 +86,18 @@ eurekaclaw onboard            # interactive setup wizard (creates .env)
 
 eurekaclaw install-skills     # install built-in proof skills (do once)
 
-# Prove a conjecture
+# Browser UI — build frontend and open in browser
+make open
+
+# CLI — prove a conjecture
 eurekaclaw prove "The sample complexity of transformers is O(L·d·log(d)/ε²)" \
     --domain "ML theory" --output ./results
 
-# Explore a domain
+# CLI — explore a domain
 eurekaclaw explore "multi-armed bandit theory"
 
-# Start from arXiv papers
+# CLI — start from arXiv papers
 eurekaclaw from-papers 1706.03762 2005.14165 --domain "attention mechanisms"
-
-# Browser UI
-eurekaclaw ui --open-browser
 ```
 
 > No API key? Use a Claude Pro/Max subscription via [OAuth](https://github.com/EurekaClaw/EurekaClaw_dev_zero/blob/main/docs/configuration.md#llm-backend).
@@ -136,6 +136,7 @@ eurekaclaw ui --open-browser
 | 🧠 [**Memory System**](https://github.com/EurekaClaw/EurekaClaw_dev_zero/blob/main/docs/memory.md) | Episodic, persistent, and knowledge graph tiers |
 | ✨ [**Skills**](https://github.com/EurekaClaw/EurekaClaw_dev_zero/blob/main/docs/skills.md) | Skill registry, injection, distillation, writing custom skills |
 | 🔌 [**Domain Plugins**](https://github.com/EurekaClaw/EurekaClaw_dev_zero/blob/main/docs/domains.md) | Plugin architecture, MAB domain, adding new domains |
+| 🌐 [**UI Design**](https://github.com/EurekaClaw/EurekaClaw_dev_zero/blob/main/docs/UI.md) | React/TS architecture, component tree, run commands, full UI changelog |
 | 📋 [**Changelog**](https://github.com/EurekaClaw/EurekaClaw_dev_zero/blob/main/docs/changelog.md) | All updates and bug fixes |
 
 ---
@@ -186,6 +187,12 @@ pytest tests/unit/ -v
 
 # Integration tests
 ANTHROPIC_API_KEY=sk-... pytest tests/integration/ -v
+
+# Frontend type-check
+make typecheck
+
+# Frontend development (hot-reload)
+make dev
 ```
 
 To add a **custom skill**, drop a `.md` file into `~/.eurekaclaw/skills/` — see [skills.md](https://github.com/EurekaClaw/EurekaClaw_dev_zero/blob/main/docs/skills.md).

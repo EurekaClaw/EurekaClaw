@@ -1,10 +1,212 @@
-# EurekaClaw UI — Changelog & Design Notes
+# EurekaClaw UI — Design Notes & Changelog
 
 A full record of every UI feature, redesign, and fix shipped on the `chenggong` branch.
 
 ---
 
+## Running the UI
+
+### One-line commands
+
+```bash
+# Production — build frontend, open browser, serve on :8080
+make open
+
+# Production — build frontend, serve on :8080 (no browser)
+make start
+
+# Development — hot-reload Vite on :5173 + Python backend on :7860
+make dev
+
+# Or use the CLI directly (serves last build from eurekaclaw/ui/static/)
+eurekaclaw ui --open-browser
+```
+
+### How it works
+
+| Mode | Frontend | Backend | URL |
+|---|---|---|---|
+| **Production** (`make start`) | Pre-built bundle in `eurekaclaw/ui/static/` | Python `SimpleHTTPRequestHandler` + API on same port | `http://localhost:8080` |
+| **Dev** (`make dev`) | Vite dev server with HMR | Python API on `:7860`; Vite proxies `/api/*` | `http://localhost:5173` |
+
+### First-time setup
+
+```bash
+pip install -e "."          # Python backend
+make install                 # installs both pip package + npm deps
+eurekaclaw install-skills   # copy seed skills (once)
+cp .env.example .env        # add ANTHROPIC_API_KEY
+```
+
+### Frontend build (when you change React code)
+
+```bash
+make build       # tsc + vite build → eurekaclaw/ui/static/
+make typecheck   # type-check only, no output
+```
+
+---
+
 ## Version history
+
+### [v0.7] — React + TypeScript + Vite Migration
+
+**Goal**: Replace the 7 000-line monolithic frontend (`app.js` / `styles.css` / `index.html`) with a properly typed, component-split Vite 5 + React 18 + TypeScript 5 project that is maintainable by humans and agents alike.
+
+#### Tech stack
+
+| Layer | Before | After |
+|---|---|---|
+| Bundler | None (raw file) | **Vite 5** |
+| Language | Vanilla JS (no types) | **TypeScript 5** (strict mode, zero errors) |
+| Framework | Imperative DOM manipulation | **React 18** (functional components + hooks) |
+| State | Module-level `let` variables | **Zustand 5** stores |
+| Styles | Single 3 900-line CSS file | 19 domain-specific CSS files |
+
+#### New project structure
+
+```
+frontend/
+├── index.html                  # Vite entry point (fonts, root div)
+├── vite.config.ts              # build → eurekaclaw/ui/static/; dev proxy /api → :7860
+├── package.json                # React 18, Zustand, Vite 5, TypeScript 5, concurrently
+├── _legacy/                    # original app.js / styles.css / index.html (archived)
+└── src/
+    ├── types/                  # TypeScript interfaces
+    │   ├── run.ts              # SessionRun, PipelineTask, Artifacts, InputSpec, RunStatus
+    │   ├── skill.ts            # Skill, SkillSource
+    │   ├── config.ts           # AppConfig, Capability, LLMBackend, AuthMode
+    │   └── wizard.ts           # WizardStep, WizardItem
+    ├── api/client.ts           # typed apiGet / apiPost / apiDelete wrappers
+    ├── lib/
+    │   ├── formatters.ts       # escapeHtml, titleCase, formatRelativeTime, parseServerTimestamp
+    │   ├── statusHelpers.ts    # statusClass, liveStatusDetail, getActiveOuterStage, friendlyInnerStage
+    │   └── agentManifest.ts    # AGENT_MANIFEST, STAGE_TASK_MAP, INNER_STAGE_LABELS, agentNarrativeLine
+    ├── store/
+    │   ├── sessionStore.ts     # sessions[], currentRunId, currentLogPage, isPausingRequested
+    │   ├── skillStore.ts       # availableSkills[], selectedSkills[], pagination, search
+    │   └── uiStore.ts          # activeView, activeWsTab, openAgentDrawerRole, flash state
+    ├── hooks/
+    │   ├── usePolling.ts       # adaptive-rate polling (500 / 1 200 / 3 000 ms)
+    │   ├── useElapsedTimer.ts  # seconds-since-pause counter
+    │   └── useLocalStorage.ts  # generic localStorage hook (tutorial skip key)
+    └── components/             # 35 React components
+        ├── layout/             # Sidebar, FlashOverlay
+        ├── session/            # SessionList, NewSessionForm, SessionDetailPane, SessionTopBar
+        ├── workspace/          # WorkspaceSplit, AgentTrack, AgentStepCard, WorkspaceTabs,
+        │                       # LivePanel, ProofPanel, PaperPanel, LogsPanel
+        ├── controls/           # ProofCtrl, StageTrack, TheoryFeedback, FailedSessionNote
+        ├── agent/              # AgentDrawer, SurveyDrawerBody, IdeationDrawerBody,
+        │                       # TheoryDrawerBody, ExperimentDrawerBody, WriterDrawerBody
+        ├── skills/             # SkillsView, SkillLibrary, SkillCard, ClawHubPanel, SelectedSkillsPanel
+        ├── config/             # ConfigView, ConfigForm, AuthGuidance
+        ├── onboarding/         # OnboardingView, WizardPanel
+        └── shared/             # StatusPill
+```
+
+#### Build output
+
+`vite build` emits 77 modules → **231 kB JS** + **56 kB CSS** → `eurekaclaw/ui/static/`. The Python `SimpleHTTPRequestHandler` serves these files identically to before — no server changes required.
+
+#### Developer workflow
+
+| Task | Command |
+|---|---|
+| Start full dev environment | `make dev` |
+| Build for production | `make build` |
+| Type-check only | `make typecheck` |
+| Run linter | `cd frontend && npm run typecheck` |
+
+---
+
+### [v0.6] — Research Workspace Redesign
+
+**Goal**: Replace the flat grid of panels with a focused, mathematician-friendly workspace: a clickable agent track on the left, tabbed content on the right, and a humanistic agent drawer replacing raw terminal output.
+
+#### Layout change: flat grid → workspace split
+
+| Before | After |
+|---|---|
+| `session-panels-grid` — all panels always visible | `workspace-split` — 270 px agent track + tabbed main |
+| Separate pipeline, agents, artifacts, log, output panels | Four tabs: **Live · Proof · Paper · Logs** |
+
+#### Agent track (left column, `AgentTrack`)
+
+- One card per pipeline stage: 📚 Survey · 💡 Ideation · 📐 Theory · 🧪 Validation · ✍️ Writing
+- Colour-coded status badges: `active` (blue), `done` (green), `failed` (red), `pending` (grey)
+- Each card shows a one-line humanized narrative derived from the current artifact state
+- Click any card → slides open the **Agent Drawer** for that stage
+
+#### Agent drawer (`AgentDrawer` + 5 role bodies)
+
+Slide-in panel (440 px, CSS `transform` transition) with per-agent content:
+
+| Agent | Drawer content |
+|---|---|
+| Survey | Papers list (year + title) · open problems · key mathematical objects |
+| Ideation | Selected research direction blockquote · domain |
+| Theory | Theorem statement block + lemma chain with confidence badges |
+| Experiment | Alignment score · bounds verification table (theoretical vs empirical) |
+| Writer | Word count · LaTeX paper excerpt |
+
+Empty state shown for agents that haven't run yet.
+
+#### Live tab (`LivePanel`)
+
+- **Thinking dots animation** (`@keyframes thinking-bounce`) shown while a stage is running
+- **Direction gate card** shown when ideation returns 0 directions (explains fallback to conjecture)
+- **State messages** for paused / completed / failed runs
+
+#### Proof tab (`ProofPanel`)
+
+- **Theorem block** — formal statement or proof skeleton in monospace
+- **Lemma chain** — numbered rows, each with name, formal text snippet, and confidence badge
+  - `badge-verified` (green) · `badge-medium` (amber) · `badge-low` (grey)
+- **Counterexample warning** banner when `counterexamples[]` is non-empty
+- Auto-populated from `theory_state` artifact; shows empty state before theory runs
+
+#### Theory feedback section (`TheoryFeedback`)
+
+Shown only when session is **paused**; lives inside the paused proof-ctrl card:
+
+- Collapsible toggle: "📐 Guide the proof before resuming"
+- **Lemma chips** — one chip per lemma; clicking a chip pre-fills the textarea with `Lemma "<name>": `
+- **Textarea** — freeform guidance; sent as `{feedback}` in the `POST /api/runs/<id>/resume` body
+- On resume: feedback is injected into the theory domain context as `[Human guidance for this proof attempt]: <text>` and cleared after use
+
+#### Backend additions for theory feedback (`eurekaclaw/ui/server.py`)
+
+- `SessionRun.theory_feedback: str` — stores pending feedback between pause and resume
+- `resume_run(run_id, feedback)` — new `feedback` parameter; stored in `run.theory_feedback`
+- `_execute_resume()` — prepends `[Human guidance…]` to `domain` string, clears `theory_feedback`
+- `snapshot_run()` — exposes `theory_feedback` field to frontend
+
+#### Skills page additions
+
+- `POST /api/skills/install` — installs a named ClawHub skill or copies seed skills
+- `DELETE /api/skills/<name>` — removes a user-installed skill from `~/.eurekaclaw/skills/`
+- Skills payload now includes `file_path` so the frontend can distinguish deletable vs seed skills
+- **Source badges**: seed (blue) · auto-learned (teal) · manual (grey) · ClawHub (orange)
+- **Stats bar**: usage count + success rate progress bar per skill
+- **ClawHub install panel**: slug input + Install button + Install seeds button
+- **Select all** button; library auto-reloads after install or delete
+
+#### Humanized logs
+
+`humanizeLogMessage(taskName, event)` maps raw task names to readable entries:
+
+| Raw | Humanized |
+|---|---|
+| `survey` started | 📚 Literature survey started — scanning recent papers |
+| `theory` completed | 📐 Proof complete — theorem sketch ready for review |
+| `experiment` error | ⚠ Validation encountered an issue: … |
+
+#### Auto tab-switching
+
+- Moves to **Proof** tab when the theory task transitions `in_progress → completed`
+- Moves to **Paper** tab when the whole run transitions to `completed`
+
+---
 
 ### [v0.5] — Pause / Resume — State Machine & Real-Time Feedback
 
@@ -40,11 +242,12 @@ A full record of every UI feature, redesign, and fix shipped on the `chenggong` 
 
 Four mutually exclusive sub-panels inside `#proof-ctrl`:
 
-| `#proof-ctrl-running` | Shows "Pause proof" button + caption |
+| Panel | Content |
 |---|---|
-| `#proof-ctrl-pausing` | Amber spinner + "Pausing…" + elapsed timer + "Finishing current lemma…" |
-| `#proof-ctrl-paused` | Amber dot + "Proof paused" + stage name + session ID + Resume + Copy buttons |
-| `#proof-ctrl-resuming` | Green spinner + "Resuming…" + "Loading checkpoint and rebuilding agent context" |
+| `proof-ctrl-running` | "Pause proof" button + stage caption |
+| `proof-ctrl-pausing` | Amber spinner + "Pausing…" + elapsed timer + "Finishing current lemma…" |
+| `proof-ctrl-paused` | Amber dot + "Proof paused" + stage name + session ID + Resume + Copy buttons |
+| `proof-ctrl-resuming` | Green spinner + "Resuming…" + "Loading checkpoint and rebuilding agent context" |
 
 #### Frontend — Optimistic UI
 
@@ -60,17 +263,14 @@ Four mutually exclusive sub-panels inside `#proof-ctrl`:
 | Any session `running` or `queued` | **1 200 ms** |
 | All sessions terminal | **3 000 ms** |
 
-`restartPollingFast()` immediately resets the interval to 500 ms on any user-initiated pause/resume, then `_pollTick` recalculates the correct interval after every response.
-
-Previously: fixed 2 000 ms regardless of state.
+`restartPollingFast()` immediately resets the interval to 500 ms on any user-initiated pause/resume, then recalculates the correct interval after every response.
 
 #### Frontend — Animations & Visual Design
 
-- `ctrl-flash-in` — 300 ms spring animation plays when the paused or running panel first becomes visible (entry from a transition state)
+- `ctrl-flash-in` — 300 ms spring animation plays when the paused or running panel first becomes visible
 - `ctrl-slide-in` — 220 ms slide-in for the pausing/resuming bars
 - Status pill: `pausing` = amber pulsing pill; `resuming` = green pulsing pill
 - Sidebar dot: `pausing` = amber pulsing dot with ring ripple; `resuming` = green pulsing dot with ring ripple
-- Sidebar micro-tag: colour-coded `pausing…` / `resuming…` tags matching their respective pill colours
 - Elapsed timer inside the pausing bar — shows seconds since pause was requested; hidden if < 2 s
 
 ---
@@ -105,9 +305,8 @@ New CSS classes: `.wiz-pipeline`, `.wiz-pipe-step`, `.wiz-options-grid`, `.wiz-o
 
 #### Workspace layout
 
-- **Blank canvas** (`#new-session-pane`) — shown when no session is selected; centered card with the launch form, `.canvas-form-body`, `.canvas-launch-btn`
+- **Blank canvas** (`#new-session-pane`) — shown when no session is selected; centered card with the launch form
 - **Session detail pane** (`#session-detail-pane`) — shown when a session is selected; contains topbar, status row, proof controls, pipeline/agent/artifact/log panels
-- `renderRun(null)` → `showNewSessionPane()`; `renderRun(run)` → `showSessionDetailPane()`
 
 #### Session topbar
 
@@ -139,7 +338,6 @@ Rules:
 - `_pollTick` now fetches only `GET /api/runs` (all sessions in one request)
 - Sidebar status dots for all sessions update simultaneously
 - Pausing/resuming session A no longer stops polling for session B
-- `startPolling` guards against double-start with `if (pollTimer) return`
 
 ---
 
@@ -158,7 +356,7 @@ Rules:
 
 - `#proof-ctrl` — container hidden unless session is running or paused
 - `#proof-ctrl-running` — "Pause proof" button + caption "Stops gracefully at the next lemma boundary"
-- `#proof-ctrl-paused` — amber status dot + session ID `<code>` + "Resume proof" button + "Copy command" button
+- `#proof-ctrl-paused` — amber status dot + session ID + "Resume proof" button + "Copy command" button
 - Copy button writes `eurekaclaw resume <session_id>` to clipboard with a ✓ confirmation tick
 
 ---
@@ -190,6 +388,46 @@ Rules:
 
 ## Architecture reference
 
+### Component tree (v0.7+)
+
+```
+App
+├── FlashOverlay
+├── Sidebar
+│   └── SessionList
+└── <active view>
+    ├── WorkspaceView
+    │   ├── NewSessionForm         (when no session selected)
+    │   └── SessionDetailPane      (when a session is selected)
+    │       ├── SessionTopBar
+    │       ├── ProofCtrl
+    │       │   ├── StageTrack
+    │       │   ├── RunningState
+    │       │   ├── PausingState
+    │       │   ├── PausedState
+    │       │   │   └── TheoryFeedback
+    │       │   └── ResumingState
+    │       ├── WorkspaceSplit
+    │       │   ├── AgentTrack
+    │       │   │   └── AgentStepCard × 5
+    │       │   └── WorkspaceTabs
+    │       │       ├── LivePanel
+    │       │       ├── ProofPanel
+    │       │       ├── PaperPanel
+    │       │       └── LogsPanel
+    │       └── AgentDrawer
+    │           └── {Survey|Ideation|Theory|Experiment|Writer}DrawerBody
+    ├── SkillsView
+    │   ├── SelectedSkillsPanel
+    │   ├── ClawHubPanel
+    │   └── SkillLibrary → SkillCard × n
+    ├── ConfigView
+    │   ├── CapabilityPanel
+    │   └── ConfigForm → AuthGuidance
+    └── OnboardingView
+        └── WizardPanel
+```
+
 ### Pause / Resume data flow
 
 ```
@@ -209,17 +447,18 @@ User clicks "Pause"
                  ├─ run.paused_stage = exc.stage_name
                  └─ checkpoint.json written to disk
 
-User clicks "Resume"
+User clicks "Resume" (optionally with feedback text)
   │
-  ├─ Optimistic UI: show resuming bar
+  ├─ Optimistic UI: show resuming bar, clear feedback textarea
   │
-  └─ POST /api/runs/<id>/resume
+  └─ POST /api/runs/<id>/resume  {feedback: "..."}
        │
-       ├─ HTTP thread: run.status = "resuming", persist
+       ├─ HTTP thread: run.status = "resuming", run.theory_feedback = feedback, persist
        │
        └─ _execute_resume thread starts
             │
             ├─ run.status = "running"
+            ├─ if theory_feedback: domain += "[Human guidance]: <feedback>", clear
             ├─ cp.load() → restore TheoryState into bus
             ├─ cp.clear_pause_flag()
             └─ TheoryInnerLoopYaml.run() continues from next_stage
@@ -236,7 +475,7 @@ User clicks "Resume"
   <run_id>.json      # UI session metadata; survives server restarts
 ```
 
-### Frontend state machine
+### Session status state machine
 
 ```
 queued ──► running ──► pausing ──► paused ──► resuming ──► running
