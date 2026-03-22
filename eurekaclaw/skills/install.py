@@ -59,8 +59,7 @@ def install_seed_skills(dest: pathlib.Path) -> None:
         for item in os.listdir(repo_path):
             if item != ".git" and os.path.isdir(os.path.join(repo_path, item)):
                 src = os.path.join(repo_path, item)
-                dst = os.path.join(dest, item)
-                copy_directory(src, dst, overwrite=True)
+                copy_directory(src, dest, overwrite=True)
         
         shutil.rmtree(repo_path)
 
