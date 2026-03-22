@@ -316,7 +316,7 @@ class WriterAgent(BaseAgent):
             )
 
         exp_summary = ""
-        if exp_result:
+        if exp_result and settings.experiment_mode != "false":
             bounds_str = "\n".join(
                 f"- {b.name}: theoretical={b.theoretical}, empirical={b.empirical}"
                 for b in exp_result.bounds
@@ -336,7 +336,7 @@ Proven lemmas (use in Results section):
 {proven_proofs or "(no proven lemmas)"}
 
 Experimental results:
-{exp_summary or "(no experiments run)"}
+{exp_summary or "(no experiments run — do NOT include an Experiments section)"}
 
 Key references to cite:
 {citations or "(no references)"}
@@ -365,7 +365,7 @@ Proven lemmas (use in Proofs section):
 {proven_proofs or "(no proven lemmas)"}
 
 Experimental results:
-{exp_summary or "(no experiments run)"}
+{exp_summary or "(no experiments run — do NOT include an Experiments section)"}
 
 Key references to cite (use EXACTLY these \\cite{{}} keys — they match the references.bib file):
 {citations or _no_refs}
@@ -385,6 +385,7 @@ roadmap mentions must actually appear in the paper body:
   \\section{{Introduction}}\\label{{sec:introduction}}
   \\section{{Preliminaries}}\\label{{sec:preliminaries}}
   \\section{{Main Results}}\\label{{sec:main_results}}
+{'  \\\\section{{Experiments}}\\\\label{{sec:experiments}}' if exp_summary else '  (no Experiments section — experiments were not run)'}
   \\section{{Related Work}}\\label{{sec:related_work}}
   \\section{{Limitations}}\\label{{sec:limitations}}
   \\section{{Conclusion}}\\label{{sec:conclusion}}
@@ -420,6 +421,14 @@ If a section has little content, write at least two sentences rather than omitti
                     tokens["input"] += extra.get("input", 0)
                     tokens["output"] += extra.get("output", 0)
                     latex_body = self._extract_latex(text)
+                # Strip any spurious Experiments section when experiments are disabled.
+                if not exp_summary:
+                    latex_body = re.sub(
+                        r"(?s)\\section\*?\{[Ee]xperiments?[^\}]*\}.*?"
+                        r"(?=\\section|\\appendix|\\bibliography|\\end\{document\}|$)",
+                        "",
+                        latex_body,
+                    )
                 # Pass 1: expand %%PROOF:lemma_id%% placeholders with full proof text.
                 latex_body = self._replace_proof_placeholders(
                     latex_body, theory_state, arxiv_to_citekey
@@ -625,16 +634,17 @@ If a section has little content, write at least two sentences rather than omitti
 
         # ── Step 4: convert numbered/bulleted list items ───────────────────────
         # "1.  **Title**: rest" or "1.  **Title.** rest" → \textit{Title.} rest
+        # Prefix with \n\n so each item becomes its own LaTeX paragraph.
         pt = re.sub(
-            r"(?m)^\s*\d+\.\s+\*\*([^*:]+?)\*\*[:.]\s*", r"\\textit{\1.}\\ ", pt
+            r"(?m)^\s*\d+\.\s+\*\*([^*:]+?)\*\*[:.]\s*", r"\n\n\\textit{\1.}\\ ", pt
         )
         # "-  **Title**: rest" → \textit{Title.} rest
         pt = re.sub(
-            r"(?m)^\s*[-*]\s+\*\*([^*:]+?)\*\*[:.]\s*", r"\\textit{\1.}\\ ", pt
+            r"(?m)^\s*[-*]\s+\*\*([^*:]+?)\*\*[:.]\s*", r"\n\n\\textit{\1.}\\ ", pt
         )
-        # Plain "1.  text" or "-  text" — strip bullet/number prefix
-        pt = re.sub(r"(?m)^\s*\d+\.\s{1,4}", "", pt)
-        pt = re.sub(r"(?m)^\s*[-*]\s+", "", pt)
+        # Plain "1.  text" or "-  text" — strip bullet/number prefix, ensure paragraph break.
+        pt = re.sub(r"(?m)^\s*\d+\.\s{1,4}", "\n\n", pt)
+        pt = re.sub(r"(?m)^\s*[-*]\s+", "\n\n", pt)
 
         # ── Step 5: convert remaining **bold** / *italic* ─────────────────────
         pt = re.sub(r"\*\*([^*\n]+)\*\*", r"\\textit{\1}", pt)
