@@ -78,26 +78,9 @@ eurekaclaw ui --open-browser
 
 ## Pipeline
 
-```
-InputSpec (conjecture / domain / paper_ids)
-        │
-        ▼
-MetaOrchestrator
-    ├── SurveyAgent        — arXiv + Semantic Scholar + web search
-    ├── IdeationAgent      — 5 directions → 1 selected (diverge/converge)
-    ├── [GateController]   — optional human review between stages
-    ├── TheoryAgent        — 7-stage bottom-up proof pipeline
-    │     ├── PaperReader → GapAnalyst → ProofArchitect
-    │     ├── LemmaDeveloper  (Prover → Verifier → Refiner loop)
-    │     └── Assembler → TheoremCrystallizer → ConsistencyChecker
-    ├── ExperimentAgent    — numerical validation (optional)
-    └── WriterAgent        — LaTeX / Markdown paper generation
-            │
-            ▼
-    results/<session_id>/
-        paper.tex · paper.pdf · references.bib
-        theory_state.json · research_brief.json · experiment_result.json
-```
+<p align="center">
+  <img src="docs/images/pipeline-overview.svg" alt="EurekaClaw Pipeline" width="640"/>
+</p>
 
 ---
 
