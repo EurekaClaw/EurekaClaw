@@ -42,8 +42,11 @@ _CONFIG_FIELDS: dict[str, str] = {
     "openai_compat_base_url": "OPENAI_COMPAT_BASE_URL",
     "openai_compat_api_key": "OPENAI_COMPAT_API_KEY",
     "openai_compat_model": "OPENAI_COMPAT_MODEL",
+    "minimax_api_key": "MINIMAX_API_KEY",
+    "minimax_model": "MINIMAX_MODEL",
     "eurekaclaw_mode": "EUREKACLAW_MODE",
     "gate_mode": "GATE_MODE",
+    "experiment_mode": "EXPERIMENT_MODE",
     "ccproxy_port": "CCPROXY_PORT",
     "theory_pipeline": "THEORY_PIPELINE",
     "theory_max_iterations": "THEORY_MAX_ITERATIONS",
@@ -92,6 +95,7 @@ class SessionRun:
     paused_at: datetime | None = None
     pause_requested_at: datetime | None = None  # set when status → "pausing"
     paused_stage: str = ""                       # stage name where proof stopped
+    theory_feedback: str = ""                    # user guidance injected on next theory resume
     error: str = ""
     result: ResearchOutput | None = None
     eureka_session: EurekaSession | None = None
@@ -215,6 +219,7 @@ class UIServerState:
                 "paused_at": run.paused_at.isoformat() if run.paused_at else None,
                 "pause_requested_at": run.pause_requested_at.isoformat() if run.pause_requested_at else None,
                 "paused_stage": run.paused_stage,
+                "theory_feedback": run.theory_feedback,
                 "input_spec": _serialize_value(run.input_spec),
                 "output_dir": run.output_dir,
                 "output_summary": _serialize_value(run.output_summary),
@@ -241,6 +246,7 @@ class UIServerState:
                     error=data.get("error", ""),
                     eureka_session_id=data.get("eureka_session_id", ""),
                     paused_stage=data.get("paused_stage", ""),
+                    theory_feedback=data.get("theory_feedback", ""),
                     output_dir=data.get("output_dir", ""),
                     output_summary=data.get("output_summary", {}),
                 )
@@ -289,7 +295,7 @@ class UIServerState:
         if run is None:
             return {"error": "Run not found"}
         run.name = name.strip()[:80]
-        run.updated_at = datetime.now().astimezone()
+        run.updated_at = datetime.utcnow()
         self._persist_run(run)
         return {"ok": True, "run_id": run_id, "name": run.name}
 
@@ -330,12 +336,12 @@ class UIServerState:
         cp.request_pause()
         # Immediately reflect the intermediate state so the frontend can poll it
         run.status = "pausing"
-        run.pause_requested_at = datetime.now().astimezone()
-        run.updated_at = datetime.now().astimezone()
+        run.pause_requested_at = datetime.utcnow()
+        run.updated_at = datetime.utcnow()
         self._persist_run(run)
         return {"ok": True, "session_id": run.eureka_session_id, "status": "pausing"}
 
-    def resume_run(self, run_id: str) -> dict[str, Any]:
+    def resume_run(self, run_id: str, feedback: str = "") -> dict[str, Any]:
         run = self.get_run(run_id)
         if run is None:
             return {"error": "Run not found"}
@@ -347,9 +353,12 @@ class UIServerState:
         cp = ProofCheckpoint(run.eureka_session_id)
         if not cp.exists():
             return {"error": f"No checkpoint found for session '{run.eureka_session_id}'"}
+        # Store user guidance to be injected into the theory context on resume
+        if feedback:
+            run.theory_feedback = feedback.strip()[:2000]
         # Transition to intermediate "resuming" state before the thread starts
         run.status = "resuming"
-        run.updated_at = datetime.now().astimezone()
+        run.updated_at = datetime.utcnow()
         self._persist_run(run)
         thread = threading.Thread(target=self._execute_resume, args=(run_id,), daemon=True)
         thread.start()
@@ -370,7 +379,7 @@ class UIServerState:
         run.paused_at = None
         run.pause_requested_at = None
         run.paused_stage = ""
-        run.updated_at = datetime.now().astimezone()
+        run.updated_at = datetime.utcnow()
         self._persist_run(run)
 
         try:
@@ -388,6 +397,13 @@ class UIServerState:
             session.bus.put_theory_state(state)
 
             domain = meta.get("domain", "")
+
+            # Inject user guidance if provided via the UI feedback dialog
+            if run.theory_feedback:
+                domain = domain + f"\n\n[Human guidance for this proof attempt]: {run.theory_feedback}"
+                run.theory_feedback = ""   # consume — clear after use
+                self._persist_run(run)
+
             memory = MemoryManager(session_id=session_id)
             skill_injector = SkillInjector(SkillRegistry())
             inner_loop = TheoryInnerLoopYaml(
@@ -417,7 +433,7 @@ class UIServerState:
             if isinstance(exc, ProofPausedException):
                 logger.info("Session %s paused again at stage '%s'", run_id, exc.stage_name)
                 run.status = "paused"
-                run.paused_at = datetime.now().astimezone()
+                run.paused_at = datetime.utcnow()
                 run.paused_stage = exc.stage_name
                 run.pause_requested_at = None
                 run.error = ""
@@ -426,8 +442,8 @@ class UIServerState:
                 run.status = "failed"
                 run.error = str(exc)
         finally:
-            run.completed_at = datetime.now().astimezone()
-            run.updated_at = datetime.now().astimezone()
+            run.completed_at = datetime.utcnow()
+            run.updated_at = datetime.utcnow()
             self._persist_run(run)
 
     def _execute_run(self, run_id: str) -> None:
@@ -436,8 +452,8 @@ class UIServerState:
             return
 
         run.status = "running"
-        run.started_at = datetime.now().astimezone()
-        run.updated_at = datetime.now().astimezone()
+        run.started_at = datetime.utcnow()
+        run.updated_at = datetime.utcnow()
 
         try:
             # Pre-flight: verify credentials before spending time initialising agents
@@ -477,7 +493,7 @@ class UIServerState:
             if isinstance(exc, ProofPausedException):
                 logger.info("Session %s paused at stage '%s'", run_id, exc.stage_name)
                 run.status = "paused"
-                run.paused_at = datetime.now().astimezone()
+                run.paused_at = datetime.utcnow()
                 run.paused_stage = exc.stage_name
                 run.pause_requested_at = None
                 run.error = ""
@@ -486,8 +502,8 @@ class UIServerState:
                 run.status = "failed"
                 run.error = str(exc)
         finally:
-            run.completed_at = datetime.now().astimezone()
-            run.updated_at = datetime.now().astimezone()
+            run.completed_at = datetime.utcnow()
+            run.updated_at = datetime.utcnow()
             self._persist_run(run)
 
     def snapshot_run(self, run: SessionRun) -> dict[str, Any]:
@@ -540,6 +556,7 @@ class UIServerState:
             "result": _serialize_value(run.result) if run.result else None,
             "output_summary": _serialize_value(run.output_summary),
             "output_dir": run.output_dir,
+            "theory_feedback": run.theory_feedback,
         }
 
 
@@ -626,9 +643,28 @@ def _skills_payload() -> list[dict[str, Any]]:
             "source": skill.meta.source,
             "usage_count": skill.meta.usage_count,
             "success_rate": skill.meta.success_rate,
+            "file_path": skill.file_path,
         }
         for skill in skills
     ]
+
+
+def _install_skill(skillname: str) -> dict[str, Any]:
+    """Install a skill from ClawHub or copy seed skills.  Runs synchronously."""
+    from eurekaclaw.skills.install import install_from_hub, install_seed_skills
+
+    dest = settings.skills_dir
+    try:
+        if skillname:
+            ok = install_from_hub(skillname, dest)
+            if ok:
+                return {"ok": True, "message": f"Installed '{skillname}' from ClawHub → {dest}"}
+            return {"ok": False, "error": f"Could not install '{skillname}'. Check that the `clawhub` CLI is installed and the skill slug is correct."}
+        else:
+            install_seed_skills(dest)
+            return {"ok": True, "message": f"Seed skills installed → {dest}"}
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
 
 
 def _merged_config(overrides: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -750,7 +786,7 @@ class UIRequestHandler(SimpleHTTPRequestHandler):
             self._send_json(self.state.snapshot_run(run))
             return
         if parsed.path == "/api/health":
-            self._send_json({"ok": True, "time": datetime.now().astimezone().isoformat()})
+            self._send_json({"ok": True, "time": datetime.utcnow().isoformat()})
             return
 
         if parsed.path in ("/", ""):
@@ -816,7 +852,9 @@ class UIRequestHandler(SimpleHTTPRequestHandler):
             return
         if parsed.path.startswith("/api/runs/") and parsed.path.endswith("/resume"):
             run_id = parsed.path.removeprefix("/api/runs/").removesuffix("/resume")
-            result = self.state.resume_run(run_id)
+            payload = self._read_json()
+            feedback = str(payload.get("feedback", "")).strip()
+            result = self.state.resume_run(run_id, feedback=feedback)
             if "error" in result:
                 self._send_json(result, status=HTTPStatus.BAD_REQUEST)
             else:
@@ -834,16 +872,33 @@ class UIRequestHandler(SimpleHTTPRequestHandler):
         if parsed.path.startswith("/api/runs/") and parsed.path.endswith("/restart"):
             run_id = parsed.path.removeprefix("/api/runs/").removesuffix("/restart")
             result = self.state.restart_run(run_id)
-            if "error" in result:
+            if result.get("error"):  # snapshot always has "error" key; check truthiness
                 self._send_json(result, status=HTTPStatus.BAD_REQUEST)
             else:
                 self._send_json(result, status=HTTPStatus.CREATED)
+            return
+
+        if parsed.path == "/api/skills/install":
+            payload = self._read_json()
+            skillname = str(payload.get("skillname", "")).strip()
+            result = _install_skill(skillname)
+            status = HTTPStatus.OK if result.get("ok") else HTTPStatus.BAD_REQUEST
+            self._send_json(result, status=status)
             return
 
         self._send_json({"error": "Not found"}, status=HTTPStatus.NOT_FOUND)
 
     def do_DELETE(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
+        if parsed.path.startswith("/api/skills/"):
+            skill_name = parsed.path.removeprefix("/api/skills/").strip("/")
+            skill_file = settings.skills_dir / f"{skill_name}.md"
+            if not skill_file.exists():
+                self._send_json({"error": f"Skill '{skill_name}' not found in user skills dir."}, status=HTTPStatus.NOT_FOUND)
+                return
+            skill_file.unlink()
+            self._send_json({"ok": True, "message": f"Deleted '{skill_name}'"})
+            return
         if parsed.path.startswith("/api/runs/"):
             run_id = parsed.path.removeprefix("/api/runs/").strip("/")
             result = self.state.delete_run(run_id)

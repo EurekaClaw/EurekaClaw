@@ -28,6 +28,7 @@ venv/
 .ruff_cache/
 .coverage
 coverage.xml
+frontend/test-results/
 
 # ── IDE / OS ──────────────────────────────────────────────────────────────────
 .DS_Store
@@ -62,7 +63,12 @@ error.log
 # ── Claude Code internals ─────────────────────────────────────────────────────
 .claude/
 
+# ── Local history ─────────────────────────────────────────────────────────────
+.history/
+
 # ── Misc ─────────────────────────────────────────────────────────────────────
 resources.txt
 example.sh
 sync-from-main.sh
+frontend/node_modules/
+frontend/dist/
