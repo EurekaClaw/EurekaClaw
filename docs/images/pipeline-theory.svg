@@ -1,0 +1,171 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 620" font-family="'Segoe UI',system-ui,-apple-system,Arial,sans-serif">
+  <defs>
+    <marker id="a" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0 8 3 0 6" fill="#4a5568"/>
+    </marker>
+    <marker id="ar" markerWidth="8" markerHeight="6" refX="1" refY="3" orient="auto">
+      <polygon points="8 0 0 3 8 6" fill="#c62828"/>
+    </marker>
+    <marker id="ao" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0 8 3 0 6" fill="#e6a800"/>
+    </marker>
+    <marker id="ag" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0 8 3 0 6" fill="#28a745"/>
+    </marker>
+  </defs>
+
+  <rect width="900" height="620" fill="#ffffff"/>
+
+  <!-- ═══ LEFT PANEL: 7-stage pipeline ═══ -->
+  <text x="174" y="16" text-anchor="middle" font-size="12" font-weight="bold" fill="#2b7db5">TheoryAgent — 7-Stage Pipeline</text>
+  <text x="174" y="30" text-anchor="middle" font-size="10" fill="#4a6080">(outer loop: up to theory_max_iterations)</text>
+
+  <!-- Stage 1: PaperReader -->
+  <rect x="20" y="38" width="308" height="44" rx="6" fill="#dbeeff" stroke="#2b7db5" stroke-width="1.5"/>
+  <text x="174" y="56" text-anchor="middle" font-size="12" font-weight="bold" fill="#1a3055">1. PaperReader</text>
+  <text x="174" y="73" text-anchor="middle" font-size="10" fill="#4a6080">extract known results from Bibliography</text>
+  <line x1="174" y1="82" x2="174" y2="94" stroke="#4a5568" stroke-width="1.5" marker-end="url(#a)"/>
+
+  <!-- Stage 2: GapAnalyst -->
+  <rect x="20" y="94" width="308" height="44" rx="6" fill="#dbeeff" stroke="#2b7db5" stroke-width="1.5"/>
+  <text x="174" y="112" text-anchor="middle" font-size="12" font-weight="bold" fill="#1a3055">2. GapAnalyst</text>
+  <text x="174" y="129" text-anchor="middle" font-size="10" fill="#4a6080">identify proof gap vs. known results</text>
+  <line x1="174" y1="138" x2="174" y2="150" stroke="#4a5568" stroke-width="1.5" marker-end="url(#a)"/>
+
+  <!-- Stage 3: ProofArchitect -->
+  <rect x="20" y="150" width="308" height="44" rx="6" fill="#dbeeff" stroke="#2b7db5" stroke-width="1.5"/>
+  <text x="174" y="168" text-anchor="middle" font-size="12" font-weight="bold" fill="#1a3055">3. ProofArchitect</text>
+  <text x="174" y="185" text-anchor="middle" font-size="10" fill="#4a6080">design lemma DAG with provenance</text>
+  <line x1="174" y1="194" x2="174" y2="206" stroke="#4a5568" stroke-width="1.5" marker-end="url(#a)"/>
+
+  <!-- Stage 4: LemmaDeveloper (highlighted) -->
+  <rect x="20" y="206" width="308" height="56" rx="6" fill="#e8d8ff" stroke="#6a3fbf" stroke-width="2"/>
+  <text x="174" y="226" text-anchor="middle" font-size="12" font-weight="bold" fill="#3b1f6b">4. LemmaDeveloper</text>
+  <text x="174" y="242" text-anchor="middle" font-size="10" fill="#5a3095">prove each lemma (Prover / Verifier / Refiner)</text>
+  <text x="174" y="254" text-anchor="middle" font-size="9" fill="#5a3095">iterative sub-loop → see right panel ▶</text>
+  <!-- Arrow to right panel -->
+  <line x1="328" y1="234" x2="400" y2="234" stroke="#6a3fbf" stroke-width="1.5" stroke-dasharray="4,2" marker-end="url(#a)"/>
+  <line x1="174" y1="262" x2="174" y2="276" stroke="#4a5568" stroke-width="1.5" marker-end="url(#a)"/>
+
+  <!-- Stage 5: Assembler -->
+  <rect x="20" y="276" width="308" height="44" rx="6" fill="#dbeeff" stroke="#2b7db5" stroke-width="1.5"/>
+  <text x="174" y="294" text-anchor="middle" font-size="12" font-weight="bold" fill="#1a3055">5. Assembler</text>
+  <text x="174" y="311" text-anchor="middle" font-size="10" fill="#4a6080">combine lemmas into proof narrative</text>
+  <line x1="174" y1="320" x2="174" y2="332" stroke="#4a5568" stroke-width="1.5" marker-end="url(#a)"/>
+
+  <!-- Stage 6: TheoremCrystallizer -->
+  <rect x="20" y="332" width="308" height="44" rx="6" fill="#dbeeff" stroke="#2b7db5" stroke-width="1.5"/>
+  <text x="174" y="350" text-anchor="middle" font-size="12" font-weight="bold" fill="#1a3055">6. TheoremCrystallizer</text>
+  <text x="174" y="367" text-anchor="middle" font-size="10" fill="#4a6080">derive formal_statement from assembled proof</text>
+  <line x1="174" y1="376" x2="174" y2="388" stroke="#4a5568" stroke-width="1.5" marker-end="url(#a)"/>
+
+  <!-- Stage 7: ConsistencyChecker -->
+  <rect x="20" y="388" width="308" height="44" rx="6" fill="#dbeeff" stroke="#2b7db5" stroke-width="1.5"/>
+  <text x="174" y="406" text-anchor="middle" font-size="12" font-weight="bold" fill="#1a3055">7. ConsistencyChecker</text>
+  <text x="174" y="423" text-anchor="middle" font-size="10" fill="#4a6080">verify statement ↔ proof · assign severity tag</text>
+
+  <!-- Retry arrows from ConsistencyChecker -->
+  <!-- severity:uncited → TheoremCrystallizer -->
+  <path d="M 20 414 Q -30 350 20 350" fill="none" stroke="#e6a800" stroke-width="1.2" stroke-dasharray="4,2" marker-end="url(#ao)"/>
+  <text x="-28" y="382" font-size="9" fill="#7a5000" text-anchor="middle">uncited</text>
+  <!-- severity:major → LemmaDeveloper -->
+  <path d="M 20 408 Q -50 240 20 234" fill="none" stroke="#e6a800" stroke-width="1.2" stroke-dasharray="4,2" marker-end="url(#ao)"/>
+  <text x="-48" y="325" font-size="9" fill="#7a5000" text-anchor="middle">major</text>
+  <!-- severity:all_wrong → ProofArchitect -->
+  <path d="M 20 402 Q -70 162 20 162" fill="none" stroke="#c62828" stroke-width="1.2" stroke-dasharray="4,2" marker-end="url(#ar)"/>
+  <text x="-66" y="282" font-size="9" fill="#7a0000" text-anchor="middle">all_wrong</text>
+
+  <!-- Proved → output -->
+  <line x1="174" y1="432" x2="174" y2="456" stroke="#28a745" stroke-width="1.5" marker-end="url(#ag)"/>
+  <rect x="20" y="456" width="308" height="36" rx="6" fill="#d4f5e2" stroke="#28a745" stroke-width="1.5"/>
+  <text x="174" y="475" text-anchor="middle" font-size="12" font-weight="bold" fill="#14532d">TheoryState  status = proved ✓</text>
+
+  <!-- Severity legend -->
+  <rect x="20" y="510" width="308" height="80" rx="6" fill="#fffbe6" stroke="#e6a800" stroke-width="1"/>
+  <text x="174" y="528" text-anchor="middle" font-size="10" font-weight="bold" fill="#7a5000">Retry Severity Tags (ConsistencyChecker output)</text>
+  <text x="30" y="544" font-size="9" fill="#555">uncited  → re-run TheoremCrystallizer only</text>
+  <text x="30" y="558" font-size="9" fill="#555">major    → re-run LemmaDeveloper → Assembler → Crystallizer → Checker</text>
+  <text x="30" y="572" font-size="9" fill="#555">all_wrong → re-run ProofArchitect → … → ConsistencyChecker</text>
+  <text x="30" y="586" font-size="9" fill="#555">proved   → exit outer loop</text>
+
+  <!-- ═══ RIGHT PANEL: LemmaDeveloper sub-loop ═══ -->
+  <rect x="395" y="38" width="490" height="530" rx="10" fill="#f9f5ff" stroke="#6a3fbf" stroke-width="1.5" stroke-dasharray="5,3"/>
+  <text x="640" y="58" text-anchor="middle" font-size="12" font-weight="bold" fill="#6a3fbf">LemmaDeveloper — Per-Lemma Sub-Loop</text>
+  <text x="640" y="72" text-anchor="middle" font-size="10" fill="#5a3095">for each lemma_id in open_goals:</text>
+
+  <!-- Prover -->
+  <rect x="450" y="84" width="280" height="44" rx="6" fill="#e8d8ff" stroke="#6a3fbf" stroke-width="1.5"/>
+  <text x="590" y="102" text-anchor="middle" font-size="12" font-weight="bold" fill="#3b1f6b">Prover</text>
+  <text x="590" y="119" text-anchor="middle" font-size="10" fill="#5a3095">chain-of-thought proof attempt → ProofAttempt</text>
+  <line x1="590" y1="128" x2="590" y2="140" stroke="#4a5568" stroke-width="1.5" marker-end="url(#a)"/>
+
+  <!-- Confidence filter -->
+  <rect x="490" y="140" width="200" height="32" rx="6" fill="#fff3cd" stroke="#e6a800" stroke-width="1"/>
+  <text x="590" y="158" text-anchor="middle" font-size="10" fill="#7a5000">confidence &lt; 0.3 → skip</text>
+  <line x1="590" y1="172" x2="590" y2="184" stroke="#4a5568" stroke-width="1.5" marker-end="url(#a)"/>
+
+  <!-- Verifier -->
+  <rect x="450" y="184" width="280" height="44" rx="6" fill="#e8d8ff" stroke="#6a3fbf" stroke-width="1.5"/>
+  <text x="590" y="202" text-anchor="middle" font-size="12" font-weight="bold" fill="#3b1f6b">Verifier</text>
+  <text x="590" y="219" text-anchor="middle" font-size="10" fill="#5a3095">Lean4 / LLM peer review → VerificationResult</text>
+
+  <!-- Branch from Verifier: pass (left) and fail (right) -->
+  <line x1="590" y1="228" x2="590" y2="248" stroke="#4a5568" stroke-width="1.5"/>
+  <!-- left branch: pass -->
+  <line x1="590" y1="248" x2="490" y2="248" stroke="#28a745" stroke-width="1.2"/>
+  <line x1="490" y1="248" x2="490" y2="270" stroke="#28a745" stroke-width="1.2" marker-end="url(#ag)"/>
+  <text x="536" y="245" text-anchor="middle" font-size="9" fill="#28a745" font-weight="bold">pass ✓</text>
+  <!-- right branch: fail -->
+  <line x1="590" y1="248" x2="690" y2="248" stroke="#c62828" stroke-width="1.2"/>
+  <line x1="690" y1="248" x2="690" y2="270" stroke="#c62828" stroke-width="1.2" marker-end="url(#ar)"/>
+  <text x="644" y="245" text-anchor="middle" font-size="9" fill="#c62828" font-weight="bold">fail ✗</text>
+
+  <!-- Pass: proven_lemmas box -->
+  <rect x="410" y="270" width="160" height="36" rx="6" fill="#d4f5e2" stroke="#28a745" stroke-width="1.2"/>
+  <text x="490" y="284" text-anchor="middle" font-size="10" font-weight="bold" fill="#14532d">proven_lemmas{}</text>
+  <text x="490" y="298" text-anchor="middle" font-size="9" fill="#3a7d56">store proof · remove from open_goals</text>
+
+  <!-- Fail: Stagnation check -->
+  <rect x="630" y="270" width="230" height="36" rx="6" fill="#fff3cd" stroke="#e6a800" stroke-width="1.2"/>
+  <text x="745" y="284" text-anchor="middle" font-size="10" font-weight="bold" fill="#7a5000">Stagnation check</text>
+  <text x="745" y="298" text-anchor="middle" font-size="9" fill="#7a5000">same error N times → force Refiner</text>
+
+  <!-- CounterexampleSearcher -->
+  <line x1="690" y1="306" x2="690" y2="322" stroke="#4a5568" stroke-width="1.2" marker-end="url(#a)"/>
+  <rect x="590" y="322" width="280" height="44" rx="6" fill="#e8d8ff" stroke="#6a3fbf" stroke-width="1.5"/>
+  <text x="730" y="340" text-anchor="middle" font-size="12" font-weight="bold" fill="#3b1f6b">CounterexampleSearcher</text>
+  <text x="730" y="357" text-anchor="middle" font-size="10" fill="#5a3095">search for counterexample to conjecture</text>
+
+  <!-- Branch: CE found (down to Refiner) / no CE (accept low confidence) -->
+  <line x1="730" y1="366" x2="730" y2="386" stroke="#4a5568" stroke-width="1.2"/>
+  <line x1="730" y1="386" x2="640" y2="386" stroke="#c62828" stroke-width="1.2"/>
+  <line x1="730" y1="386" x2="840" y2="386" stroke="#28a745" stroke-width="1.2"/>
+  <line x1="640" y1="386" x2="640" y2="408" stroke="#c62828" stroke-width="1.2" marker-end="url(#ar)"/>
+  <line x1="840" y1="386" x2="840" y2="408" stroke="#28a745" stroke-width="1.2" marker-end="url(#ag)"/>
+  <text x="682" y="382" text-anchor="middle" font-size="9" fill="#c62828" font-weight="bold">CE found</text>
+  <text x="793" y="382" text-anchor="middle" font-size="9" fill="#28a745" font-weight="bold">no CE</text>
+
+  <!-- Refiner -->
+  <rect x="545" y="408" width="190" height="44" rx="6" fill="#e8d8ff" stroke="#6a3fbf" stroke-width="1.5"/>
+  <text x="640" y="426" text-anchor="middle" font-size="12" font-weight="bold" fill="#3b1f6b">Refiner</text>
+  <text x="640" y="443" text-anchor="middle" font-size="10" fill="#5a3095">rewrite ProofPlan from failure</text>
+
+  <!-- Accept low confidence -->
+  <rect x="752" y="408" width="116" height="44" rx="6" fill="#d4f5e2" stroke="#28a745" stroke-width="1.2"/>
+  <text x="810" y="426" text-anchor="middle" font-size="10" font-weight="bold" fill="#14532d">accept</text>
+  <text x="810" y="443" text-anchor="middle" font-size="9" fill="#3a7d56">low confidence</text>
+
+  <!-- Refiner → retry Prover (loop back) -->
+  <line x1="640" y1="452" x2="640" y2="470" stroke="#6a3fbf" stroke-width="1.2"/>
+  <line x1="640" y1="470" x2="430" y2="470" stroke="#6a3fbf" stroke-width="1.2"/>
+  <line x1="430" y1="470" x2="430" y2="106" stroke="#6a3fbf" stroke-width="1.2" stroke-dasharray="4,2"/>
+  <line x1="430" y1="106" x2="450" y2="106" stroke="#6a3fbf" stroke-width="1.2" marker-end="url(#a)"/>
+  <text x="418" y="290" font-size="9" fill="#6a3fbf" text-anchor="end">retry</text>
+
+  <!-- Memory tier labels -->
+  <rect x="403" y="500" width="468" height="56" rx="6" fill="#fffbe6" stroke="#e6a800" stroke-width="1"/>
+  <text x="637" y="518" text-anchor="middle" font-size="10" font-weight="bold" fill="#7a5000">Cross-Session Memory Tiers</text>
+  <text x="413" y="534" font-size="9" fill="#555">Tier 1 (in-session)  — past FailedAttempts from current TheoryState</text>
+  <text x="413" y="548" font-size="9" fill="#555">Tier 2 (persistent) — SessionMemoryExtractor hints from prior sessions</text>
+  <text x="413" y="562" font-size="9" fill="#555">Both are injected into Prover context before each attempt</text>
+</svg>

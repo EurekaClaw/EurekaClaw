@@ -1,0 +1,35 @@
+[
+  {
+    "title": "Heavy-tailed bandit: optimal exploration bonus",
+    "setting": "What is the minimax-optimal exploration bonus when arm distributions have bounded (1+epsilon)-th moments but may not be sub-Gaussian? Can we achieve O(T^{eps/(1+eps)}) regret?",
+    "domain": "stochastic_mab",
+    "known_results": [
+      "Catoni's M-estimator for heavy-tailed mean estimation",
+      "Median-of-means achieves subgaussian rates with bounded variance",
+      "Standard UCB fails without sub-Gaussian assumption"
+    ],
+    "difficulty": "level3"
+  },
+  {
+    "title": "Infinite-arm bandit: minimax rate with Gaussian priors",
+    "setting": "Derive the minimax regret rate for bandit problems where arm means are drawn i.i.d. from N(0,1) and the number of arms K grows with T. Is the rate T^{2/3} or something tighter?",
+    "domain": "stochastic_mab",
+    "known_results": [
+      "Berry (1994): infinite-arm bandit studied with geometric prior",
+      "Gaussian process bandit bounds (Srinivas et al. 2010)",
+      "Carpentier & Valko (2015): T^{1-1/(1+beta)} for beta-regular priors"
+    ],
+    "difficulty": "level3"
+  },
+  {
+    "title": "Batched bandit: information loss from delayed feedback",
+    "setting": "In the batched bandit problem with M batches, how does the regret scale with M? Is the optimal rate achievable with O(log log T) batches?",
+    "domain": "stochastic_mab",
+    "known_results": [
+      "Full adaptive UCB1 achieves O(sqrt(KT log T))",
+      "Gao et al. (2019): O(log log T) batches suffice for near-optimal regret",
+      "1-batch algorithms suffer Theta(T) regret"
+    ],
+    "difficulty": "level3"
+  }
+]

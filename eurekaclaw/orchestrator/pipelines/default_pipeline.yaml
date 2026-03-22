@@ -1,0 +1,73 @@
+# EurekaClaw default research pipeline
+#
+# Each stage entry maps to a Task. Fields:
+#   name         - unique stage name (used as depends_on reference)
+#   agent_role   - which agent executes this task ("orchestrator" = no agent, handled inline)
+#   description  - human-readable label shown in the console
+#   inputs       - static key/value pairs merged with runtime context (e.g. domain, query)
+#   depends_on   - list of stage *names* (resolved to task_ids at build time)
+#   gate_required - whether human/auto gate approval is needed before execution
+#   max_retries  - how many times to retry on failure (0 = no retry)
+
+stages:
+  - name: survey
+    agent_role: survey
+    description: "Literature survey: arXiv, Semantic Scholar, citation graph"
+    inputs:
+      domain: "{{brief.domain}}"
+      query: "{{brief.query}}"
+    depends_on: []
+    gate_required: false
+    max_retries: 3
+
+  - name: ideation
+    agent_role: ideation
+    description: "Generate research directions from survey findings"
+    inputs:
+      domain: "{{brief.domain}}"
+    depends_on: [survey]
+    gate_required: false
+    max_retries: 3
+
+  - name: direction_selection_gate
+    agent_role: orchestrator
+    description: "Select research direction to pursue"
+    inputs: {}
+    depends_on: [ideation]
+    gate_required: false
+    max_retries: 3
+
+  - name: theory
+    agent_role: theory
+    description: "Theory Agent inner loop: formalize → prove → verify → refine"
+    inputs:
+      domain: "{{brief.domain}}"
+    depends_on: [direction_selection_gate]
+    gate_required: false
+    max_retries: 1
+
+  - name: theory_review_gate
+    agent_role: orchestrator
+    description: "Review proof sketch — approve or flag the most problematic lemma"
+    inputs: {}
+    depends_on: [theory]
+    gate_required: false
+    max_retries: 0
+
+  - name: experiment
+    agent_role: experiment
+    description: "Empirical validation of theoretical bounds"
+    inputs: {}
+    depends_on: [theory_review_gate]
+    gate_required: false
+    max_retries: 0
+
+  - name: writer
+    agent_role: writer
+    description: "Write complete paper from all artifacts"
+    inputs: {}
+    # Writer depends on theory_review_gate, not experiment. Experiment enriches
+    # the paper when applicable, but its failure must never prevent paper writing.
+    depends_on: [theory_review_gate]
+    gate_required: false
+    max_retries: 3

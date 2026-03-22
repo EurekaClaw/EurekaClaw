@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 660 350" font-family="'Segoe UI',system-ui,-apple-system,Arial,sans-serif">
+  <defs>
+    <marker id="a" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0 8 3 0 6" fill="#4a5568"/>
+    </marker>
+    <marker id="ar" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0 8 3 0 6" fill="#c62828"/>
+    </marker>
+  </defs>
+
+  <rect width="660" height="350" fill="#ffffff"/>
+
+  <text x="330" y="20" text-anchor="middle" font-size="13" font-weight="bold" fill="#1a3055">Post-Run Continual Learning</text>
+
+  <!-- ContinualLearningLoop.post_run() -->
+  <rect x="176" y="30" width="308" height="44" rx="6" fill="#fce4ec" stroke="#c62828" stroke-width="1.5"/>
+  <text x="330" y="48" text-anchor="middle" font-size="12" font-weight="bold" fill="#7a0000">ContinualLearningLoop.post_run()</text>
+  <text x="330" y="65" text-anchor="middle" font-size="10" fill="#7a0000">extract failures · deduplicate · compress successes</text>
+
+  <!-- Branch to three paths -->
+  <line x1="330" y1="74" x2="330" y2="94" stroke="#4a5568" stroke-width="1.5"/>
+  <line x1="100" y1="94" x2="560" y2="94" stroke="#4a5568" stroke-width="1.5"/>
+  <line x1="100" y1="94" x2="100" y2="110" stroke="#4a5568" stroke-width="1.5" marker-end="url(#a)"/>
+  <line x1="330" y1="94" x2="330" y2="110" stroke="#4a5568" stroke-width="1.5" marker-end="url(#a)"/>
+  <line x1="560" y1="94" x2="560" y2="110" stroke="#4a5568" stroke-width="1.5" marker-end="url(#a)"/>
+
+  <!-- Branch 1: SkillEvolver -->
+  <rect x="20" y="110" width="160" height="64" rx="6" fill="#fce4ec" stroke="#c62828" stroke-width="1.5"/>
+  <text x="100" y="130" text-anchor="middle" font-size="11" font-weight="bold" fill="#7a0000">SkillEvolver</text>
+  <text x="100" y="146" text-anchor="middle" font-size="9" fill="#7a0000">distill_from_session()</text>
+  <text x="100" y="160" text-anchor="middle" font-size="9" fill="#7a0000">failures + successes</text>
+  <text x="100" y="174" text-anchor="middle" font-size="9" fill="#7a0000">→ LLM distillation call</text>
+  <line x1="100" y1="174" x2="100" y2="188" stroke="#4a5568" stroke-width="1.5" marker-end="url(#a)"/>
+  <rect x="20" y="188" width="160" height="36" rx="6" fill="#d4f5e2" stroke="#28a745" stroke-width="1.2"/>
+  <text x="100" y="204" text-anchor="middle" font-size="10" font-weight="bold" fill="#14532d">new skill .md files</text>
+  <text x="100" y="218" text-anchor="middle" font-size="9" fill="#3a7d56">~/.eurekaclaw/skills/</text>
+
+  <!-- Branch 2: SessionMemoryExtractor -->
+  <rect x="246" y="110" width="168" height="64" rx="6" fill="#fce4ec" stroke="#c62828" stroke-width="1.5"/>
+  <text x="330" y="130" text-anchor="middle" font-size="11" font-weight="bold" fill="#7a0000">SessionMemory</text>
+  <text x="330" y="144" text-anchor="middle" font-size="11" font-weight="bold" fill="#7a0000">Extractor</text>
+  <text x="330" y="160" text-anchor="middle" font-size="9" fill="#7a0000">proof hints · error patterns</text>
+  <text x="330" y="174" text-anchor="middle" font-size="9" fill="#7a0000">cross-session recall</text>
+  <line x1="330" y1="174" x2="330" y2="188" stroke="#4a5568" stroke-width="1.5" marker-end="url(#a)"/>
+  <rect x="246" y="188" width="168" height="36" rx="6" fill="#d4f5e2" stroke="#28a745" stroke-width="1.2"/>
+  <text x="330" y="204" text-anchor="middle" font-size="10" font-weight="bold" fill="#14532d">memory entries</text>
+  <text x="330" y="218" text-anchor="middle" font-size="9" fill="#3a7d56">sessions/&lt;id&gt;/</text>
+
+  <!-- Branch 3: RL / MADMAX (optional) -->
+  <rect x="476" y="110" width="164" height="64" rx="6" fill="#f8f9fa" stroke="#6c757d" stroke-width="1.5" stroke-dasharray="5,3"/>
+  <text x="558" y="130" text-anchor="middle" font-size="11" font-weight="bold" fill="#444">RL / MADMAX</text>
+  <text x="558" y="146" text-anchor="middle" font-size="9" fill="#666">(rl / madmax mode only)</text>
+  <text x="558" y="160" text-anchor="middle" font-size="9" fill="#666">ProcessRewardModel</text>
+  <text x="558" y="174" text-anchor="middle" font-size="9" fill="#666">scoring · async LoRA</text>
+  <line x1="558" y1="174" x2="558" y2="188" stroke="#6c757d" stroke-width="1.5" stroke-dasharray="4,2" marker-end="url(#a)"/>
+  <rect x="476" y="188" width="164" height="36" rx="6" fill="#f8f9fa" stroke="#6c757d" stroke-width="1.2" stroke-dasharray="4,2"/>
+  <text x="558" y="204" text-anchor="middle" font-size="10" font-weight="bold" fill="#444">PRM scores · LoRA weights</text>
+  <text x="558" y="218" text-anchor="middle" font-size="9" fill="#666">optional</text>
+
+  <!-- Mode legend -->
+  <rect x="20" y="244" width="620" height="84" rx="6" fill="#fffbe6" stroke="#e6a800" stroke-width="1"/>
+  <text x="330" y="262" text-anchor="middle" font-size="10" font-weight="bold" fill="#7a5000">Learning Modes  (EUREKACLAW_MODE)</text>
+  <text x="30" y="278" font-size="9" fill="#555">skills_only  (default)  — SkillEvolver + SessionMemoryExtractor only; no gradient updates</text>
+  <text x="30" y="292" font-size="9" fill="#555">rl                              — skills + ProcessRewardModel scoring + async GRPO LoRA fine-tuning</text>
+  <text x="30" y="306" font-size="9" fill="#555">madmax                   — skills + OMLS-scheduled RL (more aggressive exploration)</text>
+  <text x="30" y="320" font-size="9" fill="#555">All modes update SkillRegistry immediately; new skills available in the very next session.</text>
+</svg>

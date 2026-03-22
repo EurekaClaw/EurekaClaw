@@ -1,0 +1,63 @@
+# EurekaClaw default bottom-up proof pipeline
+#
+# Philosophy: proofs are built bottom-up from existing literature.
+# The main theorem statement is crystallized AFTER the proof is assembled,
+# not stated upfront.  This mirrors how ML theory papers are actually written.
+#
+# Stage fields:
+#   name        - unique stage identifier (used in logs)
+#   class       - Python class name (resolved via STAGE_REGISTRY in inner_loop_yaml.py)
+#   description - shown in progress output
+#   mode        - "once" (runs once per outer iteration) | "iterative" (has its own
+#                 inner retry loop — used only for lemma_developer)
+#   max_retries - for mode=once stages: how many times to retry on exception
+#   max_iterations   - for mode=iterative stages: max inner loop iterations
+#   stagnation_window - for mode=iterative: consecutive same-error failures
+#                       before forcing conjecture refinement
+
+stages:
+  - name: paper_reader
+    class: PaperReader
+    description: "Extract known results from surveyed papers"
+    mode: once
+    max_retries: 1
+    # Skipped gracefully if no bibliography is on the bus
+
+  - name: gap_analyst
+    class: GapAnalyst
+    description: "Identify the research gap given known results and the selected direction"
+    mode: once
+    max_retries: 2
+
+  - name: proof_architect
+    class: ProofArchitect
+    description: "Plan proof structure with provenance annotations (known / adapted / new)"
+    mode: once
+    max_retries: 2
+
+  - name: lemma_developer
+    class: LemmaDeveloper
+    description: "Develop proofs for new and adapted lemmas (iterative inner loop)"
+    mode: iterative
+    max_iterations: 10       # {{settings.theory_max_iterations}} — overridden by config
+    stagnation_window: 3     # {{settings.stagnation_window}}
+
+  - name: assembler
+    class: Assembler
+    description: "Assemble all lemmas into a coherent proof narrative"
+    mode: once
+    max_retries: 1
+
+  - name: theorem_crystallizer
+    class: TheoremCrystallizer
+    description: "Derive the formal theorem statement from the assembled proof"
+    mode: once
+    max_retries: 3           # retried by consistency_checker feedback
+
+  - name: consistency_checker
+    class: ConsistencyChecker
+    description: "Verify that the theorem statement is consistent with the proof"
+    mode: once
+    max_retries: 0
+    # On failure: sets status=in_progress and records issues in failed_attempts.
+    # The outer iteration loop will re-run theorem_crystallizer with those notes.
