@@ -41,6 +41,11 @@ class AwaitingDirectionException(Exception):
     pass
 
 
+class AwaitingReviewException(Exception):
+    """Raised in UI mode when the proof sketch needs human review before proceeding."""
+    pass
+
+
 class MetaOrchestrator:
     """Central brain. Drives the full pipeline from input spec to research output."""
 
@@ -331,6 +336,122 @@ class MetaOrchestrator:
 
                 if task.name == "survey":
                     await self._handle_empty_survey_fallback(pipeline)
+
+            self.bus.put_pipeline(pipeline)
+
+        console.print("\n[blue]Running continual learning loop...[/blue]")
+        await self.learning_loop.post_run(pipeline, self.bus)
+
+        output = self._collect_outputs(brief)
+        session_dir = settings.runs_dir / brief.session_id
+        self.bus.persist(session_dir)
+        console.print(f"\n[bold green]Session complete![/bold green] Artifacts saved to {session_dir}")
+
+        return output
+
+    async def run_from_review(self, approved: bool, feedback: str = "") -> ResearchOutput:
+        """Continue pipeline after the theory review gate.
+
+        If *approved*, skips theory and proceeds to experiment / writer.
+        If *rejected*, re-runs theory with *feedback* injected; the pipeline
+        will hit the review gate again (raising ``AwaitingReviewException``
+        in UI mode) so the user can review the revised proof.
+        """
+        from eurekaclaw.llm.base import reset_global_tokens
+        reset_global_tokens()
+        settings.ensure_dirs()
+
+        brief = self.bus.get_research_brief()
+        if not brief:
+            raise ValueError("No research brief on bus")
+
+        pipeline = self.pipeline_manager.build(brief)
+
+        _skip = {"survey", "ideation", "direction_selection_gate"}
+        if approved:
+            _skip.update({"theory", "theory_review_gate"})
+
+        for task in pipeline.tasks:
+            if task.name in _skip:
+                task.mark_completed()
+            # Inject rejection feedback into the theory task description
+            if not approved and task.name == "theory" and feedback:
+                task.description = (task.description or "") + f"\n\n[User feedback]: {feedback}"
+
+        self.bus.put_pipeline(pipeline)
+
+        action = "approved — skipping to experiment/writer" if approved else "rejected — re-running theory"
+        console.print(f"\n[bold green]EurekaClaw[/bold green] review {action}")
+
+        for task in pipeline.tasks:
+            if task.status in (TaskStatus.SKIPPED, TaskStatus.COMPLETED):
+                continue
+
+            if not self._dependencies_met(task, pipeline):
+                logger.warning("Skipping %s — dependencies not met", task.name)
+                task.status = TaskStatus.SKIPPED
+                continue
+
+            if task.name == "theory_review_gate":
+                await self._handle_theory_review_gate(pipeline, brief)
+
+            if task.name == "theory":
+                brief = self.bus.get_research_brief() or brief
+                if not brief.directions:
+                    await self._handle_manual_direction(brief)
+
+            if task.gate_required:
+                task.status = TaskStatus.AWAITING_GATE
+                approved_gate = await self.gate.request_approval(task)
+                if not approved_gate:
+                    task.status = TaskStatus.SKIPPED
+                    console.print(f"[yellow]Skipped: {task.name}[/yellow]")
+                    continue
+
+            if task.agent_role == "orchestrator":
+                task.mark_completed()
+                continue
+
+            _gate_name = f"{task.name}_gate" if not task.name.endswith("_gate") else task.name
+            _prev_gates = {
+                "theory": "direction_selection_gate",
+                "experiment": "theory_review_gate",
+                "writer": "final_review_gate",
+            }
+            _feedback = get_user_feedback(_prev_gates.get(task.name, _gate_name))
+            if _feedback:
+                task.description = (task.description or "") + f"\n\n[User guidance]: {_feedback}"
+
+            task.mark_started()
+            console.print(f"[blue]▶ Running: {task.name}[/blue]")
+
+            agent = self.router.resolve(task)
+
+            with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), console=console) as progress:
+                prog_task = progress.add_task(f"{task.name}...", total=None)
+                result = await agent.execute(task)
+                progress.update(prog_task, completed=True)
+
+            if result.failed:
+                task.mark_failed(result.error)
+                console.print(f"[red]✗ Failed: {task.name}: {result.error[:100]}[/red]")
+                self.learning_loop.failure_capture.record_task_failure(task, result.error)
+                if task.retries < task.max_retries:
+                    task.retries += 1
+                    task.status = TaskStatus.PENDING
+                    result = await agent.execute(task)
+                    if result.failed:
+                        task.mark_failed(result.error)
+            else:
+                task_outputs = dict(result.output)
+                if result.text_summary:
+                    task_outputs["text_summary"] = result.text_summary
+                if result.token_usage:
+                    task_outputs["token_usage"] = result.token_usage
+                task.mark_completed(task_outputs)
+                console.print(f"[green]✓ Done: {task.name}[/green]")
+
+                self.gate.print_stage_summary(task.name)
 
             self.bus.put_pipeline(pipeline)
 

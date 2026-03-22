@@ -3510,6 +3510,95 @@ textarea {
   color: var(--muted);
 }
 
+/* ── Review Gate ───────────────────────────────────────────────────── */
+.review-gate-card {
+  background: var(--surface);
+  border: 1px solid var(--cyan, #58a6ff);
+  border-radius: 12px;
+  padding: 20px;
+}
+.review-gate-heading {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0 0 4px;
+  color: var(--fg);
+}
+.review-gate-lemma-chain {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.review-gate-lemma {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  cursor: pointer;
+  text-align: left;
+  font-size: 0.85rem;
+  color: var(--fg);
+  transition: border-color 0.15s, background 0.15s;
+}
+.review-gate-lemma:hover {
+  border-color: var(--cyan, #58a6ff);
+  background: rgba(88, 166, 255, 0.06);
+}
+.review-gate-lemma.is-selected {
+  border-color: var(--red, #f85149);
+  background: rgba(248, 81, 73, 0.08);
+}
+.review-gate-lemma--open {
+  border-style: dashed;
+}
+.review-gate-lemma-num {
+  font-weight: 700;
+  font-size: 0.8rem;
+  min-width: 28px;
+  color: var(--cyan, #58a6ff);
+}
+.review-gate-lemma--open .review-gate-lemma-num {
+  color: var(--amber, #e8a735);
+}
+.review-gate-lemma-name {
+  flex: 1;
+  line-height: 1.35;
+}
+.review-gate-lemma-badge {
+  font-size: 0.72rem;
+  padding: 2px 8px;
+  border-radius: 10px;
+  white-space: nowrap;
+}
+.review-gate-lemma-badge.badge-verified {
+  background: rgba(63, 185, 80, 0.15);
+  color: var(--green, #3fb950);
+}
+.review-gate-lemma-badge.badge-unverified {
+  background: rgba(232, 167, 53, 0.15);
+  color: var(--amber, #e8a735);
+}
+.review-gate-lemma-badge.badge-open {
+  background: rgba(248, 81, 73, 0.12);
+  color: var(--red, #f85149);
+}
+.review-gate-feedback {
+  margin-bottom: 14px;
+}
+.review-gate-feedback-label {
+  font-size: 0.85rem;
+  margin: 0 0 6px;
+  color: var(--fg);
+}
+.review-gate-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 /* ── Empty survey gate ───────────────────────────────────────────────────── */
 
 .survey-gate-card {

@@ -17,6 +17,8 @@ export function LivePanel({ run }: LivePanelProps) {
   const [surveyGateDismissed, setSurveyGateDismissed] = useState('');
   const [directionInput, setDirectionInput] = useState('');
   const [retrying, setRetrying] = useState(false);
+  const [selectedLemma, setSelectedLemma] = useState<string | null>(null);
+  const [reviewReason, setReviewReason] = useState('');
   const sessions = useSessionStore((s) => s.sessions);
   const setSessions = useSessionStore((s) => s.setSessions);
   const setCurrentRunId = useSessionStore((s) => s.setCurrentRunId);
@@ -162,6 +164,145 @@ export function LivePanel({ run }: LivePanelProps) {
                 ? 'Press Enter to use your conjecture, or type a custom direction and press Enter.'
                 : 'Press Enter to submit. Shift+Enter for a new line.'}
             </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Theory review gate — proof complete, awaiting human review
+  const showReviewGate = status === 'awaiting_review';
+  const theoryState = arts.theory_state;
+  const provenLemmas = theoryState?.proven_lemmas ?? {};
+  const lemmaDAG = theoryState?.lemma_dag ?? {};
+  const openGoals = theoryState?.open_goals ?? [];
+
+  const handleApproveReview = async () => {
+    if (retrying) return;
+    setRetrying(true);
+    try {
+      await apiPost(`/api/runs/${run.run_id}/review`, { approved: true });
+      setSelectedLemma(null);
+      setReviewReason('');
+    } catch (err) {
+      alert(`Could not approve: ${(err as Error).message}`);
+    } finally {
+      setRetrying(false);
+    }
+  };
+
+  const handleRejectReview = async () => {
+    if (retrying || !selectedLemma || !reviewReason.trim()) return;
+    setRetrying(true);
+    try {
+      await apiPost(`/api/runs/${run.run_id}/review`, {
+        approved: false,
+        lemma_id: selectedLemma,
+        reason: reviewReason.trim(),
+      });
+      setSelectedLemma(null);
+      setReviewReason('');
+    } catch (err) {
+      alert(`Could not submit feedback: ${(err as Error).message}`);
+    } finally {
+      setRetrying(false);
+    }
+  };
+
+  if (showReviewGate) {
+    const allLemmaIds = Object.keys(provenLemmas);
+    const resolveName = (id: string) => {
+      const node = lemmaDAG[id];
+      return node?.informal || node?.statement || id;
+    };
+    return (
+      <div className="live-activity-area">
+        <div className="review-gate-card">
+          <p className="review-gate-heading">
+            📐 Proof sketch review — does this look correct?
+          </p>
+          <p className="drawer-muted" style={{ marginBottom: '12px' }}>
+            The theory agent has finished building the proof. Review each step below.
+            Click a lemma to flag it, or approve to proceed to paper writing.
+          </p>
+
+          {/* Proven lemmas */}
+          <div className="review-gate-lemma-chain">
+            {allLemmaIds.map((lid, i) => {
+              const rec = provenLemmas[lid];
+              const isSelected = selectedLemma === lid;
+              const verified = rec?.verified;
+              return (
+                <button
+                  key={lid}
+                  type="button"
+                  className={`review-gate-lemma${isSelected ? ' is-selected' : ''}`}
+                  onClick={() => {
+                    setSelectedLemma(isSelected ? null : lid);
+                    if (isSelected) setReviewReason('');
+                  }}
+                >
+                  <span className="review-gate-lemma-num">L{i + 1}</span>
+                  <span className="review-gate-lemma-name">
+                    {resolveName(lid).length > 100
+                      ? resolveName(lid).slice(0, 97) + '…'
+                      : resolveName(lid)}
+                  </span>
+                  <span className={`review-gate-lemma-badge${verified ? ' badge-verified' : ' badge-unverified'}`}>
+                    {verified ? '✓ verified' : '~ unverified'}
+                  </span>
+                </button>
+              );
+            })}
+            {openGoals.map((lid) => (
+              <button
+                key={lid}
+                type="button"
+                className={`review-gate-lemma review-gate-lemma--open${selectedLemma === lid ? ' is-selected' : ''}`}
+                onClick={() => {
+                  setSelectedLemma(selectedLemma === lid ? null : lid);
+                  if (selectedLemma === lid) setReviewReason('');
+                }}
+              >
+                <span className="review-gate-lemma-num">?</span>
+                <span className="review-gate-lemma-name">{resolveName(lid)}</span>
+                <span className="review-gate-lemma-badge badge-open">unproved</span>
+              </button>
+            ))}
+          </div>
+
+          {/* Feedback input — shown when a lemma is selected */}
+          {selectedLemma && (
+            <div className="review-gate-feedback">
+              <p className="review-gate-feedback-label">
+                Why is <strong>{resolveName(selectedLemma).slice(0, 60)}</strong> incorrect?
+              </p>
+              <textarea
+                className="survey-gate-input"
+                rows={3}
+                placeholder="Describe the logical gap — the theory agent will retry with your feedback…"
+                value={reviewReason}
+                onChange={(e) => setReviewReason(e.target.value)}
+              />
+            </div>
+          )}
+
+          {/* Actions */}
+          <div className="review-gate-actions">
+            <button
+              className="primary-btn"
+              disabled={retrying}
+              onClick={() => void handleApproveReview()}
+            >
+              {retrying ? 'Processing…' : '✓ Approve — proceed to writing'}
+            </button>
+            <button
+              className="secondary-btn"
+              disabled={retrying || !selectedLemma || !reviewReason.trim()}
+              onClick={() => void handleRejectReview()}
+            >
+              {retrying ? 'Processing…' : '✗ Reject — re-run theory with feedback'}
+            </button>
           </div>
         </div>
       </div>

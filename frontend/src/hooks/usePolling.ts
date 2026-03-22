@@ -58,6 +58,11 @@ export function usePolling() {
           setActiveWsTab('proof');
         }
 
+        // Auto-tab: awaiting_review — switch to live to show review gate
+        if (prevStatus !== 'awaiting_review' && current.status === 'awaiting_review') {
+          setActiveWsTab('live');
+        }
+
         // Auto-tab: run completed — switch to paper
         if (prevStatus !== 'completed' && current.status === 'completed' && activeWsTab === 'live') {
           setActiveWsTab('paper');
