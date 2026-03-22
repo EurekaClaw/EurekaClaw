@@ -137,9 +137,9 @@ class KnowledgeBus:
         for key, value in self._store.items():
             path = session_dir / f"{key}.json"
             if hasattr(value, "model_dump_json"):
-                path.write_text(value.model_dump_json(indent=2))
+                path.write_text(value.model_dump_json(indent=2), encoding="utf-8")
             else:
-                path.write_text(json.dumps(value, indent=2, default=str))
+                path.write_text(json.dumps(value, indent=2, default=str), encoding="utf-8")
         logger.info("Persisted %d artifacts to %s", len(self._store), session_dir)
 
     @classmethod
