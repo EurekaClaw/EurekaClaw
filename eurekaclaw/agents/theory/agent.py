@@ -38,6 +38,9 @@ The proof pipeline is specified by the YAML file loaded by TheoryInnerLoopYaml.
 """
 
     async def execute(self, task: Task) -> AgentResult:
+        from eurekaclaw.llm.base import get_global_tokens
+        _token_start = get_global_tokens()
+
         brief = self.bus.get_research_brief()
         if not brief:
             return self._make_result(task, False, {}, error="No ResearchBrief found on bus")
@@ -132,6 +135,11 @@ The proof pipeline is specified by the YAML file loaded by TheoryInnerLoopYaml.
                 for node_id in lemma_node_ids.values():
                     self.memory.link_theorems(main_node.node_id, node_id, relation="uses")
 
+            _token_end = get_global_tokens()
+            theory_tokens = {
+                "input": _token_end["input"] - _token_start["input"],
+                "output": _token_end["output"] - _token_start["output"],
+            }
             return self._make_result(
                 task,
                 success=success,
@@ -147,6 +155,7 @@ The proof pipeline is specified by the YAML file loaded by TheoryInnerLoopYaml.
                     f"Theorem {'proved' if success else final_state.status}: "
                     f"{proven_count} lemmas proved, {open_count} goals remain"
                 ),
+                token_usage=theory_tokens,
             )
 
         except Exception as e:
@@ -154,4 +163,9 @@ The proof pipeline is specified by the YAML file loaded by TheoryInnerLoopYaml.
             if isinstance(e, ProofPausedException):
                 raise
             logger.exception("Theory agent failed")
-            return self._make_result(task, False, {}, error=str(e))
+            _token_end = get_global_tokens()
+            theory_tokens = {
+                "input": _token_end["input"] - _token_start["input"],
+                "output": _token_end["output"] - _token_start["output"],
+            }
+            return self._make_result(task, False, {}, error=str(e), token_usage=theory_tokens)

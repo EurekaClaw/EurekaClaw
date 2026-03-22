@@ -116,14 +116,17 @@ async def test_manual_direction_sets_brief(bus, brief):
 
 
 @pytest.mark.asyncio
-async def test_manual_direction_empty_input_raises(bus, brief):
-    """Empty user input should raise RuntimeError."""
+async def test_manual_direction_empty_then_valid_input(bus, brief):
+    """Empty input should re-prompt; a valid input on the second try succeeds."""
     orch = _make_orchestrator(bus)
 
     with patch("eurekaclaw.orchestrator.meta_orchestrator.console") as mock_console:
-        mock_console.input = MagicMock(return_value="")
-        with pytest.raises(RuntimeError):
-            await orch._handle_manual_direction(brief)
+        mock_console.input = MagicMock(side_effect=["", "UCB1 achieves O(sqrt(KT)) regret"])
+        await orch._handle_manual_direction(brief)
+
+    updated = bus.get_research_brief()
+    assert updated.selected_direction is not None
+    assert "UCB1" in updated.selected_direction.hypothesis
 
 
 @pytest.mark.asyncio
@@ -174,15 +177,15 @@ async def test_fallback_called_when_ideation_returns_zero_in_detailed_mode(
 
 
 @pytest.mark.asyncio
-async def test_conjecture_used_as_default_when_user_presses_enter(
+async def test_empty_enter_reprompts_even_with_conjecture(
     detailed_bus, detailed_brief
 ):
-    """In prove mode, pressing Enter (empty input) should use the conjecture as direction."""
+    """In prove mode, pressing Enter (empty input) should re-prompt, not silently accept conjecture."""
     orch = _make_orchestrator(detailed_bus)
 
-    # User presses Enter without typing anything
+    # User presses Enter twice, then types the conjecture explicitly
     with patch("eurekaclaw.orchestrator.meta_orchestrator.console") as mock_console:
-        mock_console.input = MagicMock(return_value="")
+        mock_console.input = MagicMock(side_effect=["", "", detailed_brief.conjecture])
         await orch._handle_manual_direction(detailed_brief)
 
     updated = detailed_bus.get_research_brief()
@@ -207,12 +210,13 @@ async def test_user_can_override_conjecture_in_detailed_mode(
 
 
 @pytest.mark.asyncio
-async def test_empty_input_no_conjecture_raises(bus, brief):
-    """Empty input with no conjecture fallback should raise RuntimeError."""
+async def test_empty_input_no_conjecture_reprompts_then_accepts(bus, brief):
+    """Empty input with no conjecture re-prompts; Ctrl+C eventually raises RuntimeError."""
     orch = _make_orchestrator(bus)
     # brief.conjecture is not set in the exploration fixture
 
     with patch("eurekaclaw.orchestrator.meta_orchestrator.console") as mock_console:
-        mock_console.input = MagicMock(return_value="")
+        # Two empty inputs, then Ctrl+C
+        mock_console.input = MagicMock(side_effect=["", "", KeyboardInterrupt])
         with pytest.raises(RuntimeError):
             await orch._handle_manual_direction(brief)

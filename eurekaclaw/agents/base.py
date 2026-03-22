@@ -140,7 +140,8 @@ class BaseAgent(ABC):
         self.session.clear()
         self.session.add_user(initial_user_message)
 
-        total_tokens: dict[str, int] = {"input": 0, "output": 0}
+        from eurekaclaw.llm.base import get_global_tokens
+        _token_start = get_global_tokens()
         final_text = ""
 
         for turn in range(_max_turns):
@@ -164,9 +165,6 @@ class BaseAgent(ABC):
                 tools=tools,
                 max_tokens=max_tokens,
             )
-            if response.usage:
-                total_tokens["input"] += response.usage.input_tokens
-                total_tokens["output"] += response.usage.output_tokens
 
             # Collect text content
             text_parts = []
@@ -222,6 +220,11 @@ class BaseAgent(ABC):
             self.session._messages.append({"role": "user", "content": tool_results})
             self.session.trim_to_fit()
 
+        _token_end = get_global_tokens()
+        total_tokens = {
+            "input": _token_end["input"] - _token_start["input"],
+            "output": _token_end["output"] - _token_start["output"],
+        }
         return final_text, total_tokens
 
     async def _compress_history(self) -> str:

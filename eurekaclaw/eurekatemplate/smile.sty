@@ -14,8 +14,10 @@
 \usepackage{enumitem}
 \usepackage{algorithm}
 \usepackage{algpseudocode}  % Provides the algorithmic commands like \Require, \State, etc
-% \usepackage{algorithmic}
-\newcommand{\reff}{\mathrm{ref}}
+
+\usepackage{nicefrac}
+\usepackage{mathtools}
+\usepackage{mathrsfs}
 
 
 \let\hat\widehat
@@ -243,16 +245,14 @@
 \newcommand{\argmin}{\mathop{\mathrm{argmin}}}
 \newcommand{\argmax}{\mathop{\mathrm{argmax}}}
 \newcommand{\minimize}{\mathop{\mathrm{minimize}}}
-\newcommand{\opt}{\mathrm{opt}}
 
 \newcommand{\sign}{\mathop{\mathrm{sign}}}
 \newcommand{\tr}{\mathop{\mathrm{tr}}}
 
 \DeclareMathOperator{\Var}{{\rm Var}}
-\DeclareMathOperator{\Cor}{\rm Corr}
+\DeclareMathOperator{\corr}{\rm corr}
 \DeclareMathOperator{\Cov}{\rm Cov}
 \DeclareMathOperator{\ind}{\mathds{1}}  % Indicator
-\newcommand{\smallfrac}[2]{{\textstyle \frac{#1}{#2}}}  
                                                         
 \newcommand*{\zero}{{\bm 0}}
 \newcommand*{\one}{{\bm 1}}
@@ -272,6 +272,7 @@
 
 %%%%% Dot product
 \newcommand{\dotp}[2]{\langle{#1},{#2}\rangle}
+\newcommand{\bigdotp}[2]{\big\langle{#1},{#2}\big\rangle}
 
 %%%%  brackets
 \newcommand{\inner}[2]{\left\langle #1,#2 \right\rangle}
@@ -280,6 +281,19 @@
 \newcommand{\cbr}[1]{\left\{#1\right\}}
 \newcommand{\nbr}[1]{\left\|#1\right\|}
 \newcommand{\abr}[1]{\left|#1\right|}
+
+\DeclarePairedDelimiter{\ceil}{\lceil}{\rceil} % ceil
+\DeclarePairedDelimiter{\floor}{\lfloor}{\rfloor} % floor
+
+%%%% Other commands
+
+\newcommand{\iid}{\mathrm{i.i.d.}}
+\newcommand{\iidsim}{\overset{\scriptsize\iid}{\sim}}
+
+\newcommand{\ud}{{\,\mathrm{d}}}
+
+\newcommand{\poly}{\mathrm{poly}}
+\newcommand{\polylog}{\mathrm{polylog}}
 
 
 \ifx\BlackBox\undefined
@@ -333,11 +347,3 @@
 \fi
 \numberwithin{equation}{section}
 \numberwithin{theorem}{section}
-
-% added by Qingyue Zhao
-\usepackage[noabbrev]{cleveref}
-\crefname{assumption}{assumption}{assumptions}
-\Crefname{assumption}{Assumption}{Assumptions}
-
-\crefname{definition}{definition}{definitions}
-\Crefname{definition}{Definition}{Definitions}
