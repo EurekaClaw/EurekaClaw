@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import type { SessionRun } from '@/types';
-import { apiPost } from '@/api/client';
 import { getActiveOuterStage } from '@/lib/statusHelpers';
-import { AGENT_MANIFEST, agentNarrativeLine } from '@/lib/agentManifest';
+import { AGENT_MANIFEST } from '@/lib/agentManifest';
+import { agentNarrativeLine } from '@/lib/agentManifest';
 import { friendlyInnerStage } from '@/lib/statusHelpers';
 import { titleCase, escapeHtml } from '@/lib/formatters';
+import { apiPost } from '@/api/client';
 
 interface LivePanelProps {
   run: SessionRun | null;
@@ -166,8 +167,25 @@ export function LivePanel({ run }: LivePanelProps) {
     return <DirectionGateForm run={run} />;
   }
 
-  // Direction gate (read-only fallback — brief context)
+  // Direction gate (read-only fallback when ideation done with 0 directions)
   const brief = arts.research_brief ?? {};
+  const dirs = brief.directions ?? [];
+  const ideationDone = pipeline.some(
+    (t) => (t.name === 'ideation' || t.name === 'direction_selection_gate') && t.status === 'completed'
+  );
+  if (ideationDone && dirs.length === 0 && status !== 'completed' && status !== 'failed') {
+    const conj = run.input_spec?.conjecture || run.input_spec?.query || '';
+    return (
+      <div className="live-activity-area">
+        <div className="direction-gate-card">
+          <p className="direction-gate-heading">📍 No research directions were generated</p>
+          <p className="drawer-muted">Ideation returned no candidate directions. EurekaClaw will use your original conjecture as the proof target:</p>
+          {conj && <blockquote className="drawer-direction-quote">{conj}</blockquote>}
+          <p className="drawer-muted">The theory agent will proceed with this direction. If you'd like to guide the proof differently, pause the session and use the feedback box below.</p>
+        </div>
+      </div>
+    );
+  }
 
   // Theory review gate — shown in ProofPanel, prompt user to switch tab
   const theoryReviewTask = pipeline.find((t) => t.name === 'theory_review_gate');

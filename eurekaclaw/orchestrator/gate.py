@@ -350,13 +350,6 @@ class GateController:
             console.print("[dim]No proof state available — proceeding.[/dim]")
             return True, "", ""
 
-        # UI mode: raise so the server can pause for frontend review
-        if self.bus.get("ui_mode"):
-            from eurekaclaw.orchestrator.meta_orchestrator import AwaitingReviewException
-            raise AwaitingReviewException(
-                "Theory complete — awaiting proof review via UI"
-            )
-
         # Build numbered lemma list
         lemma_ids = list(state.proven_lemmas.keys())
         console.print()
