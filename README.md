@@ -46,14 +46,39 @@ $ eurekaclaw prove "Find recent papers on sparse attention + prove efficiency bo
 
 ---
 
-## Quick Start
+## Installation
 
-**Requirements:** Python ≥ 3.11
+**macOS / Linux**
+
+```bash
+curl -fsSL https://eurekaclaw.ai/install.sh | bash
+```
+
+**Windows** (PowerShell)
+
+```powershell
+powershell -c "irm https://eurekaclaw.ai/install_win.ps1 | iex"
+```
+
+Both installers clone the repo, create a virtual environment, install EurekaClaw, and add the `eurekaclaw` command to your PATH. Run `eurekaclaw onboard` afterwards to configure your API key and settings.
+
+<details>
+<summary>Manual install (all platforms)</summary>
+
+**Requirements:** Python ≥ 3.11, Git
 
 ```bash
 git clone https://github.com/EurekaClaw/EurekaClaw_dev_zero
 cd EurekaClaw_dev_zero
 pip install -e "."
+```
+</details>
+
+---
+
+## Quick Start
+
+```bash
 eurekaclaw onboard            # interactive setup wizard (creates .env)
 # — or — cp .env.example .env and add ANTHROPIC_API_KEY manually
 
