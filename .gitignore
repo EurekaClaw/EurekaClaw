@@ -67,3 +67,5 @@ resources.txt
 example.sh
 .gitattributes
 sync-from-main.sh
+frontend/node_modules/
+frontend/dist/
