@@ -17,6 +17,7 @@
 
 <p align="center">
   <a href="https://www.eurekaclaw.ai/"><img src="https://img.shields.io/badge/🌐%20Website-eurekaclaw.ai-007ACC?style=flat-square" alt="Website"/></a>
+  <a href="https://eurekaclaw.github.io/"><img src="https://img.shields.io/badge/📚%20Docs-eurekaclaw.github.io-007ACC?style=flat-square" alt="Docs"/></a>
   <a href="https://www.xiaohongshu.com/user/profile/69bf26c7000000003402ea57"><img src="https://img.shields.io/badge/📕%20RedNote-Follow%20Us-FF2442?style=flat-square" alt="RedNote"/></a>
   <a href="https://discord.gg/SprC5BgmcW"><img src="https://img.shields.io/badge/💬%20Discord-Join%20Us-5865F2?style=flat-square" alt="Discord"/></a>
 </p>
