@@ -48,9 +48,10 @@ pip install -e ".[openai,oauth]"
 |---|---|---|
 | **pdflatex** + bibtex | Compile `paper.tex` → `paper.pdf` | TeX Live / MacTeX |
 | **Lean4** | Formal proof verification | [leanprover.github.io](https://leanprover.github.io) |
-| **Docker** | Sandboxed code execution | [docker.com](https://www.docker.com) |
 
-EurekaClaw works without any of these — it just skips the associated step (PDF compilation, Lean verification, Docker sandbox).
+EurekaClaw works without any of these — it just skips the associated step (PDF compilation, Lean verification).
+
+> **Docker / sandboxed code execution** is **future work** — the experiment runner and `execute_python` tool are not yet safely sandboxed for general use. Keep `EXPERIMENT_MODE=false` until a future release adds proper sandbox support.
 
 ---
 
@@ -432,7 +433,6 @@ eurekaclaw prove "..." --gate human
 CONTEXT_COMPRESS_AFTER_TURNS=4
 AUTO_VERIFY_CONFIDENCE=0.80
 STAGNATION_WINDOW=2
-EXPERIMENT_MODE=false
 MAX_TOKENS_PROVER=2048
 MAX_TOKENS_AGENT=4096
 ```
@@ -443,7 +443,6 @@ MAX_TOKENS_AGENT=4096
 CONTEXT_COMPRESS_AFTER_TURNS=6
 AUTO_VERIFY_CONFIDENCE=0.95
 STAGNATION_WINDOW=3
-EXPERIMENT_MODE=auto
 ```
 
 ### Maximum thoroughness (for final results)
@@ -452,7 +451,6 @@ EXPERIMENT_MODE=auto
 CONTEXT_COMPRESS_AFTER_TURNS=0   # no compression
 AUTO_VERIFY_CONFIDENCE=0.99      # almost always do full peer review
 STAGNATION_WINDOW=5
-EXPERIMENT_MODE=true
 MAX_TOKENS_PROVER=4096
 MAX_TOKENS_AGENT=8192
 ```
@@ -465,7 +463,7 @@ MAX_TOKENS_AGENT=8192
 
 **`STAGNATION_WINDOW`** — If the same lemma fails N consecutive times with a similar error, the loop forces a conjecture refinement instead of retrying. Prevents wasted calls on an unresolvable proof path.
 
-**`EXPERIMENT_MODE`** — Whether to run numerical experiments. `auto` skips purely structural theorems (existence proofs, NP-hardness). Set to `false` for pure-math work.
+**`EXPERIMENT_MODE`** *(future work)* — Numerical experiment execution is not yet safely sandboxed. Keep this set to `false`. See [Experiment Runner](#experiment-runner-future-work) below.
 
 **`THEORY_MAX_ITERATIONS`** — Maximum proof loop iterations. Increase for very hard theorems; decrease for faster (but potentially incomplete) results.
 
@@ -627,7 +625,7 @@ The partial proof is still saved in `theory_state.json`.
 **Fix:** EurekaClaw retries automatically with exponential backoff (5 attempts, 4–90 second waits). If errors persist:
 - Reduce `MAX_TOKENS_AGENT` and `MAX_TOKENS_PROVER`
 - Set `CONTEXT_COMPRESS_AFTER_TURNS=4` to reduce input tokens
-- Set `EXPERIMENT_MODE=false` to skip the experiment stage
+- Set `EXPERIMENT_MODE=false` to skip the experiment stage *(recommended — see below)*
 
 ---
 
@@ -648,6 +646,22 @@ The partial proof is still saved in `theory_state.json`.
 2. Re-run with `--gate human` and provide hints at the theory gate
 3. Increase `THEORY_MAX_ITERATIONS` to give the prover more attempts
 4. Simplify the conjecture or break it into smaller lemmas
+
+---
+
+## Experiment Runner *(Future Work)* {#experiment-runner-future-work}
+
+The **ExperimentAgent** and the `execute_python` tool — which numerically validate theorem bounds by running LLM-generated Python — are **not yet safely sandboxed** for general use.
+
+**Current behavior without Docker:** LLM-generated code is executed directly in a host subprocess with a 30-second timeout. There is no filesystem or network isolation.
+
+**Current behavior with Docker (`USE_DOCKER_SANDBOX=true`):** Code runs inside `python:3.11-slim` with 512 MB RAM and network disabled. However, Docker must be installed and the daemon running; if Docker is unavailable the tool silently falls back to the host subprocess.
+
+Until proper sandboxing lands in a future release:
+
+- Keep `EXPERIMENT_MODE=false` in your `.env`
+- Do **not** rely on `USE_DOCKER_SANDBOX=true` as a security boundary
+- The `experiment_result.json` output file will not be produced
 
 ---
 

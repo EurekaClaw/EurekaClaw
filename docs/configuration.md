@@ -57,7 +57,7 @@ All settings are read from environment variables (or a `.env` file in the projec
 | `GATE_MODE` | `auto` | `auto`, `human`, `none` | Stage gate behavior |
 | `THEORY_PIPELINE` | `default` | `default`, `memory_guided` | Which theory proof pipeline to use |
 | `OUTPUT_FORMAT` | `latex` | `latex`, `markdown` | Paper output format |
-| `EXPERIMENT_MODE` | `auto` | `auto`, `true`, `false` | Experiment stage: auto-detect / force run / force skip |
+| `EXPERIMENT_MODE` | `auto` | `auto`, `true`, `false` | Experiment stage: auto-detect / force run / force skip *(future work — recommend `false`)* |
 
 **Gate modes:**
 - `none` — no stage cards or approval prompts
@@ -137,7 +137,7 @@ All 12 values are adjustable from the Settings tab in the web UI.
 | `EUREKACLAW_DIR` | `~/.eurekaclaw` | Base directory for skills, memory, and run artifacts |
 | `LEAN4_BIN` | `lean` | Path to the Lean4 binary |
 | `LATEX_BIN` | `pdflatex` | Path to the pdflatex binary |
-| `USE_DOCKER_SANDBOX` | `false` | Use Docker container for Python code execution |
+| `USE_DOCKER_SANDBOX` | `false` | Use Docker container for Python code execution *(future work — sandbox not fully integrated)* |
 
 ## Derived Paths (read-only properties on `settings`)
 

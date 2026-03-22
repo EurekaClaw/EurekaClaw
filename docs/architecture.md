@@ -21,7 +21,7 @@ KnowledgeBus
 ├── ResearchBrief    — survey findings, selected direction
 ├── TheoryState      — proof state machine (lemma DAG, proofs, goals)
 ├── Bibliography     — all papers found during survey
-├── ExperimentResult — numerical validation results
+├── ExperimentResult — numerical validation results (future work)
 └── TaskPipeline     — current task execution plan
 ```
 
