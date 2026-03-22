@@ -398,9 +398,13 @@ class MetaOrchestrator:
             return
 
         console.print("\n[yellow]⚠ Survey stage completed but found 0 papers.[/yellow]")
-        paper_input = Prompt.ask(
-            "[bold cyan]Please provide a comma-separated list of paper IDs/titles to retry, or press Enter to proceed without papers[/bold cyan]"
-        )
+        try:
+            paper_input = Prompt.ask(
+                "[bold cyan]Please provide a comma-separated list of paper IDs/titles to retry, or press Enter to proceed without papers[/bold cyan]"
+            )
+        except (KeyboardInterrupt, EOFError):
+            console.print("\n[dim]Input interrupted — proceeding without papers.[/dim]")
+            return
 
         if not paper_input.strip():
             return

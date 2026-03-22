@@ -396,15 +396,20 @@ class GateController:
             "  [red]n[/red]  — Flag the most logically problematic step\n"
         )
 
-        try:
-            answer = console.input("→ ").strip().lower()
-        except (KeyboardInterrupt, EOFError):
-            console.print("\n[dim]Input interrupted — proceeding.[/dim]")
-            return True, "", ""
+        while True:
+            try:
+                answer = console.input("→ ").strip().lower()
+            except (KeyboardInterrupt, EOFError):
+                console.print("\n[dim]Input interrupted — proceeding.[/dim]")
+                return True, "", ""
 
-        if answer == "" or answer[0] in ("y", "yes", ""):
-            console.print("[green]Proof approved — proceeding to writer.[/green]\n")
-            return True, "", ""
+            if answer == "" or answer.startswith("y"):
+                console.print("[green]Proof approved — proceeding to writer.[/green]\n")
+                return True, "", ""
+            elif answer.startswith("n"):
+                break
+            else:
+                console.print("[red]Please enter 'y' or 'n'.[/red]")
 
         # Rejection: ask which lemma and what the issue is
         console.print()
@@ -437,14 +442,20 @@ class GateController:
             else:
                 console.print("[red]Invalid input. Please enter a valid lemma number (e.g., L1) or exact ID.[/red]\n")
 
-        try:
-            reason = console.input(
-                "\n[bold]Describe the issue[/bold]\n"
-                "[dim](Be specific — the theory agent will retry with your feedback):[/dim] → "
-            ).strip()
-        except (KeyboardInterrupt, EOFError):
-            console.print("\n[dim]Input interrupted — proceeding anyway.[/dim]")
-            return True, "", ""
+        while True:
+            try:
+                reason = console.input(
+                    "\n[bold]Describe the issue[/bold]\n"
+                    "[dim](Be specific — the theory agent will retry with your feedback):[/dim] → "
+                ).strip()
+            except (KeyboardInterrupt, EOFError):
+                console.print("\n[dim]Input interrupted — proceeding anyway.[/dim]")
+                return True, "", ""
+
+            if not reason:
+                console.print("[red]Please provide a description of the issue, or press Ctrl+C to abort.[/red]")
+                continue
+            break
 
         console.print(
             f"\n[yellow]Flagged:[/yellow] [cyan]{resolved_id}[/cyan]\n"

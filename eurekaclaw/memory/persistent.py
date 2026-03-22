@@ -45,7 +45,7 @@ class PersistentMemory:
             value=value,
             tags=tags or [],
             source_session=source_session,
-            updated_at=datetime.utcnow(),
+            updated_at=datetime.now().astimezone(),
         )
         self._data[key] = record
         self._save()

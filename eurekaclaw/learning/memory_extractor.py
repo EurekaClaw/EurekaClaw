@@ -175,7 +175,7 @@ class SessionMemoryExtractor:
                     continue
 
                 # Save new memory file
-                date_str = datetime.utcnow().strftime("%Y%m%d")
+                date_str = datetime.now().astimezone().strftime("%Y%m%d")
                 slug = re.sub(r"[^\w]", "_", title.lower())[:40]
                 path = domain_dir / f"{date_str}_{slug}.md"
                 if path.exists():
@@ -187,7 +187,7 @@ class SessionMemoryExtractor:
                     f"title: {title}\n"
                     f"domain: {domain or 'general'}\n"
                     f"confidence: {confidence:.2f}\n"
-                    f"created_at: {datetime.utcnow().isoformat()}\n"
+                    f"created_at: {datetime.now().astimezone().isoformat()}\n"
                     f"---\n\n"
                     f"# {title}\n\n"
                     f"{content}\n"
@@ -198,7 +198,7 @@ class SessionMemoryExtractor:
                 embedding = get_embedding(f"{title} {content}")
                 domain_index[path.name] = {
                     "fingerprint": fp,
-                    "created_at": datetime.utcnow().isoformat(),
+                    "created_at": datetime.now().astimezone().isoformat(),
                     "embedding": embedding,
                     "category": category,
                 }

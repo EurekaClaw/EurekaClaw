@@ -289,7 +289,7 @@ class UIServerState:
         if run is None:
             return {"error": "Run not found"}
         run.name = name.strip()[:80]
-        run.updated_at = datetime.utcnow()
+        run.updated_at = datetime.now().astimezone()
         self._persist_run(run)
         return {"ok": True, "run_id": run_id, "name": run.name}
 
@@ -330,8 +330,8 @@ class UIServerState:
         cp.request_pause()
         # Immediately reflect the intermediate state so the frontend can poll it
         run.status = "pausing"
-        run.pause_requested_at = datetime.utcnow()
-        run.updated_at = datetime.utcnow()
+        run.pause_requested_at = datetime.now().astimezone()
+        run.updated_at = datetime.now().astimezone()
         self._persist_run(run)
         return {"ok": True, "session_id": run.eureka_session_id, "status": "pausing"}
 
@@ -349,7 +349,7 @@ class UIServerState:
             return {"error": f"No checkpoint found for session '{run.eureka_session_id}'"}
         # Transition to intermediate "resuming" state before the thread starts
         run.status = "resuming"
-        run.updated_at = datetime.utcnow()
+        run.updated_at = datetime.now().astimezone()
         self._persist_run(run)
         thread = threading.Thread(target=self._execute_resume, args=(run_id,), daemon=True)
         thread.start()
@@ -370,7 +370,7 @@ class UIServerState:
         run.paused_at = None
         run.pause_requested_at = None
         run.paused_stage = ""
-        run.updated_at = datetime.utcnow()
+        run.updated_at = datetime.now().astimezone()
         self._persist_run(run)
 
         try:
@@ -417,7 +417,7 @@ class UIServerState:
             if isinstance(exc, ProofPausedException):
                 logger.info("Session %s paused again at stage '%s'", run_id, exc.stage_name)
                 run.status = "paused"
-                run.paused_at = datetime.utcnow()
+                run.paused_at = datetime.now().astimezone()
                 run.paused_stage = exc.stage_name
                 run.pause_requested_at = None
                 run.error = ""
@@ -426,8 +426,8 @@ class UIServerState:
                 run.status = "failed"
                 run.error = str(exc)
         finally:
-            run.completed_at = datetime.utcnow()
-            run.updated_at = datetime.utcnow()
+            run.completed_at = datetime.now().astimezone()
+            run.updated_at = datetime.now().astimezone()
             self._persist_run(run)
 
     def _execute_run(self, run_id: str) -> None:
@@ -436,8 +436,8 @@ class UIServerState:
             return
 
         run.status = "running"
-        run.started_at = datetime.utcnow()
-        run.updated_at = datetime.utcnow()
+        run.started_at = datetime.now().astimezone()
+        run.updated_at = datetime.now().astimezone()
 
         try:
             # Pre-flight: verify credentials before spending time initialising agents
@@ -477,7 +477,7 @@ class UIServerState:
             if isinstance(exc, ProofPausedException):
                 logger.info("Session %s paused at stage '%s'", run_id, exc.stage_name)
                 run.status = "paused"
-                run.paused_at = datetime.utcnow()
+                run.paused_at = datetime.now().astimezone()
                 run.paused_stage = exc.stage_name
                 run.pause_requested_at = None
                 run.error = ""
@@ -486,8 +486,8 @@ class UIServerState:
                 run.status = "failed"
                 run.error = str(exc)
         finally:
-            run.completed_at = datetime.utcnow()
-            run.updated_at = datetime.utcnow()
+            run.completed_at = datetime.now().astimezone()
+            run.updated_at = datetime.now().astimezone()
             self._persist_run(run)
 
     def snapshot_run(self, run: SessionRun) -> dict[str, Any]:
@@ -750,7 +750,7 @@ class UIRequestHandler(SimpleHTTPRequestHandler):
             self._send_json(self.state.snapshot_run(run))
             return
         if parsed.path == "/api/health":
-            self._send_json({"ok": True, "time": datetime.utcnow().isoformat()})
+            self._send_json({"ok": True, "time": datetime.now().astimezone().isoformat()})
             return
 
         if parsed.path in ("/", ""):
