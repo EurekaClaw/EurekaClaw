@@ -44,7 +44,11 @@ For each hypothesis, provide:
 - Potential obstacles
 
 Be creative but grounded. A good hypothesis is surprising yet believable.
-Output a JSON object with "directions" as a list of 5 research directions.
+
+You may use at most 2 search tool calls. After that you MUST output the final
+JSON immediately — no further tool calls, no planning text.
+Your final message MUST be a JSON object and nothing else:
+{"directions": [{...}, ...]}
 """
 
     async def execute(self, task: Task) -> AgentResult:
