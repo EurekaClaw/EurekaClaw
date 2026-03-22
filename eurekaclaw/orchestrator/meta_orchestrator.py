@@ -91,6 +91,8 @@ class MetaOrchestrator:
 
     async def run(self, input_spec: InputSpec) -> ResearchOutput:
         """Run the full research pipeline from input to output artifacts."""
+        from eurekaclaw.llm.base import reset_global_tokens
+        reset_global_tokens()
         settings.ensure_dirs()
 
         # --- Phase 1: Initialize the research brief ---
