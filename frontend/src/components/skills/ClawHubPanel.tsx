@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { apiPost } from '@/api/client';
+import { apiGet, apiPost } from '@/api/client';
 import { useSkillStore } from '@/store/skillStore';
 import type { Skill } from '@/types';
 
@@ -26,7 +26,7 @@ export function ClawHubPanel({ status, statusError, onStatus }: ClawHubPanelProp
 
   const refreshSkills = async () => {
     try {
-      const data = await apiPost<SkillsResponse>('/api/skills', {});
+      const data = await apiGet<SkillsResponse>('/api/skills');
       setAvailableSkills(data.skills ?? []);
     } catch {
       // silently ignore
