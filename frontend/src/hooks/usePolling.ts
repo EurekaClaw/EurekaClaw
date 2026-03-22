@@ -23,7 +23,7 @@ export function usePolling() {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const intervalRef = useRef(POLL_INTERVAL_ACTIVE_MS);
   const errorsRef = useRef(0);
-  const { setSessions, currentRunId, isPausingRequested } = useSessionStore();
+  const { setSessions, currentRunId, isPausingRequested, setIsPausingRequested, setPauseRequestedAt } = useSessionStore();
   const { activeWsTab, setActiveWsTab } = useUiStore();
   const prevRunRef = useRef<SessionRun | null>(null);
 
@@ -34,18 +34,34 @@ export function usePolling() {
       const sessions = data.runs || [];
       setSessions(sessions);
 
-      // Auto-tab switching
       const current = currentRunId ? sessions.find((s) => s.run_id === currentRunId) : null;
       if (current) {
         const prev = prevRunRef.current;
+        const prevStatus = prev?.status;
+
+        // Clear optimistic isPausingRequested once backend confirms paused or running
+        if (isPausingRequested && (current.status === 'paused' || current.status === 'running')) {
+          setIsPausingRequested(false);
+          setPauseRequestedAt(null);
+        }
+
+        // Auto-tab: paused/resuming → running — switch to live to show proof progress
+        if ((prevStatus === 'paused' || prevStatus === 'resuming') && current.status === 'running') {
+          setActiveWsTab('live');
+        }
+
+        // Auto-tab: theory in_progress → completed — switch to proof
         const theoryTask = current.pipeline?.find((t) => t.name === 'theory' || t.agent_role === 'theory');
         const prevTheoryTask = prev?.pipeline?.find((t) => t.name === 'theory' || t.agent_role === 'theory');
-        const wasRunning = prevTheoryTask?.status === 'in_progress';
-        const nowDone = theoryTask?.status === 'completed';
-        if (wasRunning && nowDone && activeWsTab === 'live') setActiveWsTab('proof');
-        if (prev?.status !== 'completed' && current.status === 'completed' && activeWsTab === 'live') {
+        if (prevTheoryTask?.status === 'in_progress' && theoryTask?.status === 'completed' && activeWsTab === 'live') {
+          setActiveWsTab('proof');
+        }
+
+        // Auto-tab: run completed — switch to paper
+        if (prevStatus !== 'completed' && current.status === 'completed' && activeWsTab === 'live') {
           setActiveWsTab('paper');
         }
+
         prevRunRef.current = current;
       }
 
@@ -60,7 +76,7 @@ export function usePolling() {
     } catch {
       errorsRef.current += 1;
     }
-  }, [setSessions, currentRunId, isPausingRequested, activeWsTab, setActiveWsTab]);
+  }, [setSessions, currentRunId, isPausingRequested, setIsPausingRequested, setPauseRequestedAt, activeWsTab, setActiveWsTab]);
 
   const startFast = useCallback(() => {
     if (timerRef.current) clearInterval(timerRef.current);

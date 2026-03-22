@@ -930,7 +930,7 @@ img {
 /* ── Tutorial floating button (fixed to viewport, outside grid) ── */
 .tutorial-btn {
   position: fixed;
-  top: 16px;
+  bottom: 20px;
   right: 20px;
   z-index: 9999;
   display: flex;

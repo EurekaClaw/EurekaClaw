@@ -81,6 +81,22 @@ export function LivePanel({ run }: LivePanelProps) {
     );
   }
 
+  if (status === 'resuming') {
+    return (
+      <div className="live-activity-area">
+        <div className="live-thinking-view">
+          <div className="thinking-dots" aria-label="Resuming">
+            <span className="thinking-dot" />
+            <span className="thinking-dot" />
+            <span className="thinking-dot" />
+          </div>
+          <p className="live-stage-label" style={{ color: 'var(--green)' }}>Resuming proof…</p>
+          <p className="drawer-muted">Restoring your proof context and continuing from the last checkpoint.</p>
+        </div>
+      </div>
+    );
+  }
+
   if (status === 'completed') {
     // selected_direction is a ResearchDirection object; show title + hypothesis
     const selDir = brief.selected_direction;
