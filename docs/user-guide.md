@@ -23,15 +23,33 @@ A practical walkthrough for using EurekaClaw — from installation to reading yo
 
 ## Installation
 
-**Requirements:** Python ≥ 3.11 · **Supported platforms:** macOS, Linux
+**Supported platforms:** macOS, Linux
 *(Windows support is under development — use [WSL 2](https://learn.microsoft.com/en-us/windows/wsl/install) in the meantime)*
 
-### From source (recommended)
+### Installer script (recommended)
+
+**macOS / Linux**
 
 ```bash
-git clone https://github.com/EurekaClaw/EurekaClaw_dev_zero
-cd EurekaClaw_dev_zero
-pip install -e "."
+curl -fsSL https://eurekaclaw.ai/install.sh | bash
+```
+
+**Windows** *(under development — not fully supported yet)*
+
+```powershell
+powershell -c "irm https://eurekaclaw.ai/install_win.ps1 | iex"
+```
+
+The macOS/Linux installer clones the repo, creates a virtual environment, installs EurekaClaw, and adds the `eurekaclaw` command to your PATH. Run `eurekaclaw onboard` afterwards to configure your API key and settings.
+
+### Manual install
+
+**Requirements:** Python ≥ 3.11, Node.js ≥ 20, Git
+
+```bash
+git clone https://github.com/EurekaClaw/EurekaClaw
+cd EurekaClaw
+make install                  # pip install -e "." + npm install (frontend)
 ```
 
 ### With all optional extras
@@ -104,7 +122,7 @@ OPENAI_COMPAT_MODEL=llama3
 ## First Run
 
 ```bash
-# Install built-in proof skills (do this once)
+# Install built-in proof skills (required — do this once)
 eurekaclaw install-skills
 
 # Prove a conjecture — output goes to ./results/

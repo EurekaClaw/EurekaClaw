@@ -36,7 +36,7 @@ $ eurekaclaw prove "Find recent papers on sparse attention + prove efficiency bo
 
 **EurekaClaw** is a multi-agent AI research assistant that goes from a question to a publishable result — autonomously. It crawls the literature, generates and stress-tests hypotheses, runs experiments, and writes up findings, all from your terminal or browser UI.
 
-> **Open Source · Local-First · Private by Default · Apache 2.0 License**
+> **Open Source · Local-First · Privacy by Design · Apache 2.0 License**
 
 ---
 
