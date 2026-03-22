@@ -6,6 +6,24 @@ Summary of all updates from `UPDATES.md`.
 
 ## 2026-03-21
 
+### 9. `theory_review_gate` Loops Until User Approves
+
+The theory review gate previously re-ran theory at most once. If the user rejected a second time, the pipeline proceeded to the writer anyway.
+
+**New behavior:** The gate loops — each rejection injects feedback and re-runs the full TheoryAgent — until the user approves or `THEORY_REVIEW_MAX_RETRIES` rejections are reached (default 3, configurable in `.env`). After the limit, the pipeline continues to the writer with a warning. Each iteration shows the attempt counter `(attempt N/max)`.
+
+**Relevant files:** `eurekaclaw/orchestrator/meta_orchestrator.py`, `eurekaclaw/config.py`
+
+### 8. Direction Fallback Always Re-prompts on Empty Input
+
+Empty input (plain Enter or whitespace-only) in `_handle_manual_direction` now always re-prompts. Previously, pressing Enter accepted `brief.conjecture` as a silent default in `prove` mode — easy to trigger accidentally. The conjecture is still shown as a reference but the user must type it explicitly to accept.
+
+**Relevant file:** `eurekaclaw/orchestrator/meta_orchestrator.py`
+
+### 7. Add `LEAN4_BIN` path to `.env` for elan-installed Lean
+
+Set `LEAN4_BIN=/home/shiyuan/.elan/bin/lean` so the Lean4 verifier finds the binary installed via `elan` rather than relying on a system `lean` that may not exist.
+
 ### 6. Add `CCPROXY_PORT` to `.env` for OAuth Mode
 
 Added `CCPROXY_PORT=8100` to `.env` so `maybe_start_ccproxy()` checks and reuses the correct port instead of defaulting to 8000 and failing.
