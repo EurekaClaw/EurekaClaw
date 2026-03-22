@@ -446,6 +446,30 @@ class PaperReader:
                 title, arxiv_id, e,
             )
             return []
+        finally:
+            if "converter" in locals():
+                try:
+                    # aggressively clear internals
+                    if hasattr(converter, "initialized_pipelines"):
+                        for k in list(converter.initialized_pipelines.keys()):
+                            converter.initialized_pipelines[k] = None
+                        converter.initialized_pipelines.clear()
+                except Exception:
+                    pass
+                for var in vars(converter).values():
+                    del var
+                del converter
+            import gc
+            gc.collect()
+            try:
+                import torch
+                if torch.cuda.is_available():
+                    torch.cuda.synchronize()
+                    torch.cuda.empty_cache()
+                if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+                    torch.mps.empty_cache()
+            except ImportError:
+                pass
 
         chunks = _chunk_markdown(markdown)
         if not chunks:
