@@ -384,6 +384,11 @@ End the paper with a ## References section listing all cited works numerically.
 """
         else:
             _no_refs = "(no references — omit \\bibliography and \\bibliographystyle commands)"
+            _exp_section_line = (
+                "  \\\\section{{Experiments}}\\\\label{{sec:experiments}}"
+                if exp_summary else
+                "  (no Experiments section — experiments were not run)"
+            )
             user_message = f"""\
 Write a complete LaTeX research paper based on these artifacts:
 
@@ -416,7 +421,7 @@ roadmap mentions must actually appear in the paper body:
   \\section{{Introduction}}\\label{{sec:introduction}}
   \\section{{Preliminaries}}\\label{{sec:preliminaries}}
   \\section{{Main Results}}\\label{{sec:main_results}}
-{'  \\\\section{{Experiments}}\\\\label{{sec:experiments}}' if exp_summary else '  (no Experiments section — experiments were not run)'}
+{_exp_section_line}
   \\section{{Related Work}}\\label{{sec:related_work}}
   \\section{{Limitations}}\\label{{sec:limitations}}
   \\section{{Conclusion}}\\label{{sec:conclusion}}
