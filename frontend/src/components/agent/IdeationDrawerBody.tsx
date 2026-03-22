@@ -7,8 +7,9 @@ interface IdeationDrawerBodyProps {
 
 export function IdeationDrawerBody({ arts, run }: IdeationDrawerBodyProps) {
   const brief = arts.research_brief ?? {};
+  // selected_direction is a ResearchDirection object (title + hypothesis) from the backend
   const direction = brief.selected_direction;
-  const dirStr = typeof direction === 'string' ? direction : direction?.title || direction?.direction || '';
+  const dirStr = direction?.title || direction?.hypothesis || '';
   const mode = run?.input_spec?.mode;
   const conj = run?.input_spec?.conjecture || run?.input_spec?.query || '';
 

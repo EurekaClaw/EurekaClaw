@@ -6,9 +6,11 @@ interface SurveyDrawerBodyProps {
 
 export function SurveyDrawerBody({ arts }: SurveyDrawerBodyProps) {
   const brief = arts.research_brief ?? {};
-  const papers = arts.bibliography?.papers || brief.papers || [];
+  // Papers live in bibliography.papers; ResearchBrief doesn't have a papers field
+  const papers = arts.bibliography?.papers ?? [];
   const problems = brief.open_problems ?? [];
-  const keyObjects = brief.key_objects || brief.key_mathematical_objects || [];
+  // Backend field is key_mathematical_objects (list of strings)
+  const keyObjects = brief.key_mathematical_objects ?? [];
 
   if (!papers.length && !problems.length) {
     return (
@@ -40,7 +42,7 @@ export function SurveyDrawerBody({ arts }: SurveyDrawerBodyProps) {
           <h4>Open problems identified</h4>
           <ul className="drawer-problems-list">
             {problems.map((p, i) => (
-              <li key={i}>{typeof p === 'string' ? p : p.description || JSON.stringify(p)}</li>
+              <li key={i}>{p}</li>
             ))}
           </ul>
         </div>
@@ -50,9 +52,7 @@ export function SurveyDrawerBody({ arts }: SurveyDrawerBodyProps) {
           <h4>Key mathematical objects</h4>
           <div className="drawer-tags-row">
             {keyObjects.slice(0, 12).map((obj, i) => (
-              <span key={i} className="drawer-object-tag">
-                {typeof obj === 'string' ? obj : obj.name || JSON.stringify(obj)}
-              </span>
+              <span key={i} className="drawer-object-tag">{obj}</span>
             ))}
           </div>
         </div>

@@ -10,11 +10,19 @@ export function TheoryFeedback({ theoryState, feedbackRef }: TheoryFeedbackProps
   const [isOpen, setIsOpen] = useState(false);
   const [feedbackText, setFeedbackText] = useState('');
 
-  const lemmas = theoryState ? (theoryState.open_goals ?? []) : [];
-  const provenLemmas = theoryState ? Object.keys(theoryState.proven_lemmas ?? {}) : [];
+  const lemmaDAG = theoryState?.lemma_dag ?? {};
+  const openGoalIds = theoryState?.open_goals ?? [];
+  const provenLemmaIds = Object.keys(theoryState?.proven_lemmas ?? {});
+
+  // Resolve readable names via lemma_dag; fall back to raw ID
+  const resolveName = (id: string) => {
+    const node = lemmaDAG[id];
+    return node?.informal || node?.statement || id;
+  };
+
   const allLemmaNames = [
-    ...provenLemmas,
-    ...lemmas.map((g, i) => (typeof g === 'string' ? g : g.name ?? `Goal ${i + 1}`)),
+    ...provenLemmaIds.map(resolveName),
+    ...openGoalIds.map(resolveName),
   ];
 
   const handleChipClick = (name: string) => {

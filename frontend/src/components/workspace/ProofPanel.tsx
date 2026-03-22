@@ -1,4 +1,4 @@
-import type { TheoryState } from '@/types';
+import type { TheoryState, LemmaNode } from '@/types';
 
 interface ProofPanelProps {
   theoryState: TheoryState | null | undefined;
@@ -9,6 +9,23 @@ interface LemmaEntry {
   proof: string;
   proven: boolean;
   conf: string;
+}
+
+function lemmaLabel(node: LemmaNode | undefined, fallbackId: string): string {
+  if (!node) return fallbackId;
+  return node.informal || node.statement || fallbackId;
+}
+
+function lemmaConf(node: LemmaNode | undefined): string {
+  if (!node) return 'open';
+  if (node.verified === true) return 'verified';
+  if (node.verified === false) return 'failed';
+  if (node.confidence_score != null) {
+    if (node.confidence_score >= 0.8) return 'high';
+    if (node.confidence_score >= 0.5) return 'medium';
+    return 'low';
+  }
+  return 'open';
 }
 
 export function ProofPanel({ theoryState: ts }: ProofPanelProps) {
@@ -23,27 +40,33 @@ export function ProofPanel({ theoryState: ts }: ProofPanelProps) {
     );
   }
 
-  const theorem = ts.formal_statement || ts.proof_skeleton || '';
-  const lemmas = ts.open_goals ?? [];
+  const theorem = ts.formal_statement || ts.proof_skeleton || ts.assembled_proof || '';
+  const lemmaDAG = ts.lemma_dag ?? {};
+  const openGoalIds = ts.open_goals ?? [];
   const provenLemmas = ts.proven_lemmas ?? {};
   const counterexamples = ts.counterexamples ?? [];
   const iteration = ts.iteration ?? 0;
+  const theoryStatus = ts.status;
 
-  const provenEntries: LemmaEntry[] = Object.entries(provenLemmas).map(([name, proof]) => ({
-    name,
-    proof: typeof proof === 'string' ? proof : JSON.stringify(proof),
-    proven: true,
-    conf: 'verified',
-  }));
-
-  const openEntries: LemmaEntry[] = lemmas.map((g, i) => {
-    const name = typeof g === 'string' ? g : (g.name ?? `Goal ${i + 1}`);
-    const conf = typeof g === 'string' ? 'low' : (g.confidence || (g.status === 'proven' ? 'verified' : 'low'));
+  // Build proven entries using ProofRecord.proof_text (not JSON.stringify)
+  const provenEntries: LemmaEntry[] = Object.entries(provenLemmas).map(([lemmaId, record]) => {
+    const node = lemmaDAG[lemmaId];
     return {
-      name,
-      proof: typeof g === 'string' ? '' : (g.description ?? ''),
+      name: lemmaLabel(node, lemmaId),
+      proof: record.proof_text || '',
+      proven: true,
+      conf: record.verified ? 'verified' : 'unverified',
+    };
+  });
+
+  // Build open goal entries using lemma_dag for human-readable names + confidence
+  const openEntries: LemmaEntry[] = openGoalIds.map((lemmaId) => {
+    const node = lemmaDAG[lemmaId];
+    return {
+      name: lemmaLabel(node, lemmaId),
+      proof: node?.statement || '',
       proven: false,
-      conf,
+      conf: lemmaConf(node),
     };
   });
 
@@ -60,14 +83,28 @@ export function ProofPanel({ theoryState: ts }: ProofPanelProps) {
             </pre>
           </div>
         )}
-        {iteration > 0 && (
+        {theoryStatus && theoryStatus !== 'pending' && (
+          <p className="drawer-muted" style={{ marginBottom: '4px' }}>
+            Status: <strong>{theoryStatus}</strong>
+            {iteration > 0 && ` · iteration ${iteration}`}
+            {provenEntries.length > 0 && ` · ${provenEntries.length} proven`}
+            {openEntries.length > 0 && ` · ${openEntries.length} open`}
+          </p>
+        )}
+        {!theoryStatus && iteration > 0 && (
           <p className="drawer-muted">
             Iteration {iteration} · {provenEntries.length} proven · {openEntries.length} open
           </p>
         )}
         {counterexamples.length > 0 && (
           <div className="proof-counterexample-warning">
-            ⚠ {counterexamples.length} counterexample{counterexamples.length > 1 ? 's' : ''} found — the theorem may need refinement.
+            ⚠ {counterexamples.length} counterexample{counterexamples.length > 1 ? 's' : ''} found
+            {counterexamples.some((c) => c.falsifies_conjecture) && ' — the theorem may need refinement'}.
+            {counterexamples[0]?.suggested_refinement && (
+              <p style={{ marginTop: '4px', fontSize: '0.8rem' }}>
+                Suggested: {counterexamples[0].suggested_refinement}
+              </p>
+            )}
           </div>
         )}
         {allLemmas.length > 0 && <h4 style={{ margin: '12px 0 6px' }}>Proof steps</h4>}

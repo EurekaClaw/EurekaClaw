@@ -8,12 +8,9 @@ interface PaperPanelProps {
 export function PaperPanel({ run }: PaperPanelProps) {
   const theoryState = run?.artifacts?.theory_state;
   const result = run?.result;
-  const title =
-    run?.artifacts?.research_brief?.selected_direction
-      ? (typeof run.artifacts.research_brief.selected_direction === 'string'
-          ? run.artifacts.research_brief.selected_direction
-          : (run.artifacts.research_brief.selected_direction as { title?: string }).title ?? 'EurekaClaw Autonomous Research System')
-      : 'EurekaClaw Autonomous Research System';
+  // selected_direction is a ResearchDirection object from the backend
+  const selDir = run?.artifacts?.research_brief?.selected_direction;
+  const title = selDir?.title || selDir?.hypothesis?.slice(0, 80) || 'EurekaClaw Autonomous Research System';
   const paperText = result?.latex_paper || '';
 
   let summary = 'Launch a session to produce a real paper draft and final run summary.';

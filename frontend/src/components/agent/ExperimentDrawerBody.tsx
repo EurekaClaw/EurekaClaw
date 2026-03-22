@@ -43,8 +43,8 @@ export function ExperimentDrawerBody({ arts }: ExperimentDrawerBodyProps) {
                   <td>{b.name || '—'}</td>
                   <td>{String(b.theoretical ?? '—')}</td>
                   <td>{String(b.empirical ?? '—')}</td>
-                  <td className={b.passes ? 'drawer-bounds-pass' : 'drawer-bounds-fail'}>
-                    {b.passes ? '✓' : '✗'}
+                  <td className={b.aligned ? 'drawer-bounds-pass' : 'drawer-bounds-fail'}>
+                    {b.aligned == null ? '?' : b.aligned ? '✓' : '✗'}
                   </td>
                 </tr>
               ))}

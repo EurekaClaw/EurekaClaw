@@ -28,7 +28,8 @@ export function LivePanel({ run }: LivePanelProps) {
 
   // Direction gate
   const brief = arts.research_brief ?? {};
-  const dirs = brief.directions || brief.research_directions || [];
+  // directions is ResearchDirection[] from backend (not string[])
+  const dirs = brief.directions ?? [];
   const ideationDone = pipeline.some(
     (t) => (t.name === 'ideation' || t.name === 'direction_selection_gate') && t.status === 'completed'
   );
@@ -81,14 +82,16 @@ export function LivePanel({ run }: LivePanelProps) {
   }
 
   if (status === 'completed') {
-    const dir = typeof brief.selected_direction === 'string'
-      ? brief.selected_direction
-      : (brief.selected_direction?.title || '');
+    // selected_direction is a ResearchDirection object; show title + hypothesis
+    const selDir = brief.selected_direction;
+    const dir = selDir ? (selDir.title || '') : '';
+    const hypothesis = selDir ? (selDir.hypothesis || '') : '';
     return (
       <div className="live-activity-area">
         <div className="live-thinking-view">
           <p className="live-stage-label" style={{ color: 'var(--green)' }}>✓ Research complete</p>
           {dir && <blockquote className="drawer-direction-quote">{dir}</blockquote>}
+          {hypothesis && !dir && <blockquote className="drawer-direction-quote">{hypothesis}</blockquote>}
           <p className="drawer-muted">Switch to the <strong>Paper</strong> tab to read the draft, or <strong>Proof</strong> for the theorem sketch.</p>
         </div>
       </div>
