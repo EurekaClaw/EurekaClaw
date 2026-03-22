@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "Multi-agent system for theoretical research — proof-heavy, formalism-rich, math-dense domains"
 readme = "README.md"
 requires-python = ">=3.11"
-license = { text = "MIT" }
+license = { text = "Apache 2.0" }
 authors = [{ name = "EurekaClaw Contributors" }]
 
 dependencies = [
