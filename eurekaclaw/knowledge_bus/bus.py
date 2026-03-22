@@ -38,7 +38,7 @@ class KnowledgeBus:
     # ------------------------------------------------------------------
 
     def put_research_brief(self, brief: ResearchBrief) -> None:
-        brief.updated_at = datetime.utcnow()
+        brief.updated_at = datetime.now().astimezone()
         self._store["research_brief"] = brief
         self._notify("research_brief", brief)
 
@@ -50,7 +50,7 @@ class KnowledgeBus:
     # ------------------------------------------------------------------
 
     def put_theory_state(self, state: TheoryState) -> None:
-        state.updated_at = datetime.utcnow()
+        state.updated_at = datetime.now().astimezone()
         self._store["theory_state"] = state
         self._notify("theory_state", state)
 
@@ -73,7 +73,7 @@ class KnowledgeBus:
     # ------------------------------------------------------------------
 
     def put_bibliography(self, bib: Bibliography) -> None:
-        bib.updated_at = datetime.utcnow()
+        bib.updated_at = datetime.now().astimezone()
         self._store["bibliography"] = bib
         self._notify("bibliography", bib)
 
@@ -85,7 +85,7 @@ class KnowledgeBus:
         existing_ids = {p.paper_id for p in bib.papers}
         new_papers = [p for p in papers if p.paper_id not in existing_ids]
         bib.papers.extend(new_papers)
-        bib.updated_at = datetime.utcnow()
+        bib.updated_at = datetime.now().astimezone()
         self._store["bibliography"] = bib
         self._notify("bibliography", bib)
         logger.debug("Appended %d new citations (total: %d)", len(new_papers), len(bib.papers))

@@ -210,7 +210,7 @@ class LemmaDeveloper:
                         verification_method=verification.method,
                         verified=True,
                         verifier_notes=verification.notes,
-                        proved_at=datetime.utcnow(),
+                        proved_at=datetime.now().astimezone(),
                     )
                     state.proven_lemmas[lemma_id] = record
                     state.open_goals.remove(lemma_id)
@@ -298,7 +298,7 @@ class LemmaDeveloper:
                         verification_method="llm_check",
                         verified=False,
                         verifier_notes=f"Unverified (low confidence). Errors: {verification.errors}",
-                        proved_at=datetime.utcnow(),
+                        proved_at=datetime.now().astimezone(),
                     )
                     state.proven_lemmas[lemma_id] = record
                     state.open_goals.remove(lemma_id)
@@ -351,7 +351,7 @@ class LemmaDeveloper:
                     verification_method="peer_review",
                     verified=True,
                     verifier_notes=f"Known result — cited from: {pp.source}",
-                    proved_at=datetime.utcnow(),
+                    proved_at=datetime.now().astimezone(),
                 )
                 logger.info("Recorded known lemma by citation: %s ← %s", pp.lemma_id, pp.source)
         return state

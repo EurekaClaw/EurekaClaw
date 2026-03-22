@@ -233,7 +233,7 @@ class TheoryInnerLoop:
                         verification_method=verification.method,
                         verified=True,
                         verifier_notes=verification.notes,
-                        proved_at=datetime.utcnow(),
+                        proved_at=datetime.now().astimezone(),
                     )
                     state.proven_lemmas[lemma_id] = record
                     state.open_goals.remove(lemma_id)
@@ -339,7 +339,7 @@ class TheoryInnerLoop:
                             verification_method="llm_check",
                             verified=False,
                             verifier_notes=f"Unverified (low confidence). Errors: {verification.errors}",
-                            proved_at=datetime.utcnow(),
+                            proved_at=datetime.now().astimezone(),
                         )
                         state.proven_lemmas[lemma_id] = record
                         state.open_goals.remove(lemma_id)

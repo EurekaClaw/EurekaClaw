@@ -152,7 +152,7 @@ class SkillEvolver:
             pipeline_stages=[s for s in stages if s],
             description=description or "Distilled from session evidence",
             source="distilled",
-            created_at=datetime.utcnow(),
+            created_at=datetime.now().astimezone(),
         )
         record = SkillRecord(meta=meta, content=content)
         self.registry.upsert(record)

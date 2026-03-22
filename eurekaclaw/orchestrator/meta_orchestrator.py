@@ -296,15 +296,17 @@ class MetaOrchestrator:
             "\n[bold]Please enter a research direction / hypothesis to pursue.[/bold]\n"
             "[dim](e.g. \"UCB1 achieves O(√(KT log T)) regret in the stochastic MAB setting\")[/dim]\n"
         )
-        try:
-            hypothesis = console.input("→ ").strip()
-        except (KeyboardInterrupt, EOFError):
-            console.print("\n[red]No direction provided — cannot continue.[/red]")
-            raise RuntimeError("No research direction available and user did not provide one.")
+        while True:
+            try:
+                hypothesis = console.input("→ ").strip()
+            except (KeyboardInterrupt, EOFError):
+                console.print("\n[red]No direction provided — cannot continue.[/red]")
+                raise RuntimeError("No research direction available and user did not provide one.")
 
-        if not hypothesis:
-            console.print("[red]Empty input — cannot continue.[/red]")
-            raise RuntimeError("No research direction available and user did not provide one.")
+            if not hypothesis:
+                console.print("[red]Empty input — please enter a direction to continue, or press Ctrl+C to abort.[/red]")
+                continue
+            break
 
         direction = ResearchDirection(
             direction_id=str(uuid.uuid4()),
@@ -390,9 +392,13 @@ class MetaOrchestrator:
             return
 
         console.print("\n[yellow]⚠ Survey stage completed but found 0 papers.[/yellow]")
-        paper_input = Prompt.ask(
-            "[bold cyan]Please provide a comma-separated list of paper IDs/titles to retry, or press Enter to proceed without papers[/bold cyan]"
-        )
+        try:
+            paper_input = Prompt.ask(
+                "[bold cyan]Please provide a comma-separated list of paper IDs/titles to retry, or press Enter to proceed without papers[/bold cyan]"
+            )
+        except (KeyboardInterrupt, EOFError):
+            console.print("\n[dim]Input interrupted — proceeding without papers.[/dim]")
+            return
 
         if not paper_input.strip():
             return
