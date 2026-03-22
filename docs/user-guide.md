@@ -23,7 +23,8 @@ A practical walkthrough for using EurekaClaw — from installation to reading yo
 
 ## Installation
 
-**Requirements:** Python ≥ 3.11
+**Requirements:** Python ≥ 3.11 · **Supported platforms:** macOS, Linux
+*(Windows support is under development — use [WSL 2](https://learn.microsoft.com/en-us/windows/wsl/install) in the meantime)*
 
 ### From source (recommended)
 
@@ -211,6 +212,7 @@ eurekaclaw from-papers <id> [<id> ...] --domain "<domain>" [OPTIONS]
 | `--output`, `-o` | `./results` | Where to save artifacts |
 | `--gate` | `none` | `none` — fully automatic; `auto` — cards + auto-escalate on low confidence; `human` — pause and ask you at each stage |
 | `--mode` | `skills_only` | Post-run learning: `skills_only`, `rl`, `madmax` |
+| `--skills` | *(all)* | Pin specific skill names so they are always injected first. Repeatable. (`prove` and `from-papers` only) |
 
 ### Verbose logging
 
@@ -221,11 +223,14 @@ eurekaclaw --verbose prove "..."   # shows DEBUG-level logs
 ### Useful commands
 
 ```bash
-eurekaclaw skills                       # list all available skills
-eurekaclaw install-skills               # install seed skills
-eurekaclaw install-skills --force       # overwrite existing skills
-eurekaclaw eval-session <session_id>    # evaluate a past session
-eurekaclaw ui --open-browser            # launch browser UI
+eurekaclaw onboard                               # interactive setup wizard
+eurekaclaw skills                                # list all available skills
+eurekaclaw install-skills                        # install seed skills
+eurekaclaw install-skills --force                # overwrite existing skills
+eurekaclaw eval-session <session_id>             # evaluate a past session
+eurekaclaw replay-theory-tail <session_id>       # rerun assembler/crystallizer/checker
+eurekaclaw test-paper-reader <session_id> <ref>  # test paper extraction on one paper
+eurekaclaw ui --open-browser                     # launch browser UI
 ```
 
 ---
@@ -436,7 +441,7 @@ MAX_TOKENS_AGENT=4096
 
 ```env
 CONTEXT_COMPRESS_AFTER_TURNS=6
-AUTO_VERIFY_CONFIDENCE=0.85
+AUTO_VERIFY_CONFIDENCE=0.95
 STAGNATION_WINDOW=3
 EXPERIMENT_MODE=auto
 ```
@@ -456,7 +461,7 @@ MAX_TOKENS_AGENT=8192
 
 **`CONTEXT_COMPRESS_AFTER_TURNS`** — Every N tool-use turns, the agent's conversation history is compressed to a bullet summary using the fast model. Lower = cheaper but agents "forget" more context. Set to `0` to disable compression entirely.
 
-**`AUTO_VERIFY_CONFIDENCE`** — If the prover's self-reported confidence ≥ this value and no `[GAP:]` flags are present, the proof is accepted without a separate verifier call. Lower = fewer verifier calls (cheaper). Default 0.85 is a good balance.
+**`AUTO_VERIFY_CONFIDENCE`** — If the prover's self-reported confidence ≥ this value and no `[GAP:]` flags are present, the proof is accepted without a separate verifier call. Lower = fewer verifier calls (cheaper). Default 0.95 means the prover must be very confident before skipping the LLM Verifier.
 
 **`STAGNATION_WINDOW`** — If the same lemma fails N consecutive times with a similar error, the loop forces a conjecture refinement instead of retrying. Prevents wasted calls on an unresolvable proof path.
 
@@ -505,6 +510,23 @@ Set `EUREKACLAW_MODE` in `.env`:
 | `skills_only` (default) | Distill failures into new skill files |
 | `rl` | Skill distillation + Process Reward Model scoring of proof trajectories |
 | `madmax` | Skill distillation + PRM scoring + cloud LoRA fine-tuning (GRPO) |
+
+### Pinning specific skills for a run
+
+If you know which skills are most relevant for a particular conjecture, you can pin them with `--skills`:
+
+```bash
+eurekaclaw prove "UCB1 achieves O(sqrt(KT log T)) regret" \
+    --domain "multi-armed bandits" \
+    --skills ucb_regret_analysis \
+    --skills concentration_inequalities
+```
+
+Pinned skills are always placed at the front of the top-k injection, before any automatically-selected optional skills. This is useful when:
+- A distilled skill is highly relevant but has low `usage_count` and would otherwise be ranked lower
+- You want to force injection of a manually-written custom skill for a specific proof
+
+Use `eurekaclaw skills` to see the names of available skills.
 
 ### Writing skills manually
 

@@ -30,11 +30,11 @@ class EurekaSession:
         self.bus = KnowledgeBus(self.session_id)
         self._orchestrator: MetaOrchestrator | None = None
 
-    def _make_orchestrator(self, domain: str = "") -> MetaOrchestrator:
+    def _make_orchestrator(self, domain: str = "", selected_skills: list[str] | None = None) -> MetaOrchestrator:
         domain_plugin = resolve_domain(domain) if domain else None
         if domain_plugin:
             logger.info("Auto-detected domain plugin: %s", domain_plugin.name)
-        return MetaOrchestrator(bus=self.bus, domain_plugin=domain_plugin)
+        return MetaOrchestrator(bus=self.bus, domain_plugin=domain_plugin, selected_skills=selected_skills)
 
     @property
     def orchestrator(self) -> MetaOrchestrator:
@@ -54,7 +54,7 @@ class EurekaSession:
             logger.info("Domain inferred from query: %r → %r", text[:60], inferred)
 
         if not self._orchestrator:
-            self._orchestrator = self._make_orchestrator(input_spec.domain)
+            self._orchestrator = self._make_orchestrator(input_spec.domain, selected_skills=input_spec.selected_skills)
         return await self._orchestrator.run(input_spec)
 
     async def run_detailed(self, conjecture: str, domain: str = "") -> ResearchOutput:

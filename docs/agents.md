@@ -56,15 +56,16 @@ All agents inherit from `eurekaclaw/agents/base.py`:
 **File:** `eurekaclaw/agents/ideation/agent.py`
 **Max Turns:** 3
 
-**Purpose:** Generate initial research hypotheses. Works with the `DivergentConvergentPlanner` to produce 5 directions, then converge on the most promising one.
+**Purpose:** Generate 5 novel research hypotheses from survey findings. Each direction is scored on `novelty_score`, `feasibility_score`, and `impact_score` (mapped internally to the `ResearchDirection` fields `novelty_score`, `soundness_score`, `transformative_score`).
+
+Direction *selection* does **not** happen inside IdeationAgent. After IdeationAgent writes `ResearchBrief.directions`, the orchestrator's `direction_selection_gate` task invokes `DivergentConvergentPlanner.converge()` to pick the highest-scoring direction and set `ResearchBrief.selected_direction`.
 
 **Inputs (from KnowledgeBus):**
 - Survey findings (`ResearchBrief`)
 - `Bibliography`
 
 **Outputs:**
-- `ResearchBrief.directions` — 5 `ResearchDirection` objects with scores
-- `ResearchBrief.selected_direction` — the highest-scoring direction after convergence
+- `ResearchBrief.directions` — 5 `ResearchDirection` objects with composite scores
 
 ---
 
@@ -111,7 +112,7 @@ for each open_goal:
 
 **Provenance system:** Each lemma in the proof plan is annotated as `known` (directly citable), `adapted` (needs modification), or `new` (must be fully proved). Only `adapted` and `new` lemmas enter the proof loop.
 
-**Auto-verify:** Proofs with confidence ≥ `AUTO_VERIFY_CONFIDENCE` (default 0.85) are accepted without an LLM verifier call.
+**Auto-verify:** Proofs with confidence ≥ `AUTO_VERIFY_CONFIDENCE` (default 0.95) are accepted without an LLM verifier call. The LLM Verifier itself uses a separate pass threshold `VERIFIER_PASS_CONFIDENCE` (default 0.90).
 
 **ProofArchitect retry policy:** If the full provenance-annotated plan fails (e.g. the LLM returns a field as `null`), the architect retries with a simplified 3-lemma prompt (foundational → central bound → main result). Only if both attempts fail does it fall back to a single `main_result` goal.
 

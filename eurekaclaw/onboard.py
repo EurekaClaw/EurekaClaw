@@ -3,14 +3,10 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 import click
 from rich.console import Console
 from rich.rule import Rule
-
-if TYPE_CHECKING:
-    pass
 
 console = Console()
 
@@ -39,10 +35,8 @@ def _ask_choice(
 ) -> str:
     if non_interactive:
         return default
-    display = "  " + prompt + "  [" + "|".join(
-        f"[bold]{c}[/bold]" if c == default else c for c in choices
-    ) + "]"
-    console.print(display)
+    parts = "/".join(f"[bold]{c}[/bold]" if c == default else c for c in choices)
+    console.print(f"  {prompt}  [{parts}]")
     while True:
         val = click.prompt("  >", default=default)
         if val in choices:
@@ -51,7 +45,7 @@ def _ask_choice(
 
 
 def _write_env(env_path: Path, merged: dict[str, str]) -> None:
-    """Write merged config to env_path, preserving .env.example structure."""
+    """Write merged config preserving .env.example structure."""
     env_example = Path(__file__).parent.parent / ".env.example"
     if env_example.exists():
         lines: list[str] = []
@@ -121,7 +115,7 @@ def run_onboard(non_interactive: bool, reset: bool, env_file: str) -> None:
         "  [dim]minimax[/dim]       — Minimax\n"
     )
     backend = ask_choice(
-        "Backend",
+        "LLM_BACKEND",
         ["anthropic", "oauth", "openrouter", "openai_compat", "local", "minimax"],
         get("LLM_BACKEND", "anthropic"),
     )
@@ -138,6 +132,11 @@ def run_onboard(non_interactive: bool, reset: bool, env_file: str) -> None:
             secret=True,
         )
         cfg["ANTHROPIC_AUTH_MODE"] = "api_key"
+        cfg["CCPROXY_PORT"] = get("CCPROXY_PORT", "8000")
+        cfg["ANTHROPIC_BASE_URL"] = ask(
+            "  ANTHROPIC_BASE_URL (leave blank for default)",
+            get("ANTHROPIC_BASE_URL", ""),
+        )
 
     elif backend == "oauth":
         console.print(
@@ -147,6 +146,10 @@ def run_onboard(non_interactive: bool, reset: bool, env_file: str) -> None:
         cfg["ANTHROPIC_AUTH_MODE"] = "oauth"
         cfg["ANTHROPIC_API_KEY"] = get("ANTHROPIC_API_KEY", "")
         cfg["CCPROXY_PORT"] = ask("  CCPROXY_PORT", get("CCPROXY_PORT", "8000"))
+        cfg["ANTHROPIC_BASE_URL"] = ask(
+            "  ANTHROPIC_BASE_URL (leave blank for default)",
+            get("ANTHROPIC_BASE_URL", ""),
+        )
 
     elif backend == "openrouter":
         cfg["OPENAI_COMPAT_API_KEY"] = ask(
@@ -159,6 +162,9 @@ def run_onboard(non_interactive: bool, reset: bool, env_file: str) -> None:
             get("OPENAI_COMPAT_MODEL", "meta-llama/llama-3.1-70b-instruct"),
         )
         cfg["OPENAI_COMPAT_BASE_URL"] = "https://openrouter.ai/api/v1"
+        cfg["ANTHROPIC_AUTH_MODE"] = get("ANTHROPIC_AUTH_MODE", "api_key")
+        cfg["CCPROXY_PORT"] = get("CCPROXY_PORT", "8000")
+        cfg["ANTHROPIC_BASE_URL"] = get("ANTHROPIC_BASE_URL", "")
 
     elif backend == "openai_compat":
         cfg["OPENAI_COMPAT_BASE_URL"] = ask(
@@ -174,6 +180,9 @@ def run_onboard(non_interactive: bool, reset: bool, env_file: str) -> None:
             "  OPENAI_COMPAT_MODEL",
             get("OPENAI_COMPAT_MODEL", ""),
         )
+        cfg["ANTHROPIC_AUTH_MODE"] = get("ANTHROPIC_AUTH_MODE", "api_key")
+        cfg["CCPROXY_PORT"] = get("CCPROXY_PORT", "8000")
+        cfg["ANTHROPIC_BASE_URL"] = get("ANTHROPIC_BASE_URL", "")
 
     elif backend == "local":
         cfg["OPENAI_COMPAT_MODEL"] = ask(
@@ -181,6 +190,9 @@ def run_onboard(non_interactive: bool, reset: bool, env_file: str) -> None:
             get("OPENAI_COMPAT_MODEL", "Qwen/Qwen2.5-72B-Instruct"),
         )
         cfg["OPENAI_COMPAT_BASE_URL"] = get("OPENAI_COMPAT_BASE_URL", "http://localhost:8000/v1")
+        cfg["ANTHROPIC_AUTH_MODE"] = get("ANTHROPIC_AUTH_MODE", "api_key")
+        cfg["CCPROXY_PORT"] = get("CCPROXY_PORT", "8000")
+        cfg["ANTHROPIC_BASE_URL"] = get("ANTHROPIC_BASE_URL", "")
 
     elif backend == "minimax":
         cfg["MINIMAX_API_KEY"] = ask(
@@ -189,6 +201,9 @@ def run_onboard(non_interactive: bool, reset: bool, env_file: str) -> None:
         cfg["MINIMAX_MODEL"] = ask(
             "  MINIMAX_MODEL", get("MINIMAX_MODEL", "MiniMax-Text-01")
         )
+        cfg["ANTHROPIC_AUTH_MODE"] = get("ANTHROPIC_AUTH_MODE", "api_key")
+        cfg["CCPROXY_PORT"] = get("CCPROXY_PORT", "8000")
+        cfg["ANTHROPIC_BASE_URL"] = get("ANTHROPIC_BASE_URL", "")
 
     # Model selection (for Anthropic-family backends)
     if backend in ("anthropic", "oauth"):
@@ -212,6 +227,9 @@ def run_onboard(non_interactive: bool, reset: bool, env_file: str) -> None:
 
     cfg["BRAVE_SEARCH_API_KEY"] = ask(
         "  BRAVE_SEARCH_API_KEY", get("BRAVE_SEARCH_API_KEY", ""), secret=True
+    )
+    cfg["SERPAPI_KEY"] = ask(
+        "  SERPAPI_KEY", get("SERPAPI_KEY", ""), secret=True
     )
     cfg["WOLFRAM_APP_ID"] = ask(
         "  WOLFRAM_APP_ID", get("WOLFRAM_APP_ID", ""), secret=True
@@ -239,10 +257,118 @@ def run_onboard(non_interactive: bool, reset: bool, env_file: str) -> None:
         ["skills_only", "rl", "madmax"],
         get("EUREKACLAW_MODE", "skills_only"),
     )
+    cfg["THEORY_PIPELINE"] = ask_choice(
+        "THEORY_PIPELINE  (default=literature-first; memory_guided=analysis-first)",
+        ["default", "memory_guided"],
+        get("THEORY_PIPELINE", "default"),
+    )
+    cfg["EXPERIMENT_MODE"] = ask_choice(
+        "EXPERIMENT_MODE  (auto=when bounds present; true=always; false=never)",
+        ["auto", "true", "false"],
+        get("EXPERIMENT_MODE", "auto"),
+    )
     cfg["EUREKACLAW_DIR"] = ask(
         "  EUREKACLAW_DIR",
         get("EUREKACLAW_DIR", "~/.eurekaclaw"),
     )
+
+    # ── 4b / 5  Advanced tuning (optional) ───────────────────────────────────
+    console.print()
+    do_advanced = not non_interactive and click.confirm(
+        "  Configure advanced settings (proof quality, paper reader, token limits)?",
+        default=False,
+    )
+    if do_advanced:
+        console.print()
+        console.print(Rule("[dim]Advanced: Proof Quality[/dim]", style="dim"))
+        cfg["AUTO_VERIFY_CONFIDENCE"] = ask(
+            "  AUTO_VERIFY_CONFIDENCE",
+            get("AUTO_VERIFY_CONFIDENCE", "0.95"),
+        )
+        cfg["VERIFIER_PASS_CONFIDENCE"] = ask(
+            "  VERIFIER_PASS_CONFIDENCE",
+            get("VERIFIER_PASS_CONFIDENCE", "0.90"),
+        )
+        cfg["ENFORCE_PROOF_STYLE"] = ask_choice(
+            "ENFORCE_PROOF_STYLE  (step-by-step proof rules + highlights)",
+            ["true", "false"],
+            get("ENFORCE_PROOF_STYLE", "true"),
+        )
+        cfg["STAGNATION_WINDOW"] = ask(
+            "  STAGNATION_WINDOW",
+            get("STAGNATION_WINDOW", "3"),
+        )
+        cfg["THEORY_MAX_ITERATIONS"] = ask(
+            "  THEORY_MAX_ITERATIONS",
+            get("THEORY_MAX_ITERATIONS", "10"),
+        )
+        cfg["THEORY_REVIEW_MAX_RETRIES"] = ask(
+            "  THEORY_REVIEW_MAX_RETRIES",
+            get("THEORY_REVIEW_MAX_RETRIES", "3"),
+        )
+
+        console.print()
+        console.print(Rule("[dim]Advanced: Paper Reader[/dim]", style="dim"))
+        cfg["PAPER_READER_USE_PDF"] = ask_choice(
+            "PAPER_READER_USE_PDF",
+            ["true", "false"],
+            get("PAPER_READER_USE_PDF", "true"),
+        )
+        cfg["PAPER_READER_ABSTRACT_PAPERS"] = ask(
+            "  PAPER_READER_ABSTRACT_PAPERS",
+            get("PAPER_READER_ABSTRACT_PAPERS", "10"),
+        )
+        cfg["PAPER_READER_PDF_PAPERS"] = ask(
+            "  PAPER_READER_PDF_PAPERS",
+            get("PAPER_READER_PDF_PAPERS", "3"),
+        )
+
+        console.print()
+        console.print(Rule("[dim]Advanced: Token Limits[/dim]", style="dim"))
+        token_keys = [
+            ("MAX_TOKENS_AGENT", "8192"),
+            ("MAX_TOKENS_PROVER", "4096"),
+            ("MAX_TOKENS_PLANNER", "4096"),
+            ("MAX_TOKENS_DECOMPOSER", "4096"),
+            ("MAX_TOKENS_FORMALIZER", "4096"),
+            ("MAX_TOKENS_VERIFIER", "2048"),
+            ("MAX_TOKENS_CRYSTALLIZER", "4096"),
+            ("MAX_TOKENS_ASSEMBLER", "6000"),
+            ("MAX_TOKENS_ARCHITECT", "3000"),
+            ("MAX_TOKENS_ANALYST", "1600"),
+            ("MAX_TOKENS_SKETCH", "1024"),
+            ("MAX_TOKENS_COMPRESS", "1024"),
+        ]
+        for key, default in token_keys:
+            cfg[key] = ask(f"  {key}", get(key, default))
+
+        console.print()
+        console.print(Rule("[dim]Advanced: Agent Loop[/dim]", style="dim"))
+        cfg["CONTEXT_COMPRESS_AFTER_TURNS"] = ask(
+            "  CONTEXT_COMPRESS_AFTER_TURNS",
+            get("CONTEXT_COMPRESS_AFTER_TURNS", "6"),
+        )
+        cfg["SURVEY_MAX_TURNS"] = ask(
+            "  SURVEY_MAX_TURNS", get("SURVEY_MAX_TURNS", "8")
+        )
+        cfg["THEORY_STAGE_MAX_TURNS"] = ask(
+            "  THEORY_STAGE_MAX_TURNS", get("THEORY_STAGE_MAX_TURNS", "6")
+        )
+        cfg["WRITER_MAX_TURNS"] = ask(
+            "  WRITER_MAX_TURNS", get("WRITER_MAX_TURNS", "4")
+        )
+        cfg["ARXIV_MAX_RESULTS"] = ask(
+            "  ARXIV_MAX_RESULTS", get("ARXIV_MAX_RESULTS", "10")
+        )
+        cfg["LLM_RETRY_ATTEMPTS"] = ask(
+            "  LLM_RETRY_ATTEMPTS", get("LLM_RETRY_ATTEMPTS", "5")
+        )
+        cfg["LLM_RETRY_WAIT_MIN"] = ask(
+            "  LLM_RETRY_WAIT_MIN", get("LLM_RETRY_WAIT_MIN", "4")
+        )
+        cfg["LLM_RETRY_WAIT_MAX"] = ask(
+            "  LLM_RETRY_WAIT_MAX", get("LLM_RETRY_WAIT_MAX", "90")
+        )
 
     # ── 5 / 5  Write .env ────────────────────────────────────────────────────
     console.print()

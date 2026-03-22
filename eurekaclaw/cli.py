@@ -41,9 +41,10 @@ def main(verbose: bool) -> None:
 @click.argument("conjecture")
 @click.option("--domain", "-d", default="", help="Research domain (auto-inferred if omitted)")
 @click.option("--mode", default="skills_only", type=click.Choice(["skills_only", "rl", "madmax"]))
+@click.option("--skills", default=None, help="The skills to use for this session (default: all skills available in the skills bank)", multiple=True)
 @click.option("--gate", default="none", type=click.Choice(["human", "auto", "none"]))
 @click.option("--output", "-o", default="./results", help="Output directory for artifacts (default: ./results)")
-def prove(conjecture: str, domain: str, mode: str, gate: str, output: str) -> None:
+def prove(conjecture: str, domain: str, mode: str, skills: list[str], gate: str, output: str) -> None:
     """Level 1: Prove a specific conjecture.
 
     Example: eurekaclaw prove "The sample complexity of transformers is O(L*d*log(d)/eps^2)"
@@ -60,6 +61,7 @@ def prove(conjecture: str, domain: str, mode: str, gate: str, output: str) -> No
         learn_mode=mode,
         gate=gate,
         output_dir=output,
+        skills=skills,
     )
 
 
@@ -82,9 +84,10 @@ def explore(domain: str, query: str, mode: str, gate: str, output: str) -> None:
 @click.option("--query", "-q", default="", help="Specific research question")
 @click.option("--domain", "-d", required=True, help="Research domain")
 @click.option("--mode", default="skills_only")
+@click.option("--skills", default=None, help="The skills to use for this session (default: all skills available in the skills bank)", multiple=True)
 @click.option("--gate", default="none", type=click.Choice(["human", "auto", "none"]))
 @click.option("--output", "-o", default="./results", help="Output directory for artifacts (default: ./results)")
-def from_papers(paper_ids: tuple[str, ...], query: str, domain: str, mode: str, gate: str, output: str) -> None:
+def from_papers(paper_ids: tuple[str, ...], query: str, domain: str, mode: str, skills: list[str], gate: str, output: str) -> None:
     """Level 2: Generate hypotheses from reference papers.
 
     Example: eurekaclaw from-papers 2301.12345 2302.67890 --domain "ML theory"
@@ -109,6 +112,7 @@ def from_papers(paper_ids: tuple[str, ...], query: str, domain: str, mode: str, 
         learn_mode=mode,
         gate=gate,
         output_dir=output,
+        skills=skills,
     )
 
 
@@ -545,8 +549,13 @@ def _run_with_pause_support(
         if _task_ref:
             _task_ref[0].cancel()
 
+    import sys as _sys
+
     try:
-        loop.add_signal_handler(signal.SIGINT, _pause_now)
+        if _sys.platform == "win32":
+            signal.signal(signal.SIGINT, lambda *_: _pause_now())
+        else:
+            loop.add_signal_handler(signal.SIGINT, _pause_now)
 
         async def _wrap() -> "Any":
             task = asyncio.current_task()
@@ -574,7 +583,10 @@ def _run_with_pause_support(
         return loop.run_until_complete(_wrap())
     finally:
         try:
-            loop.remove_signal_handler(signal.SIGINT)
+            if _sys.platform == "win32":
+                signal.signal(signal.SIGINT, signal.SIG_DFL)
+            else:
+                loop.remove_signal_handler(signal.SIGINT)
         except Exception:
             pass
         loop.close()
@@ -665,6 +677,7 @@ def _run_session(
     paper_ids: list[str] | None = None,
     learn_mode: str = "skills_only",
     gate: str = "human",
+    skills: list[str] | None = None,
     output_dir: str = "",
 ) -> None:
     """Common session runner."""
@@ -699,6 +712,7 @@ def _run_session(
         conjecture=conjecture,
         domain=domain,
         paper_ids=paper_ids or [],
+        selected_skills=list(skills or []),
     )
 
     session = EurekaSession()

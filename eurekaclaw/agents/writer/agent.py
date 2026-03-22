@@ -214,7 +214,16 @@ Your output must follow standard theory paper format using Markdown headings:
 7. ## Conclusion: summary, limitations, future work
 
 Use **Theorem**, **Lemma**, **Proof** bold labels for formal results.
-Use $...$ for inline math and $$...$$ for display math (LaTeX-style math is fine inside Markdown).
+Use $...$ for inline math and $$...$$ for display math (standard LaTeX math notation is fine inside Markdown).
+
+MARKDOWN COMPATIBILITY — strictly follow these rules:
+- End every proof with the Unicode QED symbol **□** (U+25A1) on its own line, never with \\hfill\\square or \\hfill\\blacksquare.
+- NEVER use \\hfill — it is a LaTeX layout command with no Markdown equivalent. Drop it entirely.
+- NEVER use bare LaTeX commands that only control layout or spacing: \\newpage, \\vspace, \\hspace, \\noindent, \\medskip, \\bigskip, \\smallskip, \\clearpage, \\linebreak, \\pagebreak.
+- NEVER use \\infty as a standalone end marker. If you mean "infinity" in a mathematical expression, write $\\infty$ inside math delimiters.
+- NEVER use \\textcolor, \\textbf, \\textit outside of math mode — use Markdown bold (**text**) and italic (*text*) instead.
+- Theorem-like blocks: open with e.g. **Theorem 1** *(optional name).* and close the proof paragraph with □.
+
 Every theorem, lemma, proposition, corollary, or claim must either be proved in the paper or explicitly cited.
 Do not leave theorem-like statements unsupported.
 Make the paper self-contained — a reader should understand it without other references.
@@ -264,6 +273,8 @@ class WriterAgent(BaseAgent):
         # the proven_proofs block can embed correct \citet{} keys for known lemmas.
         cite_keys: list[str] = []
         arxiv_to_citekey: dict[str, str] = {}
+        citekey_to_num: dict[str, int] = {}   # key → 1-based index (Markdown only)
+        md_references: str = ""               # numbered reference list for Markdown
         citations = ""
         if bib and bib.papers:
             cite_keys = _compute_cite_keys([p for p in bib.papers[:15]])
@@ -271,12 +282,20 @@ class WriterAgent(BaseAgent):
                 f"- \\cite{{{key}}} — {p.title} ({p.year}), {', '.join(p.authors[:2])}"
                 for key, p in zip(cite_keys, bib.papers[:15])
             )
-            for key, p in zip(cite_keys, bib.papers[:15]):
+            for idx, (key, p) in enumerate(zip(cite_keys, bib.papers[:15]), start=1):
+                citekey_to_num[key] = idx
                 aid = (getattr(p, "arxiv_id", None) or getattr(p, "paper_id", None) or "").strip()
                 if aid:
                     # Normalise: strip version suffix (e.g. "2512.07011v1" → "2512.07011")
                     arxiv_to_citekey[aid.split("v")[0]] = key
                     arxiv_to_citekey[aid] = key
+            # Numbered reference list used in Markdown output
+            md_references = "\n".join(
+                f"[{idx}] {', '.join(p.authors[:3])}{'et al.' if len(p.authors) > 3 else ''}."
+                f" {p.title}. {p.year}."
+                + (f" arXiv:{p.arxiv_id}." if getattr(p, 'arxiv_id', None) else "")
+                for idx, p in enumerate(bib.papers[:15], start=1)
+            )
 
         # Build a provenance map for use inside the proven_proofs block
         prov_of: dict[str, str] = {pp.lemma_id: pp.provenance
@@ -330,6 +349,10 @@ class WriterAgent(BaseAgent):
             exp_summary = f"Alignment score: {exp_result.alignment_score:.2f}\n{bounds_str}"
 
         if fmt == "markdown":
+            md_cite_list = "\n".join(
+                f"- [{num}] {p.title} ({p.year}), {', '.join(p.authors[:2])}"
+                for num, p in zip(range(1, len(cite_keys) + 1), (bib.papers[:15] if bib else []))
+            ) or "(no references)"
             user_message = f"""\
 Write a complete Markdown research paper based on these artifacts:
 
@@ -344,8 +367,8 @@ Proven lemmas (use in Results section):
 Experimental results:
 {exp_summary or "(no experiments run — do NOT include an Experiments section)"}
 
-Key references to cite:
-{citations or "(no references)"}
+Key references (cite as [1], [2], ... — NEVER use \\cite{{}} in Markdown):
+{md_cite_list}
 
 Start with a YAML front matter block:
 ---
@@ -356,6 +379,8 @@ author: EurekaClaw Autonomous Research System
 Then write the full paper body using Markdown headings (## Abstract, ## Introduction, etc.).
 Use **Theorem X**: and **Proof**: for formal results.
 Use $...$ for inline math and $$...$$ for display math.
+CITATION RULE: use only [1], [2], ... style inline citations. Do NOT write \\cite{{key}} anywhere.
+End the paper with a ## References section listing all cited works numerically.
 """
         else:
             _no_refs = "(no references — omit \\bibliography and \\bibliographystyle commands)"
@@ -406,7 +431,7 @@ If a section has little content, write at least two sentences rather than omitti
             )
 
             if fmt == "markdown":
-                paper_content = self._extract_markdown(text)
+                paper_content = self._extract_markdown(text, citekey_to_num, md_references)
                 # If the extracted content is clearly not the paper (LLM spent
                 # all turns on tool calls), request the actual paper body now.
                 if not self._looks_like_paper_markdown(paper_content):
@@ -414,7 +439,7 @@ If a section has little content, write at least two sentences rather than omitti
                     text, extra = await self._request_paper_body(task, user_message, fmt)
                     tokens["input"] += extra.get("input", 0)
                     tokens["output"] += extra.get("output", 0)
-                    paper_content = self._extract_markdown(text)
+                    paper_content = self._extract_markdown(text, citekey_to_num, md_references)
                 output_key = "latex_paper"  # reuse existing key for compatibility
             else:
                 latex_body = self._extract_latex(text)
@@ -993,11 +1018,65 @@ If a section has little content, write at least two sentences rather than omitti
             usage["output"] = response.usage.output_tokens
         return text, usage
 
-    def _extract_markdown(self, text: str) -> str:
-        """Extract Markdown content, removing code fences if present."""
+    def _extract_markdown(
+        self,
+        text: str,
+        citekey_to_num: "dict[str, int] | None" = None,
+        md_references: str = "",
+    ) -> str:
+        """Extract Markdown content, removing code fences if present, then
+        strip LaTeX-only constructs that are not valid in Markdown and convert
+        \\cite{key} references to numbered [N] citations."""
+        import re
+
         for fence in ("```markdown", "```md"):
             if fence in text:
                 start = text.index(fence) + len(fence)
                 end = text.index("```", start) if "```" in text[start:] else len(text)
-                return text[start:end].strip()
+                text = text[start:end].strip()
+                break
+
+        # ── Citations: \cite{key} / \citet{key} / \citep{key} → [N] ──────────
+        citekey_to_num = citekey_to_num or {}
+        if citekey_to_num:
+            def _cite_repl(m: re.Match) -> str:  # type: ignore[type-arg]
+                key = m.group(1).strip()
+                num = citekey_to_num.get(key)
+                return f"[{num}]" if num is not None else f"[{key}]"
+            text = re.sub(r"\\cite[tp]?\s*\{([^}]+)\}", _cite_repl, text)
+        else:
+            # No key map — at least strip the \cite command to bare brackets
+            text = re.sub(r"\\cite[tp]?\s*\{([^}]+)\}", r"[\1]", text)
+
+        # ── QED / proof-end markers ───────────────────────────────────────────
+        # Replace \hfill\square / \hfill\blacksquare → □ (QED marker)
+        text = re.sub(r"\\hfill\s*\\(?:square|blacksquare|Box)\b", "□", text)
+        # \hfill\infty used erroneously as end marker → □ (before generic \hfill strip)
+        text = re.sub(r"\\hfill\s*\\infty\b", "□", text)
+        # Drop remaining \hfill, keep whatever follows
+        text = re.sub(r"\\hfill\s*", "", text)
+        # Bare \square or \blacksquare outside math delimiters → □
+        text = re.sub(r"(?<!\$)\\(?:square|blacksquare|Box)\b(?!\$)", "□", text)
+
+        # ── Layout-only LaTeX commands (no Markdown equivalent) ───────────────
+        text = re.sub(
+            r"\\(?:newpage|clearpage|linebreak|pagebreak|noindent|medskip|bigskip|smallskip)\b",
+            "",
+            text,
+        )
+        text = re.sub(r"\\[vh]space\s*\{[^}]*\}", "", text)
+
+        # ── Text formatting outside math → Markdown equivalents ───────────────
+        text = re.sub(r"\\textcolor\s*\{[^}]*\}\s*\{([^}]*)\}", r"\1", text)
+        text = re.sub(r"\\textbf\s*\{([^}]*)\}", r"**\1**", text)
+        text = re.sub(r"\\(?:textit|emph)\s*\{([^}]*)\}", r"*\1*", text)
+
+        # ── References section ────────────────────────────────────────────────
+        # Append a numbered references list if the LLM didn't write one and we
+        # have references to list.
+        if md_references:
+            has_refs = bool(re.search(r"(?mi)^##\s+references?\s*$", text))
+            if not has_refs:
+                text = text.rstrip() + "\n\n## References\n\n" + md_references
+
         return text

@@ -1,5 +1,66 @@
 # EurekaClaw Updates
 
+# 2026-03-21 (xuheng branch)
+
+## 1. `eurekaclaw onboard` — Interactive Setup Wizard
+
+A new `onboard` CLI command walks users through configuring all `.env` options interactively, then writes (or updates) the file.
+
+```bash
+eurekaclaw onboard
+eurekaclaw onboard --env-file ~/.eurekaclaw/.env   # custom path
+eurekaclaw onboard --non-interactive               # use defaults, no prompts
+eurekaclaw onboard --reset                         # overwrite existing .env
+```
+
+The wizard is split into 5 sections:
+
+| Section | Settings covered |
+|---------|-----------------|
+| 1 — LLM Backend | `LLM_BACKEND` (anthropic / oauth / openrouter / openai_compat / local / minimax) |
+| 2 — API Credentials | API keys, `ANTHROPIC_AUTH_MODE`, `ANTHROPIC_BASE_URL`, `CCPROXY_PORT`, model selection |
+| 3 — Search & Tool APIs | `BRAVE_SEARCH_API_KEY`, `SERPAPI_KEY`, `WOLFRAM_APP_ID`, `S2_API_KEY` |
+| 4 — System Behaviour | `OUTPUT_FORMAT`, `GATE_MODE`, `EUREKACLAW_MODE`, `THEORY_PIPELINE`, `EXPERIMENT_MODE`, `EUREKACLAW_DIR` |
+| Advanced (opt-in) | Proof quality, paper reader, all token limits, agent loop tuning |
+
+After writing `.env`, the wizard offers to run `install-skills` automatically.
+
+| File | Change |
+|------|--------|
+| `eurekaclaw/onboard.py` | New file — full wizard implementation |
+| `eurekaclaw/cli.py` | Registered `onboard` command (thin stub calling `run_onboard`) |
+
+## 2. Windows Installer (`install_win.ps1`)
+
+A native PowerShell installer for Windows users, equivalent to `bash install.sh --install-method git`.
+
+```powershell
+# One-liner
+powershell -c "irm https://eurekaclaw.ai/install_win.ps1 | iex"
+
+# Local file
+powershell -ExecutionPolicy Bypass -File install_win.ps1
+
+# Options
+powershell -ExecutionPolicy Bypass -File install_win.ps1 -GitDir C:\eurekaclaw -NoOnboard
+```
+
+The installer:
+- Checks for Python ≥ 3.11 and Git (with `winget` install hints if missing)
+- Clones or updates the repo to `~\eurekaclaw`
+- Creates a `.venv` and pip-installs EurekaClaw with all extras
+- Adds `~\eurekaclaw\.venv\Scripts\` to the user's PATH permanently
+- Installs seed skills
+- Suggests `eurekaclaw onboard` as the next step
+
+## 3. Windows Line-Ending Fix (`.gitattributes`)
+
+Added `.gitattributes` enforcing `eol=lf` for all `.sh`, `.py`, `.md`, `.toml`, `.yaml`, and other text files. Prevents `bash` from failing with `": invalid option nameet: pipefail"` on Windows clones where `core.autocrlf=true` converts LF → CRLF.
+
+Also removed the erroneous `.gitattributes` entry from `.gitignore`.
+
+---
+
 # 2026-03-20 (xuheng branch)
 
 ## 1. Minimax Backend Support

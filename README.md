@@ -41,20 +41,49 @@ $ eurekaclaw prove "Find recent papers on sparse attention + prove efficiency bo
 | 📄 | **Paper Writer** | Draft camera-ready LaTeX papers with theorem environments and citations |
 | 🖥️ | **Runs Locally** | Use Ollama, vLLM, or any OpenAI-compatible endpoint — data stays private |
 | 🧠 | **Continual Learning** | Distills proof strategies into skills after every session, improving over time |
-| 🧪 | **Experiment Runner** | Numerically validates theoretical bounds; flags low-confidence lemmas |
+| 🧪 | **Experiment Runner** *(under development)* | Numerically validates theoretical bounds; flags low-confidence lemmas |
 | 🌐 | **Browser UI** | React + TypeScript interface — live agent track, proof sketch, pause/resume, skills manager |
 
 ---
 
-## Quick Start
+## Installation
 
-**Requirements:** Python ≥ 3.11, Node.js ≥ 20
+**macOS / Linux**
+
+```bash
+curl -fsSL https://eurekaclaw.ai/install.sh | bash
+```
+
+**Windows** *(under development — not fully supported yet)*
+
+```powershell
+powershell -c "irm https://eurekaclaw.ai/install_win.ps1 | iex"
+```
+
+The macOS/Linux installer clones the repo, creates a virtual environment, installs EurekaClaw, and adds the `eurekaclaw` command to your PATH. Run `eurekaclaw onboard` afterwards to configure your API key and settings.
+
+> **Windows users:** native Windows support is under active development. In the meantime, use [WSL 2](https://learn.microsoft.com/en-us/windows/wsl/install) (Ubuntu) and follow the macOS/Linux instructions inside the WSL terminal.
+
+<details>
+<summary>Manual install (all platforms)</summary>
+
+**Requirements:** Python ≥ 3.11, Node.js ≥ 20, Git
 
 ```bash
 git clone https://github.com/EurekaClaw/EurekaClaw_dev_zero
 cd EurekaClaw_dev_zero
 make install                  # pip install -e "." + npm install (frontend)
-cp .env.example .env          # add ANTHROPIC_API_KEY (or configure OAuth)
+```
+</details>
+
+---
+
+## Quick Start
+
+```bash
+eurekaclaw onboard            # interactive setup wizard (creates .env)
+# — or — cp .env.example .env and add ANTHROPIC_API_KEY manually
+
 eurekaclaw install-skills     # install built-in proof skills (do once)
 
 # Browser UI — build frontend and open in browser
@@ -123,6 +152,7 @@ cp .env.example .env
 | `ANTHROPIC_API_KEY` | — | API key (or use OAuth, see [User Guide](https://github.com/EurekaClaw/EurekaClaw_dev_zero/blob/main/docs/user-guide.md#authentication)) |
 | `EUREKACLAW_MODEL` | `claude-sonnet-4-6` | Main reasoning model |
 | `GATE_MODE` | `auto` | `none` · `auto` · `human` |
+| `THEORY_PIPELINE` | `default` | `default` or `memory_guided` |
 | `OUTPUT_FORMAT` | `latex` | `latex` or `markdown` |
 | `EXPERIMENT_MODE` | `auto` | `auto` · `true` · `false` |
 | `THEORY_MAX_ITERATIONS` | `10` | Max proof loop iterations |
@@ -170,6 +200,22 @@ To add a **custom skill**, drop a `.md` file into `~/.eurekaclaw/skills/` — se
 To add a **new research domain**, subclass `DomainPlugin` — see [domains.md](https://github.com/EurekaClaw/EurekaClaw_dev_zero/blob/main/docs/domains.md).
 
 To add a **new tool**, subclass `BaseTool` and register it — see [tools.md](https://github.com/EurekaClaw/EurekaClaw_dev_zero/blob/main/docs/tools.md).
+
+---
+
+## Acknowledgements
+
+EurekaClaw builds on ideas and inspiration from the broader AI-for-science community. We thank the authors of the following projects:
+
+- [MetaClaw](https://github.com/aiming-lab/MetaClaw) — multi-agent research orchestration
+- [AutoResearchClaw](https://github.com/aiming-lab/AutoResearchClaw) — automated research orchestration
+- [EvoScientist](https://github.com/EvoScientist/EvoScientist) — evolutionary hypothesis generation
+- [AI-Researcher](https://github.com/hkuds/ai-researcher) — automated research pipeline
+- [Awesome AI for Science](https://github.com/ai-boost/awesome-ai-for-science) — curated resource list
+- [Dr. Claw](https://github.com/OpenLAIR/dr-claw) — open research agent framework
+- [OpenClaw](https://github.com/openclaw/openclaw) — open-source research claw
+- [ClawTeam](https://github.com/HKUDS/ClawTeam) — collaborative research agents
+- [ScienceClaw](https://github.com/beita6969/ScienceClaw) — science-focused research agent
 
 ---
 

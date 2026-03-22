@@ -27,6 +27,7 @@ eurekaclaw prove "<conjecture>" [OPTIONS]
 |---|---|---|
 | `--domain`, `-d` | `""` | Research domain. Auto-inferred from conjecture if omitted |
 | `--mode` | `skills_only` | Post-run learning mode: `skills_only`, `rl`, `madmax` |
+| `--skills` | *(all)* | Pin specific skills by name (repeatable). Pinned skills always appear first in the injection regardless of usage score |
 | `--gate` | `none` | Gate control: `human`, `auto`, `none` |
 | `--output`, `-o` | `./results` | Output directory for artifacts |
 
@@ -34,6 +35,7 @@ eurekaclaw prove "<conjecture>" [OPTIONS]
 ```bash
 eurekaclaw prove "UCB1 achieves O(sqrt(KT log T)) expected cumulative regret in the stochastic multi-armed bandit setting" \
   --domain "multi-armed bandit theory" \
+  --skills ucb_regret_analysis --skills concentration_inequalities \
   --gate human \
   --output ./results
 ```
@@ -80,7 +82,9 @@ eurekaclaw from-papers <paper_id> [<paper_id> ...] [OPTIONS]
 | Option | Default | Description |
 |---|---|---|
 | `--domain`, `-d` | *(required)* | Research domain |
+| `--query`, `-q` | `""` | Specific research question or focus within the papers |
 | `--mode` | `skills_only` | Post-run learning mode |
+| `--skills` | *(all)* | Pin specific skills by name (repeatable). Pinned skills always appear first in the injection regardless of usage score |
 | `--gate` | `none` | Gate control |
 | `--output`, `-o` | `./results` | Output directory |
 
@@ -101,9 +105,9 @@ eurekaclaw pause <session_id>
 **Arguments:**
 - `session_id` — Session ID of the running proof to pause (found in the console header at startup)
 
-Writes a `pause.flag` file to `~/.eurekaclaw/sessions/<session_id>/`. The theory agent detects this flag at the next stage boundary, saves a checkpoint, and exits cleanly with a `ProofPausedException`. The partial proof state is preserved in `~/.eurekaclaw/sessions/<session_id>/checkpoint.json`.
+Writes a `pause.flag` file to `~/.eurekaclaw/sessions/<session_id>/`. A background poller detects this flag within 1 second and cancels the running asyncio task immediately, interrupting any in-flight LLM call. The theory agent saves a checkpoint of all lemmas proved so far and raises `ProofPausedException`. The partial proof state is preserved in `~/.eurekaclaw/sessions/<session_id>/checkpoint.json`.
 
-You can also pause by pressing **Ctrl+C** during a run. EurekaClaw intercepts `SIGINT` and writes the pause flag instead of raising `KeyboardInterrupt`, giving the agent time to reach a clean checkpoint boundary.
+You can also pause by pressing **Ctrl+C** during a run. EurekaClaw intercepts `SIGINT` and cancels the running task immediately — the pipeline stops at the next `await` rather than waiting for the current LLM call to finish.
 
 **Example:**
 ```bash
@@ -127,6 +131,80 @@ Loads the checkpoint from `~/.eurekaclaw/sessions/<session_id>/checkpoint.json` 
 **Example:**
 ```bash
 eurekaclaw resume abc12345
+```
+
+---
+
+### `replay-theory-tail` — Replay theory tail stages
+
+```bash
+eurekaclaw replay-theory-tail <session_id> [OPTIONS]
+```
+
+**Arguments:**
+- `session_id` — Session ID of a completed run
+
+**Options:**
+
+| Option | Default | Description |
+|---|---|---|
+| `--from` | `consistency_checker` | Stage to restart from: `assembler`, `theorem_crystallizer`, `consistency_checker` |
+
+Re-runs the final stages of the theory pipeline (Assembler → TheoremCrystallizer → ConsistencyChecker) from a saved `theory_state.json` without repeating the survey, planning, or lemma proving phases. Useful for quickly iterating on crystallization or consistency-check failures.
+
+**Example:**
+```bash
+eurekaclaw replay-theory-tail abc12345 --from assembler
+```
+
+---
+
+### `test-paper-reader` — Test PaperReader on a single paper
+
+```bash
+eurekaclaw test-paper-reader <session_id> <paper_ref> [OPTIONS]
+```
+
+**Arguments:**
+- `session_id` — Session ID of a completed run whose bibliography to use
+- `paper_ref` — Paper ID, arXiv ID, or case-insensitive substring of the title
+
+**Options:**
+
+| Option | Default | Description |
+|---|---|---|
+| `--mode` | `both` | Extraction mode: `abstract`, `pdf`, `both` |
+| `--direction` | `""` | Research direction override for extraction prompts |
+
+Exercises PaperReader's abstract and/or PDF extraction on a single bibliography entry without running the full pipeline.
+
+**Example:**
+```bash
+eurekaclaw test-paper-reader abc12345 "UCB1" --mode both
+```
+
+---
+
+### `onboard` — Interactive configuration wizard
+
+```bash
+eurekaclaw onboard [OPTIONS]
+```
+
+**Options:**
+
+| Option | Description |
+|---|---|
+| `--non-interactive` | Write defaults without prompting |
+| `--reset` | Overwrite existing `.env` without merging |
+| `--env-file` | Path to the `.env` file to write (default: `.env`) |
+
+Walks you through LLM backend selection, API key setup, search tools, and system behaviour, then writes (or updates) `.env`.
+
+**Example:**
+```bash
+eurekaclaw onboard
+eurekaclaw onboard --env-file ~/.eurekaclaw/.env
 ```
 
 ---
@@ -161,8 +239,11 @@ Prints an evaluation report with proof quality metrics.
 ### `install-skills` — Install seed skills
 
 ```bash
-eurekaclaw install-skills [--force]
+eurekaclaw install-skills [SKILLNAME] [--force]
 ```
+
+**Arguments:**
+- `skillname` *(optional)* — Install a specific skill from clawhub by name
 
 **Options:**
 
@@ -170,7 +251,7 @@ eurekaclaw install-skills [--force]
 |---|---|
 | `--force`, `-f` | Overwrite existing skills in `~/.eurekaclaw/skills/` |
 
-Copies bundled seed skills from the package to `~/.eurekaclaw/skills/`.
+Without arguments, copies all bundled seed skills from the package to `~/.eurekaclaw/skills/`. When a skill name is provided, downloads that skill from clawhub instead.
 
 ---
 
