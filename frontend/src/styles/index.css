@@ -4027,3 +4027,66 @@ textarea {
 .proof-gate-reject-form {
   margin-top: 10px;
 }
+
+/* ── Gate overlay (modal) ────────────────────────────────────────────────── */
+
+.gate-overlay-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.gate-overlay-card {
+  background: var(--surface);
+  border: 1.5px solid var(--accent-soft);
+  border-radius: var(--radius-md);
+  padding: 28px 32px;
+  width: 100%;
+  max-width: 520px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+.gate-overlay-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.gate-overlay-heading {
+  font-weight: 700;
+  font-size: 1.05rem;
+  margin: 0 0 8px;
+  color: var(--text);
+}
+
+.gate-overlay-sub {
+  font-size: 0.87rem;
+  color: var(--muted);
+  margin: 0 0 14px;
+}
+
+.gate-overlay-label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--muted);
+  margin: 0 0 4px;
+}
+
+.gate-overlay-theorem {
+  background: var(--surface-cool);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  font-size: 0.78rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin-bottom: 14px;
+  max-height: 140px;
+  overflow-y: auto;
+  color: var(--text);
+}

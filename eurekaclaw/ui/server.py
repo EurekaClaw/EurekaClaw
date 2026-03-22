@@ -1016,6 +1016,7 @@ def bind_ui_server(host: str = "127.0.0.1", port: int = 8080) -> "ThreadingHTTPS
 
 def serve_ui(host: str = "127.0.0.1", port: int = 8080) -> None:
     """Bind and serve the EurekaClaw UI, blocking until KeyboardInterrupt."""
+    os.environ["EUREKACLAW_UI_MODE"] = "1"
     server = bind_ui_server(host, port)
     actual_port = server.server_address[1]
     logger.info("Serving EurekaClaw UI at http://%s:%d", host, actual_port)

@@ -116,6 +116,7 @@ class MetaOrchestrator:
             if task.status == TaskStatus.SKIPPED:
                 continue
 
+
             # Check dependencies
             if not self._dependencies_met(task, pipeline):
                 logger.warning("Skipping %s — dependencies not met", task.name)
@@ -286,11 +287,11 @@ class MetaOrchestrator:
         If ``brief.conjecture`` is set (prove mode), it is shown as the default;
         pressing Enter without typing anything accepts it.
         """
-        import sys
+        import os
         import uuid
         from eurekaclaw.types.artifacts import ResearchDirection
 
-        if not sys.stdin.isatty():
+        if os.environ.get("EUREKACLAW_UI_MODE"):
             # UI mode: block until the frontend submits a direction
             from eurekaclaw.ui import review_gate
             from eurekaclaw.types.tasks import TaskStatus
@@ -394,13 +395,13 @@ class MetaOrchestrator:
         After the retry limit is reached the pipeline proceeds to writer
         without further prompting.
         """
-        import sys
+        import os
         from eurekaclaw.types.tasks import TaskStatus
 
         max_retries = settings.theory_review_max_retries
         attempt = 0
 
-        if not sys.stdin.isatty():
+        if os.environ.get("EUREKACLAW_UI_MODE"):
             # UI mode: use event-based gate
             from eurekaclaw.ui import review_gate
 
@@ -506,7 +507,7 @@ class MetaOrchestrator:
 
     async def _handle_empty_survey_fallback(self, pipeline: TaskPipeline) -> None:
         """If the survey found 0 papers, pause and ask the user for paper IDs."""
-        import sys
+        import os
 
         bib = self.bus.get_bibliography()
         has_papers = False
@@ -519,7 +520,7 @@ class MetaOrchestrator:
         if has_papers:
             return
 
-        if not sys.stdin.isatty():
+        if os.environ.get("EUREKACLAW_UI_MODE"):
             # UI mode: block until the frontend submits paper IDs (or skips)
             from eurekaclaw.ui import review_gate
 
