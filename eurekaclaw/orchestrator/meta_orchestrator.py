@@ -91,6 +91,8 @@ class MetaOrchestrator:
 
     async def run(self, input_spec: InputSpec) -> ResearchOutput:
         """Run the full research pipeline from input to output artifacts."""
+        from eurekaclaw.llm.base import reset_global_tokens
+        reset_global_tokens()
         settings.ensure_dirs()
 
         # --- Phase 1: Initialize the research brief ---
@@ -128,6 +130,14 @@ class MetaOrchestrator:
             # If rejected, inject feedback and re-run theory (once).
             if task.name == "theory_review_gate":
                 await self._handle_theory_review_gate(pipeline, brief)
+
+            # Ensure a research direction exists before theory runs.
+            # direction_selection_gate may have been skipped (e.g. survey failed),
+            # so we check here as a safety net and prompt the user if needed.
+            if task.name == "theory":
+                brief = self.bus.get_research_brief() or brief
+                if not brief.directions:
+                    await self._handle_manual_direction(brief)
 
             # Gate check (human / auto approval)
             if task.gate_required:
@@ -238,26 +248,12 @@ class MetaOrchestrator:
             return
 
         # --- Detailed mode: user gave a specific conjecture to prove ---
-        if brief.input_mode == "detailed" and brief.conjecture:
-            console.print("[blue]Detailed mode: using conjecture directly as research direction[/blue]")
-            domain_label = brief.domain or "the Conjecture"
-            direction = ResearchDirection(
-                direction_id=str(uuid.uuid4()),
-                title=f"Proof of {domain_label}",
-                hypothesis=brief.conjecture,
-                approach_sketch=(
-                    "Formalize the conjecture, decompose into lemmas, "
-                    "attempt proof via mathematical induction / known bounds."
-                ),
-                novelty_score=0.8,
-                soundness_score=0.8,
-                transformative_score=0.7,
-            )
-            direction.compute_composite()
-            brief.directions = [direction]
-            brief.selected_direction = direction
-            self.bus.put_research_brief(brief)
-            console.print(f"[green]Direction set to: {direction.title}[/green]")
+        # Ideation ran but returned 0 directions — require user to confirm or
+        # provide a direction even though a conjecture was supplied.  We do NOT
+        # silently auto-create from the conjecture; instead _handle_manual_direction
+        # will show the conjecture as a default and require explicit confirmation.
+        if brief.input_mode == "detailed":
+            await self._handle_manual_direction(brief)
             return
 
         # --- Exploration / reference mode: run full divergent-convergent ---
@@ -280,31 +276,44 @@ class MetaOrchestrator:
             await self._handle_manual_direction(brief)
 
     async def _handle_manual_direction(self, brief: "ResearchBrief") -> None:
-        """Fallback: planner produced no directions — ask the user to supply one."""
+        """Fallback: ideation produced no directions — ask the user to supply one.
+
+        If ``brief.conjecture`` is set (prove mode), it is shown as the default;
+        pressing Enter without typing anything accepts it.
+        """
         import uuid
         from eurekaclaw.types.artifacts import ResearchDirection
 
         console.print(
-            "\n[yellow]⚠  The planner could not generate research directions automatically.[/yellow]"
+            "\n[yellow]⚠  Ideation returned 0 research directions — human input required.[/yellow]"
         )
         if brief.open_problems:
             console.print("\n[bold]Open problems found by survey:[/bold]")
             for p in brief.open_problems[:5]:
                 console.print(f"  • {str(p)[:120]}")
 
-        console.print(
-            "\n[bold]Please enter a research direction / hypothesis to pursue.[/bold]\n"
-            "[dim](e.g. \"UCB1 achieves O(√(KT log T)) regret in the stochastic MAB setting\")[/dim]\n"
-        )
-        try:
-            hypothesis = console.input("→ ").strip()
-        except (KeyboardInterrupt, EOFError):
-            console.print("\n[red]No direction provided — cannot continue.[/red]")
-            raise RuntimeError("No research direction available and user did not provide one.")
+        if brief.conjecture:
+            console.print(
+                f"\n[bold]Your conjecture:[/bold] {brief.conjecture[:200]}\n"
+                "[dim]Press Enter to use it as the research direction, or type a different one.[/dim]\n"
+            )
+        else:
+            console.print(
+                "\n[bold]Please enter a research direction / hypothesis to pursue.[/bold]\n"
+                "[dim](e.g. \"UCB1 achieves O(√(KT log T)) regret in the stochastic MAB setting\")[/dim]\n"
+            )
 
-        if not hypothesis:
-            console.print("[red]Empty input — cannot continue.[/red]")
-            raise RuntimeError("No research direction available and user did not provide one.")
+        hypothesis = ""
+        while not hypothesis:
+            try:
+                raw = console.input("→ ")
+            except (KeyboardInterrupt, EOFError):
+                console.print("\n[red]Cancelled — cannot continue without a research direction.[/red]")
+                raise RuntimeError("No research direction available and user did not provide one.")
+
+            hypothesis = raw.strip()
+            if not hypothesis:
+                console.print("[yellow]Please enter a direction to continue (or Ctrl+C to abort).[/yellow]")
 
         direction = ResearchDirection(
             direction_id=str(uuid.uuid4()),
@@ -324,57 +333,66 @@ class MetaOrchestrator:
     async def _handle_theory_review_gate(
         self, pipeline: "TaskPipeline", brief: "ResearchBrief"
     ) -> None:
-        """Show the proof sketch to the user and optionally re-run theory.
+        """Show the proof sketch to the user and re-run theory until approved.
 
-        If the user rejects, their feedback (which lemma + what's wrong) is
-        injected into the theory task description and theory is re-executed once.
+        The user can reject up to ``settings.theory_review_max_retries`` times.
+        Each rejection injects feedback and re-runs the full theory stage.
+        After the retry limit is reached the pipeline proceeds to writer
+        without further prompting.
         """
         from eurekaclaw.types.tasks import TaskStatus
 
-        approved, lemma_ref, reason = self.gate.theory_review_prompt()
-        if approved:
-            return
+        max_retries = settings.theory_review_max_retries
+        attempt = 0
 
-        # Find the theory task and re-queue it with the user's feedback
-        theory_task = next((t for t in pipeline.tasks if t.name == "theory"), None)
-        if theory_task is None:
-            logger.warning("theory_review_gate: no 'theory' task found — proceeding")
-            return
+        while True:
+            approved, lemma_ref, reason = self.gate.theory_review_prompt()
+            if approved:
+                return
 
-        feedback = (
-            f"The user flagged lemma '{lemma_ref}' as having a critical logical gap.\n"
-            f"Issue: {reason}\n"
-            f"Please re-examine this lemma and fix the logical chain before assembling the proof."
-        )
-        theory_task.description = (theory_task.description or "") + f"\n\n[User feedback]: {feedback}"
-        theory_task.retries = 0
-        theory_task.status = TaskStatus.PENDING
+            attempt += 1
+            if attempt > max_retries:
+                console.print(
+                    f"[yellow]Retry limit ({max_retries}) reached — proceeding to writer.[/yellow]\n"
+                )
+                return
 
-        console.print(f"[yellow]Re-running theory agent with your feedback...[/yellow]\n")
-        agent = self.router.resolve(theory_task)
-
-        from rich.progress import Progress, SpinnerColumn, TextColumn
-        with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), console=console) as progress:
-            prog_task = progress.add_task("theory (revision)...", total=None)
-            result = await agent.execute(theory_task)
-            progress.update(prog_task, completed=True)
-
-        if result.failed:
-            theory_task.mark_failed(result.error)
-            console.print(f"[red]Theory revision failed: {result.error[:100]}[/red]")
-        else:
-            theory_task.mark_completed(dict(result.output))
-            console.print("[green]✓ Theory revision complete.[/green]")
-            self.gate.print_stage_summary("theory")
-
-        self.bus.put_pipeline(pipeline)
-
-        # Show the updated sketch for a second look (no further retry)
-        approved2, _, _ = self.gate.theory_review_prompt()
-        if not approved2:
             console.print(
-                "[yellow]Sketch still flagged — proceeding to writer anyway.[/yellow]\n"
+                f"[yellow]Re-running theory agent with your feedback "
+                f"(attempt {attempt}/{max_retries})...[/yellow]\n"
             )
+
+            theory_task = next((t for t in pipeline.tasks if t.name == "theory"), None)
+            if theory_task is None:
+                logger.warning("theory_review_gate: no 'theory' task found — proceeding")
+                return
+
+            feedback = (
+                f"The user flagged lemma '{lemma_ref}' as having a critical logical gap.\n"
+                f"Issue: {reason}\n"
+                f"Please re-examine this lemma and fix the logical chain before assembling the proof."
+            )
+            theory_task.description = (theory_task.description or "") + f"\n\n[User feedback]: {feedback}"
+            theory_task.retries = 0
+            theory_task.status = TaskStatus.PENDING
+
+            agent = self.router.resolve(theory_task)
+
+            from rich.progress import Progress, SpinnerColumn, TextColumn
+            with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), console=console) as progress:
+                prog_task = progress.add_task("theory (revision)...", total=None)
+                result = await agent.execute(theory_task)
+                progress.update(prog_task, completed=True)
+
+            if result.failed:
+                theory_task.mark_failed(result.error)
+                console.print(f"[red]Theory revision failed: {result.error[:100]}[/red]")
+            else:
+                theory_task.mark_completed(dict(result.output))
+                console.print("[green]✓ Theory revision complete.[/green]")
+                self.gate.print_stage_summary("theory")
+
+            self.bus.put_pipeline(pipeline)
 
     async def _handle_empty_survey_fallback(self, pipeline: TaskPipeline) -> None:
         """If the survey found 0 papers, pause and ask the user for paper IDs."""
@@ -390,9 +408,13 @@ class MetaOrchestrator:
             return
 
         console.print("\n[yellow]⚠ Survey stage completed but found 0 papers.[/yellow]")
-        paper_input = Prompt.ask(
-            "[bold cyan]Please provide a comma-separated list of paper IDs/titles to retry, or press Enter to proceed without papers[/bold cyan]"
-        )
+        try:
+            paper_input = Prompt.ask(
+                "[bold cyan]Please provide a comma-separated list of paper IDs/titles to retry, or press Enter to proceed without papers[/bold cyan]"
+            )
+        except (KeyboardInterrupt, EOFError):
+            console.print("\n[dim]Input interrupted — proceeding without papers.[/dim]")
+            return
 
         if not paper_input.strip():
             return

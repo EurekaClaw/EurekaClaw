@@ -37,18 +37,18 @@ class Task(BaseModel):
 
     def mark_started(self) -> None:
         self.status = TaskStatus.IN_PROGRESS
-        self.started_at = datetime.utcnow()
+        self.started_at = datetime.now().astimezone()
 
     def mark_completed(self, outputs: dict[str, Any] | None = None) -> None:
         self.status = TaskStatus.COMPLETED
-        self.completed_at = datetime.utcnow()
+        self.completed_at = datetime.now().astimezone()
         if outputs:
             self.outputs.update(outputs)
 
     def mark_failed(self, error: str) -> None:
         self.status = TaskStatus.FAILED
         self.error_message = error
-        self.completed_at = datetime.utcnow()
+        self.completed_at = datetime.now().astimezone()
 
 
 class TaskPipeline(BaseModel):

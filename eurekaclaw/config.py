@@ -63,6 +63,7 @@ class Config(BaseSettings):
         default="default", alias="THEORY_PIPELINE"
     )
     theory_max_iterations: int = Field(default=10, alias="THEORY_MAX_ITERATIONS")
+    theory_review_max_retries: int = Field(default=3, alias="THEORY_REVIEW_MAX_RETRIES")
     use_docker_sandbox: bool = Field(default=False, alias="USE_DOCKER_SANDBOX")
     # Output format for the generated paper: "latex" (default) or "markdown"
     output_format: str = Field(default="latex", alias="OUTPUT_FORMAT")

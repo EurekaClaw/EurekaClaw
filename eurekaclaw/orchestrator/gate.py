@@ -396,37 +396,66 @@ class GateController:
             "  [red]n[/red]  — Flag the most logically problematic step\n"
         )
 
-        try:
-            answer = console.input("→ ").strip().lower()
-        except (KeyboardInterrupt, EOFError):
-            console.print("\n[dim]Input interrupted — proceeding.[/dim]")
-            return True, "", ""
+        while True:
+            try:
+                answer = console.input("→ ").strip().lower()
+            except (KeyboardInterrupt, EOFError):
+                console.print("\n[dim]Input interrupted — proceeding.[/dim]")
+                return True, "", ""
 
-        if answer in ("y", "yes", ""):
-            console.print("[green]Proof approved — proceeding to writer.[/green]\n")
-            return True, "", ""
+            if answer == "" or answer.startswith("y"):
+                console.print("[green]Proof approved — proceeding to writer.[/green]\n")
+                return True, "", ""
+            elif answer.startswith("n"):
+                break
+            else:
+                console.print("[red]Please enter 'y' or 'n'.[/red]")
 
         # Rejection: ask which lemma and what the issue is
         console.print()
-        try:
-            lemma_ref = console.input(
-                "[bold]Which step has the most critical logical gap?[/bold]\n"
-                "[dim]Enter lemma number (e.g. L3) or ID:[/dim] → "
-            ).strip()
-            reason = console.input(
-                "\n[bold]Describe the issue[/bold]\n"
-                "[dim](Be specific — the theory agent will retry with your feedback):[/dim] → "
-            ).strip()
-        except (KeyboardInterrupt, EOFError):
-            console.print("\n[dim]Input interrupted — proceeding anyway.[/dim]")
-            return True, "", ""
+        
+        all_valid_ids = set(lemma_ids)
+        if state.open_goals:
+            all_valid_ids.update(state.open_goals)
 
-        # Resolve "L3" → actual lemma id
-        resolved_id = lemma_ref
-        if lemma_ref.upper().startswith("L") and lemma_ref[1:].isdigit():
-            idx = int(lemma_ref[1:]) - 1
-            if 0 <= idx < len(lemma_ids):
-                resolved_id = lemma_ids[idx]
+        while True:
+            try:
+                lemma_ref = console.input(
+                    "[bold]Which step has the most critical logical gap?[/bold]\n"
+                    "[dim]Enter lemma number (e.g. L3) or ID:[/dim] → "
+                ).strip()
+            except (KeyboardInterrupt, EOFError):
+                console.print("\n[dim]Input interrupted — proceeding anyway.[/dim]")
+                return True, "", ""
+
+            # Resolve "L3" → actual lemma id
+            resolved_id = lemma_ref
+            if lemma_ref.upper().startswith("L") and lemma_ref[1:].isdigit():
+                idx = int(lemma_ref[1:]) - 1
+                if 0 <= idx < len(lemma_ids):
+                    resolved_id = lemma_ids[idx]
+                    break
+                else:
+                    console.print(f"[red]Invalid lemma number. Please enter a number between L1 and L{len(lemma_ids)}.[/red]\n")
+            elif resolved_id in all_valid_ids:
+                break
+            else:
+                console.print("[red]Invalid input. Please enter a valid lemma number (e.g., L1) or exact ID.[/red]\n")
+
+        while True:
+            try:
+                reason = console.input(
+                    "\n[bold]Describe the issue[/bold]\n"
+                    "[dim](Be specific — the theory agent will retry with your feedback):[/dim] → "
+                ).strip()
+            except (KeyboardInterrupt, EOFError):
+                console.print("\n[dim]Input interrupted — proceeding anyway.[/dim]")
+                return True, "", ""
+
+            if not reason:
+                console.print("[red]Please provide a description of the issue, or press Ctrl+C to abort.[/red]")
+                continue
+            break
 
         console.print(
             f"\n[yellow]Flagged:[/yellow] [cyan]{resolved_id}[/cyan]\n"

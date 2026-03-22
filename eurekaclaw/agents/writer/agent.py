@@ -14,6 +14,14 @@ from eurekaclaw.types.tasks import Task
 logger = logging.getLogger(__name__)
 
 
+def _pretty_lemma_name(lid: str) -> str:
+    """Convert a snake_case lemma id to a Title Case display name.
+
+    e.g. 'kronecker_operator_alignment' → 'Kronecker Operator Alignment'
+    """
+    return " ".join(w.capitalize() for w in lid.split("_"))
+
+
 def _compute_cite_keys(papers: list) -> list[str]:
     """Generate cite keys using the same algorithm as _generate_thebibliography.
 
@@ -167,21 +175,27 @@ introduce \\newcommand for anything already listed here.
     \\opnorm{x}{p}     triple-bar operator norm
     \\inner{x}{y}      auto-sized ⟨x, y⟩
     \\dotp{x}{y}       fixed-size ⟨x, y⟩
+    \\bigdotp{x}{y}    large ⟨x, y⟩
     \\rbr{x}           auto-sized ( )
     \\sbr{x}           auto-sized [ ]
     \\cbr{x}           auto-sized { }
     \\abr{x}           auto-sized | |
+    \\ceil{x}           ⌈x⌉
+    \\floor{x}          ⌊x⌋
 
   Operators (already defined — do NOT redefine with \\DeclareMathOperator):
-    \\argmin  \\argmax  \\minimize  \\sign  \\tr  \\diag  \\Var  \\Cov  \\Cor
+    \\argmin  \\argmax  \\minimize  \\sign  \\tr  \\diag  \\Var  \\Cov  \\corr    \\ind
 
   Other:
     \\zero  \\one              bold 0 / 1 vectors
-    \\smallfrac{a}{b}         textstyle fraction
+    \\nicefrac{a}{b}          fraction that auto-switches to textstyle in inline math
     \\given                   conditional bar: p(y \\given x)
     \\ud                      upright d for integrals: \\int f(x)\\ud x
     \\hat{} → \\widehat{}     (auto-redefined by smile.sty)
     \\tilde{} → \\widetilde{} (auto-redefined by smile.sty)
+    \\poly  \\polylog         for generic polynomial / polylogarithmic factors in bounds
+    \\iid                     for "i.i.d." in math mode)
+    \\iidsim                  for "i.i.d. \\sim" in math mode)
 
   Do NOT use or define: \\R \\N \\Z \\E \\Prob  — use \\RR \\NN \\ZZ \\EE \\PP instead.
 """
@@ -246,11 +260,51 @@ class WriterAgent(BaseAgent):
             for lid, rec in theory_state.proven_lemmas.items()
             if theory_state.lemma_dag.get(lid)
         ]
+        # Pre-compute cite keys and build arxiv_id → cite_key lookup early so
+        # the proven_proofs block can embed correct \citet{} keys for known lemmas.
+        cite_keys: list[str] = []
+        arxiv_to_citekey: dict[str, str] = {}
+        citations = ""
+        if bib and bib.papers:
+            cite_keys = _compute_cite_keys([p for p in bib.papers[:15]])
+            citations = "\n".join(
+                f"- \\cite{{{key}}} — {p.title} ({p.year}), {', '.join(p.authors[:2])}"
+                for key, p in zip(cite_keys, bib.papers[:15])
+            )
+            for key, p in zip(cite_keys, bib.papers[:15]):
+                aid = (getattr(p, "arxiv_id", None) or getattr(p, "paper_id", None) or "").strip()
+                if aid:
+                    # Normalise: strip version suffix (e.g. "2512.07011v1" → "2512.07011")
+                    arxiv_to_citekey[aid.split("v")[0]] = key
+                    arxiv_to_citekey[aid] = key
+
+        # Build a provenance map for use inside the proven_proofs block
+        prov_of: dict[str, str] = {pp.lemma_id: pp.provenance
+                                    for pp in (theory_state.proof_plan or [])}
+        src_of:  dict[str, str] = {pp.lemma_id: (getattr(pp, "source", "") or "")
+                                    for pp in (theory_state.proof_plan or [])}
+
+        def _proof_block_latex(lid: str, rec) -> str:  # type: ignore[return]
+            """Return a \\begin{proof}...\\end{proof} snippet for the proven_proofs prompt."""
+            prov = prov_of.get(lid, "new")
+            src  = src_of.get(lid, "")
+            if prov == "known":
+                # Resolve the arxiv ID to a cite key (strip version suffix)
+                src_base = src.split("v")[0]
+                ckey = arxiv_to_citekey.get(src_base) or arxiv_to_citekey.get(src) or ""
+                cite = f"\\cite{{{ckey}}}" if ckey else (f"\\cite{{{src}}}" if src else "the cited work")
+                return f"\\begin{{proof}}\nRefer to {cite}.\n\\end{{proof}}"
+            # adapted / new — full proof injected post-generation via placeholder
+            return f"\\begin{{proof}}\n%%PROOF:{lid}%%\n\\end{{proof}}"
+
+        # The full proof texts for adapted/new lemmas are injected post-generation
+        # via %%PROOF:id%% placeholders (see _replace_proof_placeholders), keeping
+        # the LLM context small.  Known lemmas get a \citet{} citation directly.
         if fmt == "markdown":
             proven_proofs = "\n\n".join(
                 (
                     f"**Lemma** [{lid}]{' [LOW CONFIDENCE — not formally verified]' if not rec.verified else ''}:"
-                    f" {node.statement}\n\n**Proof**: {rec.proof_text[:1500]}"
+                    f" {node.statement}\n\n**Proof**: %%PROOF:{lid}%%"
                 )
                 for node, rec, lid in lemma_entries
                 if node is not None
@@ -259,30 +313,21 @@ class WriterAgent(BaseAgent):
             proven_proofs = "\n\n".join(
                 (
                     f"% {'[LOW CONFIDENCE — not formally verified]' if not rec.verified else '[verified]'}\n"
-                    f"\\begin{{lemma}}[{lid}]\n{node.statement}\n\\end{{lemma}}\n"
-                    f"\\begin{{proof}}\n{rec.proof_text[:1500]}\n\\end{{proof}}"
+                    f"\\begin{{lemma}}[{_pretty_lemma_name(lid)}]\\label{{lem:{lid}}}\n"
+                    f"{node.statement}\n\\end{{lemma}}\n"
+                    + _proof_block_latex(lid, rec)
                 )
                 for node, rec, lid in lemma_entries
                 if node is not None
             )
 
         exp_summary = ""
-        if exp_result:
+        if exp_result and settings.experiment_mode != "false":
             bounds_str = "\n".join(
                 f"- {b.name}: theoretical={b.theoretical}, empirical={b.empirical}"
                 for b in exp_result.bounds
             )
             exp_summary = f"Alignment score: {exp_result.alignment_score:.2f}\n{bounds_str}"
-
-        citations = ""
-        if bib and bib.papers:
-            # Pre-compute the exact cite keys that _generate_bibtex will use,
-            # so the LLM can reference them correctly in \cite{} commands.
-            cite_keys = _compute_cite_keys([p for p in bib.papers[:15]])
-            citations = "\n".join(
-                f"- \\cite{{{key}}} — {p.title} ({p.year}), {', '.join(p.authors[:2])}"
-                for key, p in zip(cite_keys, bib.papers[:15])
-            )
 
         if fmt == "markdown":
             user_message = f"""\
@@ -294,10 +339,10 @@ Main theorem: {theory_state.formal_statement}
 Informal: {theory_state.informal_statement}
 
 Proven lemmas (use in Results section):
-{proven_proofs[:3000] or "(no proven lemmas)"}
+{proven_proofs or "(no proven lemmas)"}
 
 Experimental results:
-{exp_summary or "(no experiments run)"}
+{exp_summary or "(no experiments run — do NOT include an Experiments section)"}
 
 Key references to cite:
 {citations or "(no references)"}
@@ -323,17 +368,21 @@ Main theorem: {theory_state.formal_statement}
 Informal: {theory_state.informal_statement}
 
 Proven lemmas (use in Proofs section):
-{proven_proofs[:3000] or "(no proven lemmas)"}
+{proven_proofs or "(no proven lemmas)"}
 
 Experimental results:
-{exp_summary or "(no experiments run)"}
+{exp_summary or "(no experiments run — do NOT include an Experiments section)"}
 
 Key references to cite (use EXACTLY these \\cite{{}} keys — they match the references.bib file):
 {citations or _no_refs}
 
 Write the full paper body (abstract through conclusion) in LaTeX.
 Use \\begin{{theorem}}...\\end{{theorem}} environments.
-Include all proofs using \\begin{{proof}}...\\end{{proof}}.
+For every lemma listed above, copy its \\begin{{lemma}}[Name]\\label{{lem:id}}...\\end{{lemma}}
+and \\begin{{proof}}%%PROOF:id%%\\end{{proof}} blocks EXACTLY as given — preserve the
+display name in square brackets, the \\label{{lem:id}}, and the %%PROOF:id%% placeholder
+(it will be filled in automatically).  Use \\ref{{lem:id}} to cross-reference lemmas.
+For the main theorem, write its proof in full inside \\begin{{proof}}...\\end{{proof}}.
 
 MANDATORY SECTIONS — you MUST include ALL of the following \\section{{}} commands with
 their \\label{{}} exactly as shown, in this order. Every section the introduction
@@ -342,6 +391,7 @@ roadmap mentions must actually appear in the paper body:
   \\section{{Introduction}}\\label{{sec:introduction}}
   \\section{{Preliminaries}}\\label{{sec:preliminaries}}
   \\section{{Main Results}}\\label{{sec:main_results}}
+{'  \\\\section{{Experiments}}\\\\label{{sec:experiments}}' if exp_summary else '  (no Experiments section — experiments were not run)'}
   \\section{{Related Work}}\\label{{sec:related_work}}
   \\section{{Limitations}}\\label{{sec:limitations}}
   \\section{{Conclusion}}\\label{{sec:conclusion}}
@@ -377,6 +427,20 @@ If a section has little content, write at least two sentences rather than omitti
                     tokens["input"] += extra.get("input", 0)
                     tokens["output"] += extra.get("output", 0)
                     latex_body = self._extract_latex(text)
+                # Strip any spurious Experiments section when experiments are disabled.
+                if not exp_summary:
+                    latex_body = re.sub(
+                        r"(?s)\\section\*?\{[Ee]xperiments?[^\}]*\}.*?"
+                        r"(?=\\section|\\appendix|\\bibliography|\\end\{document\}|$)",
+                        "",
+                        latex_body,
+                    )
+                # Pass 1: expand %%PROOF:lemma_id%% placeholders with full proof text.
+                latex_body = self._replace_proof_placeholders(
+                    latex_body, theory_state, arxiv_to_citekey
+                )
+                # Pass 2: inject proofs for any lemma the LLM forgot to emit at all.
+                latex_body = self._inject_missing_proofs(latex_body, theory_state)
                 abstract_text = self._extract_abstract(text) or (
                     f"We present theoretical results in {brief.domain}. "
                     f"Our main contribution is: {theory_state.informal_statement[:200]}"
@@ -467,6 +531,18 @@ If a section has little content, write at least two sentences rather than omitti
             r"(?s)\\begin\{abstract\}.*?\\end\{abstract\}", "", text
         )
 
+        # 5b. Strip any \begin{thebibliography}...\end{thebibliography} blocks and
+        #     associated \bibliographystyle / \bibliography commands written by the
+        #     LLM.  A single, clean bibliography is always appended by
+        #     _generate_thebibliography() after this method returns, so any
+        #     LLM-generated copy would produce a duplicate.
+        text = re.sub(
+            r"(?s)\\begin\{thebibliography\}.*?\\end\{thebibliography\}", "", text
+        )
+        # Also strip standalone \bibliographystyle{...} and \bibliography{...} lines
+        text = re.sub(r"(?m)^[ \t]*\\bibliographystyle\{[^}]*\}[ \t]*\n?", "", text)
+        text = re.sub(r"(?m)^[ \t]*\\bibliography\{[^}]*\}[ \t]*\n?", "", text)
+
         # 6. Normalize broken or mis-cased environment names produced by the LLM.
         #    e.g. \begin{Proof} → \begin{proof}, \begin{le mma} → \begin{lemma}
         _ENV_FIXES = {
@@ -491,7 +567,256 @@ If a section has little content, write at least two sentences rather than omitti
         #    Also drop any trailing partial tabular row (no closing \\) before closing.
         text = WriterAgent._close_open_environments(text)
 
+        # 8. Fix [lemma_id] / [lemma\_id] cross-references written by the LLM
+        #    (e.g. in theorem proofs and prose) → Lemma~\ref{lem:lemma_id}.
+        #    Require at least one underscore so normal math brackets are not touched.
+        def _body_ref_repl(m: re.Match) -> str:  # type: ignore[type-arg]
+            lid = m.group(1).replace(r"\_", "_")
+            return f"Lemma~\\ref{{lem:{lid}}}"
+        text = re.sub(
+            r"(?<!\\)(?<!\{)\[([a-z][a-z0-9]*(?:(?:_|\\_)[a-z0-9]+)+)\]",
+            _body_ref_repl, text,
+        )
+
         return text.strip()
+
+    @staticmethod
+    def _clean_proof_text(pt: str, arxiv_to_citekey: dict | None = None) -> str:
+        """Convert raw Prover output to clean LaTeX-compatible proof body.
+
+        Strips:
+        - The "Proof Strategy / Goals" preamble section (before the first
+          standalone ``---`` separator line, or before the second ``###`` header
+          when no ``---`` is present).
+        - Trailing standalone ``---`` markers.
+        - Markdown ``###`` headers inside the formal proof.
+        - ``**bold**`` / ``*italic*`` markers → converted to ``\\textit{}``.
+        - Numbered/bulleted list prefixes (``1.  **Title**: text`` →
+          ``\\textit{Title.} text``; plain ``1.  text`` → plain ``text``).
+        - ``Cited from: <arxiv_id>.`` → ``Refer to \\cite{key}.``.
+        - ``[lemma_id]`` and ``[lemma\\_id]`` cross-references →
+          ``Lemma~\\ref{lem:lemma_id}``.
+        - ``$$...$$`` display-math → ``\\[...\\]``.
+        """
+        import re
+
+        arxiv_to_citekey = arxiv_to_citekey or {}
+
+        # ── Step 1: extract the formal proof body ─────────────────────────────
+        # The Prover structures its output as:
+        #   [Strategy/Goals section]
+        #   ---
+        #   [Formal Proof section]          ← we want this
+        #   ---                             ← trailing separator (strip)
+        #
+        # When no '---' is present, a second '###' header marks the formal part.
+
+        _SEP = re.compile(r"\n[ \t]*---+[ \t]*\n")
+        sep_m = _SEP.search(pt)
+        if sep_m:
+            # Take everything after the first --- separator
+            formal = pt[sep_m.end():]
+            # Strip any trailing standalone --- at the very end
+            formal = re.sub(r"\n[ \t]*---+[ \t]*\s*$", "", formal)
+        else:
+            # No --- separator: look for a second ### header
+            _HDR = re.compile(r"(?m)^#{1,3}\s+\S[^\n]*$")
+            hdrs = list(_HDR.finditer(pt))
+            if len(hdrs) >= 2:
+                formal = pt[hdrs[1].end():].lstrip("\n")
+            elif len(hdrs) == 1:
+                # Only one header — take everything after it
+                formal = pt[hdrs[0].end():].lstrip("\n")
+            else:
+                formal = pt  # no structure at all — use as-is
+
+        pt = formal.strip()
+
+        # ── Step 2: strip leading ### section header of the formal part ───────
+        pt = re.sub(r"^#{1,3}[^\n]*\n", "", pt.lstrip()).strip()
+
+        # ── Step 3: strip any remaining ### headers inside the proof ──────────
+        pt = re.sub(r"(?m)^#{1,3}[^\n]*\n?", "", pt)
+
+        # ── Step 4: convert numbered/bulleted list items ───────────────────────
+        # "1.  **Title**: rest" or "1.  **Title.** rest" → \textit{Title.} rest
+        # Prefix with \n\n so each item becomes its own LaTeX paragraph.
+        pt = re.sub(
+            r"(?m)^\s*\d+\.\s+\*\*([^*:]+?)\*\*[:.]\s*", r"\n\n\\textit{\1.}\\ ", pt
+        )
+        # "-  **Title**: rest" → \textit{Title.} rest
+        pt = re.sub(
+            r"(?m)^\s*[-*]\s+\*\*([^*:]+?)\*\*[:.]\s*", r"\n\n\\textit{\1.}\\ ", pt
+        )
+        # Plain "1.  text" or "-  text" — strip bullet/number prefix, ensure paragraph break.
+        pt = re.sub(r"(?m)^\s*\d+\.\s{1,4}", "\n\n", pt)
+        pt = re.sub(r"(?m)^\s*[-*]\s+", "\n\n", pt)
+
+        # ── Step 5: convert remaining **bold** / *italic* ─────────────────────
+        pt = re.sub(r"\*\*([^*\n]+)\*\*", r"\\textit{\1}", pt)
+        pt = re.sub(r"\*([^*\n]+)\*",     r"\\textit{\1}", pt)
+
+        # ── Step 6: "Cited from: <arxiv_id>." → \cite{key} ───────────────────
+        def _cited_repl(m: re.Match) -> str:  # type: ignore[type-arg]
+            raw = m.group(1).strip().rstrip(".")
+            base = raw.split("v")[0]
+            key = arxiv_to_citekey.get(base) or arxiv_to_citekey.get(raw) or ""
+            return f"Refer to \\cite{{{key or base}}}.\n"
+        pt = re.sub(r"(?m)^Cited from:\s*([^\n]+)\s*\n?", _cited_repl, pt)
+
+        # ── Step 7: [lemma_id] / [lemma\_id] → Lemma~\ref{lem:lemma_id} ──────
+        # Require at least one underscore to avoid matching normal math brackets.
+        # Negative lookbehind for '\' and '{' to avoid \cite[...] and similar.
+        def _ref_repl(m: re.Match) -> str:  # type: ignore[type-arg]
+            lid = m.group(1).replace(r"\_", "_")
+            return f"Lemma~\\ref{{lem:{lid}}}"
+        pt = re.sub(
+            r"(?<!\\)(?<!\{)\[([a-z][a-z0-9]*(?:(?:_|\\_)[a-z0-9]+)+)\]",
+            _ref_repl, pt,
+        )
+
+        # ── Step 8: $$...$$ → \[...\] ─────────────────────────────────────────
+        pt = re.sub(
+            r"\$\$(.*?)\$\$",
+            lambda m: "\\[\n" + m.group(1).strip() + "\n\\]",
+            pt,
+            flags=re.DOTALL,
+        )
+
+        # ── Step 9: collapse excessive blank lines ─────────────────────────────
+        pt = re.sub(r"\n{3,}", "\n\n", pt)
+
+        return pt.strip()
+
+    @staticmethod
+    def _replace_proof_placeholders(
+        text: str,
+        theory_state,  # type: ignore[override]
+        arxiv_to_citekey: dict | None = None,
+    ) -> str:
+        """Pass 1: replace every %%PROOF:lemma_id%% with the full stored proof_text."""
+        import re
+
+        if not (theory_state and getattr(theory_state, "proven_lemmas", None)):
+            return text
+
+        arxiv_to_citekey = arxiv_to_citekey or {}
+
+        prov_of: dict[str, str] = {}
+        src_of:  dict[str, str] = {}
+        for pp in getattr(theory_state, "proof_plan", None) or []:
+            prov_of[pp.lemma_id] = pp.provenance
+            src_of[pp.lemma_id]  = getattr(pp, "source", "") or ""
+
+        def replacer(m: re.Match) -> str:  # type: ignore[type-arg]
+            lid = m.group(1)
+            rec = theory_state.proven_lemmas.get(lid)
+            if rec and rec.proof_text:
+                return WriterAgent._clean_proof_text(rec.proof_text, arxiv_to_citekey)
+            prov = prov_of.get(lid, "new")
+            src  = src_of.get(lid, "")
+            if prov == "known" and src:
+                src_base = src.split("v")[0]
+                ckey = arxiv_to_citekey.get(src_base) or arxiv_to_citekey.get(src) or ""
+                cite = f"\\cite{{{ckey}}}" if ckey else f"\\cite{{{src}}}"
+                return f"Refer to {cite}."
+            return "(Proof sketch — see supplementary material.)"
+
+        return re.sub(r"%%PROOF:([A-Za-z0-9_]+)%%", replacer, text)
+
+    @staticmethod
+    def _inject_missing_proofs(text: str, theory_state) -> str:  # type: ignore[override]
+        """Post-processing: ensure every lemma/auxlemma environment has a proof block.
+
+        The LLM sometimes omits \\begin{proof}...\\end{proof} for low-confidence
+        lemmas, placing the \\textcolor{orange} unverified marker directly after
+        \\end{lemma} instead.  This method scans the extracted LaTeX body and,
+        for each lemma that lacks a following proof, injects one using the stored
+        proof_text from theory_state.proven_lemmas.
+        """
+        import re
+
+        if not (theory_state and getattr(theory_state, "proven_lemmas", None)):
+            return text
+
+        # Build per-lemma proof text using the shared cleaner
+        proof_map: dict[str, str] = {}
+        verified_map: dict[str, bool] = {}
+        for lid, rec in theory_state.proven_lemmas.items():
+            pt = WriterAgent._clean_proof_text(rec.proof_text or "")
+            if pt:
+                proof_map[lid] = pt
+            verified_map[lid] = bool(getattr(rec, "verified", False))
+
+        prov_map: dict[str, str] = {}
+        src_map:  dict[str, str] = {}
+        for pp in getattr(theory_state, "proof_plan", None) or []:
+            prov_map[pp.lemma_id] = pp.provenance
+            src_map[pp.lemma_id]  = getattr(pp, "source", "") or ""
+
+        _UNVERIFIED = r"\textcolor{orange}{\textbf{[Unverified step — see discussion]}}"
+
+        def make_proof_block(lid: str) -> str:
+            body = proof_map.get(lid, "")
+            if not body:
+                prov = prov_map.get(lid, "new")
+                src  = src_map.get(lid, "")
+                body = f"See {src}." if (prov == "known" and src) else \
+                       "(Proof sketch — see supplementary material.)"
+            suffix = f"\n{_UNVERIFIED}" if not verified_map.get(lid, True) else ""
+            return f"\\begin{{proof}}\n{body}\n\\end{{proof}}{suffix}"
+
+        LEMMA_BEGIN = re.compile(
+            r"\\begin\{(?:lemma|auxlemma)\}"
+            r"(?:\[([^\]]*)\])?"               # group 1: optional display name (may be pretty)
+            r"(?:\\label\{lem:([^}]*)\})?"     # group 2: optional \label{lem:id}
+        )
+        LEMMA_END   = re.compile(r"\\end\{(?:lemma|auxlemma)\}")
+        PROOF_BEGIN = re.compile(r"\\begin\{proof\}")
+        # Noise between \end{lemma} and \begin{proof}:
+        # whitespace, \textcolor{X}{\textbf{Y}}, \clearpage
+        NOISE = re.compile(
+            r"(?:\s+|\\textcolor\{[^}]*\}\{(?:[^{}]|\{[^{}]*\})*\}|\\clearpage\b)*"
+        )
+
+        parts: list[str] = []
+        pos = 0
+        while True:
+            m_begin = LEMMA_BEGIN.search(text, pos)
+            if not m_begin:
+                parts.append(text[pos:])
+                break
+
+            # Prefer the \label{lem:id} (group 2) as the authoritative ID;
+            # fall back to reverse-converting the display name (group 1) from
+            # "Title Case" back to snake_case, for cases where the LLM wrote
+            # \begin{lemma}[Pretty Name] without an explicit label.
+            label_id    = (m_begin.group(2) or "").strip()
+            display_name = (m_begin.group(1) or "").strip()
+            lemma_id = label_id or display_name.lower().replace(" ", "_")
+
+            m_end = LEMMA_END.search(text, m_begin.end())
+            if not m_end:
+                parts.append(text[pos:])
+                break
+
+            # Emit text up to and including \end{lemma}
+            parts.append(text[pos : m_end.end()])
+            pos = m_end.end()
+
+            # Skip noise (whitespace + misplaced \textcolor markers)
+            m_noise = NOISE.match(text, pos)
+            scan_pos = m_noise.end() if (m_noise and m_noise.end() > pos) else pos
+
+            if PROOF_BEGIN.match(text, scan_pos):
+                # Proof already present — leave this lemma's trailing text intact
+                continue
+
+            # No proof: inject one and swallow the misplaced noise/markers
+            parts.append(f"\n{make_proof_block(lemma_id)}\n")
+            pos = scan_pos
+
+        return "".join(parts)
 
     @staticmethod
     def _close_open_environments(text: str) -> str:

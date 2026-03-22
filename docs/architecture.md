@@ -6,48 +6,9 @@ EurekaClaw is organized as a **multi-agent pipeline** coordinated by a `MetaOrch
 
 ## Pipeline Stages
 
-```
-InputSpec (conjecture / domain / paper_ids)
-        │
-        ▼
- ┌─────────────────────────────────────────────────────────────┐
- │                    MetaOrchestrator                         │
- │                                                             │
- │  1. SurveyAgent ──────────────────────────► Bibliography   │
- │                                             ResearchBrief   │
- │  2. IdeationAgent ────────────────────────► ResearchBrief   │
- │                                             (5 directions)  │
- │  3. DivergentConvergentPlanner ───────────► selected dir.   │
- │                                                             │
- │  4. [GateController] ─── human review ────► approved dir.  │
- │                                                             │
- │  5. TheoryAgent ──────────────────────────► TheoryState     │
- │       ├── PaperReader                       (proven lemmas) │
- │       ├── GapAnalyst                                        │
- │       ├── ProofArchitect                                    │
- │       ├── LemmaDeveloper loop (Prover/Verifier/Refiner)     │
- │       ├── Assembler                                         │
- │       ├── TheoremCrystallizer                               │
- │       └── ConsistencyChecker                                │
- │                                                             │
- │  6. [theory_review_gate] ─── human review ► approved proof │
- │       (always shown; y=proceed, n=re-run theory with fix)   │
- │                                                             │
- │  7. ExperimentAgent (optional) ───────────► ExperimentResult│
- │                                                             │
- │  8. WriterAgent ──────────────────────────► LaTeX paper     │
- │                                             + PDF           │
- │  9. ContinualLearningLoop ────────────────► new skills      │
- └─────────────────────────────────────────────────────────────┘
-        │
-        ▼
- ResearchOutput → results/<session_id>/
-   ├── paper.tex / paper.pdf
-   ├── references.bib
-   ├── theory_state.json
-   ├── research_brief.json
-   └── experiment_result.json
-```
+<p align="center">
+  <img src="images/pipeline-main.svg" alt="EurekaClaw Main Pipeline" width="820"/>
+</p>
 
 ## Core Components
 
@@ -117,7 +78,7 @@ ResearchBrief
 
 ## Theory Agent Inner Loop (7 Stages)
 
-The `TheoryAgent` runs a **bottom-up proof pipeline** implemented in `inner_loop_yaml.py`:
+The `TheoryAgent` runs a **bottom-up proof pipeline** implemented in `inner_loop_yaml.py`. The full loop structure including all retry paths is shown in the Pipeline Stages diagram above. Stage I/O summary:
 
 | Stage | Class | Input | Output |
 |---|---|---|---|
@@ -130,52 +91,56 @@ The `TheoryAgent` runs a **bottom-up proof pipeline** implemented in `inner_loop
 | 7 | `ConsistencyChecker` | full TheoryState | consistency report |
 
 The `LemmaDeveloper` runs its own inner loop per lemma:
-```
-for each open_goal:
-    Prover → Verifier → (if failed) Refiner → repeat
-    CounterexampleSearcher runs in parallel
-    Stagnation detection: if same error N times → force Refiner
-```
+
+<p align="center">
+  <img src="images/pipeline-theory.svg" alt="TheoryAgent Inner Loop" width="860"/>
+</p>
+
+**Provenance:** Each lemma in the proof plan is tagged `known` (directly citable), `adapted` (needs modification), or `new` (must be fully proved). Only `adapted` and `new` lemmas enter the LemmaDeveloper loop.
 
 ## LaTeX Compilation Pipeline
 
-```
-WriterAgent.execute()
-    │  generates paper body
-    ▼
-_extract_latex()          — strip preamble, normalize envs, fix syntax
-    ├── markdown → section headings
-    ├── \begin{Proof} → \begin{proof}  (case normalization)
-    ├── \endproof → \end{proof}
-    ├── tikzpicture removal
-    ├── QED box deduplication
-    ├── orphan \end{X} removal
-    └── unclosed \begin{X} auto-closing
-    │
-    ▼
-LATEX_PREAMBLE + body + LATEX_END  →  paper.tex
-    │
-    ▼
-save_artifacts()
-    ├── write references.bib   ← BEFORE compile
-    ├── _fix_missing_citations() — remove \cite{} with no .bib entry
-    └── _compile_pdf()
-          ├── pdflatex (pass 1 — generate .aux)
-          ├── bibtex  (if references.bib exists)
-          ├── pdflatex (pass 2 — resolve citations)
-          └── pdflatex (pass 3 — finalize)
-```
+<p align="center">
+  <img src="images/pipeline-latex.svg" alt="LaTeX Compilation Pipeline" width="700"/>
+</p>
 
 ## Direction Planning Fallback
 
-After the `IdeationAgent` runs, `MetaOrchestrator._handle_direction_gate()` calls `DivergentConvergentPlanner.diverge()` to generate 5 research directions. If the planner fails or returns an empty list (e.g. LLM parse error, API timeout), instead of silently proceeding with no direction the orchestrator **halts and prompts the user**:
+After `IdeationAgent` runs, `MetaOrchestrator._handle_direction_gate()` checks `brief.directions`. If the list is empty (ideation returned 0 directions, the planner failed, or a dependency was skipped), **human intervention is always required** regardless of `input_mode`:
+
+**Exploration / reference mode** — `DivergentConvergentPlanner.diverge()` is called first to attempt to generate 5 directions. If the planner also fails or returns empty, `_handle_manual_direction()` is called.
+
+**Prove / detailed mode** — The planner is skipped. `_handle_manual_direction()` is called directly, showing the user's conjecture as the default direction. The user presses Enter to accept it or types a new one.
+
+`_handle_manual_direction()` behavior:
 
 1. Prints up to 5 open problems found by the survey as context.
-2. Asks the user to type a hypothesis/direction manually.
-3. Constructs a `ResearchDirection` from the input and writes it to `ResearchBrief`.
-4. If the user enters nothing or presses Ctrl+C, raises `RuntimeError` and the session exits cleanly.
+2. If `brief.conjecture` is set, shows it as a suggested default.
+3. Asks the user to confirm or type a different direction (empty input accepts the conjecture default if available).
+4. Constructs a `ResearchDirection` from the input and writes it to `ResearchBrief`.
+5. If the user provides nothing and no conjecture default exists, or presses Ctrl+C, raises `RuntimeError` and the session exits cleanly.
 
 This is implemented in `_handle_manual_direction()` in `meta_orchestrator.py`.
+
+## Pause / Resume
+
+The proof pipeline supports immediate pause at any point during execution.
+
+**Triggering a pause:**
+- `Ctrl+C` in the terminal running `eurekaclaw prove` or `eurekaclaw resume`
+- `eurekaclaw pause <session-id>` from a separate terminal
+
+**How it works:**
+
+`cli.py` wraps every proof coroutine in `_run_with_pause_support(coro, cp)`:
+- Registers a SIGINT handler via `loop.add_signal_handler` that calls `task.cancel()`
+- Runs a background 1-second poller that watches for the `pause.flag` file (written by `eurekaclaw pause`) and cancels the task if found
+
+When the task is cancelled, `inner_loop_yaml.run()` catches `asyncio.CancelledError` at the stage boundary, saves a checkpoint (`~/.eurekaclaw/sessions/<id>/checkpoint.json`) with all lemmas proved so far, and raises `ProofPausedException`.
+
+**Checkpoint contents:** proven lemmas, open goals, current outer iteration, remaining stage spec, research brief.
+
+**Resuming:** `eurekaclaw resume <session-id>` reloads the checkpoint and continues from the saved stage.
 
 ## Theory Review Gate
 
@@ -186,33 +151,12 @@ After the TheoryAgent completes and before the WriterAgent runs, the `MetaOrches
 2. The user is asked: **y** (proceed) or **n** (flag the most problematic step).
 3. On rejection:
    - User enters the lemma number (`L3`) or ID, and a description of the logical gap.
-   - `MetaOrchestrator._handle_theory_review_gate()` finds the theory task, injects the feedback as `[User feedback]: ...`, resets it to `PENDING`, and re-runs the TheoryAgent once.
-   - After the revision, the updated sketch is shown again for a final look (no further retry).
-4. On second rejection, the pipeline proceeds to the WriterAgent anyway with a warning.
-
-## Pause / Resume
-
-The TheoryAgent supports graceful pausing at stage boundaries via `ProofCheckpoint` (`agents/theory/checkpoint.py`).
-
-**Pause flow:**
-- `eurekaclaw pause <session_id>` or **Ctrl+C** writes `~/.eurekaclaw/sessions/<session_id>/pause.flag`.
-- At each stage boundary in `inner_loop_yaml._run_once()`, `ProofCheckpoint.is_pause_requested()` is checked.
-- When detected: clears the flag, saves `checkpoint.json` (current stage + full `TheoryState`), raises `ProofPausedException`.
-- `ProofPausedException` propagates through both `_run_once` and `agent.py` (explicit re-raise in both `except Exception` handlers).
-
-**Resume flow:**
-- `eurekaclaw resume <session_id>` loads `checkpoint.json`, reconstructs `TheoryState`, and re-runs the TheoryAgent starting at the saved stage.
-
-**Checkpoint file:** `~/.eurekaclaw/sessions/<session_id>/checkpoint.json`
+   - `MetaOrchestrator._handle_theory_review_gate()` finds the theory task, injects the feedback as `[User feedback]: ...`, resets it to `PENDING`, and re-runs the full TheoryAgent.
+   - After the revision, the updated sketch is shown again — the user can reject and re-run repeatedly.
+4. The loop continues until the user approves or the retry count reaches `THEORY_REVIEW_MAX_RETRIES` (default 3), after which the pipeline proceeds to the WriterAgent with a warning.
 
 ## Post-Run Learning
 
-```
-ContinualLearningLoop.post_run()
-    ├── extract failures (FailedAttempt[]) from TheoryState
-    ├── deduplicate — only unique failure patterns
-    ├── compress successes — proof text trimmed to 300 chars
-    ├── SkillEvolver.distill_from_session()
-    │       → new SkillRecord .md files in ~/.eurekaclaw/skills/
-    └── (rl/madmax modes) ProcessRewardModel scoring
-```
+<p align="center">
+  <img src="images/pipeline-learning.svg" alt="Post-Run Learning" width="660"/>
+</p>

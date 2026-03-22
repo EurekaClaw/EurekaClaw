@@ -178,7 +178,7 @@ class ToolPatternExtractor:
             agent_roles=["theory", "experiment"],
             pipeline_stages=["proof_attempt", "experiment"],
             source="tool_pattern_extractor",
-            created_at=datetime.utcnow().isoformat(),
+            created_at=datetime.now().astimezone().isoformat(),
         )
         return SkillRecord(meta=meta, content=content)
 

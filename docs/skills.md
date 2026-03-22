@@ -6,7 +6,8 @@ Skills are reusable, domain-specific pieces of knowledge injected into agent pro
 eurekaclaw/skills/
 ├── registry.py      SkillRegistry (load + store skills)
 ├── injector.py      SkillInjector (retrieve + format for prompts)
-└── seed_skills/     Bundled starter skills (Markdown files)
+├── install.py       SkillInstaller (install seed skills or skills from ClawHub)
+└── evolver.py       SkillEvolver (distill skills from proceeded session)
 ```
 
 ---
