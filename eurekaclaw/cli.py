@@ -461,7 +461,7 @@ def install_skills(force: bool, skillname: str = "") -> None:
     from eurekaclaw.skills.registry import _SEED_DIR
     import shutil
     from eurekaclaw.utils import copy_file
-    from eurekaclaw.skills.from_hub import install_from_hub, install_seed_skills
+    from eurekaclaw.skills.install import install_from_hub, install_seed_skills
 
     settings.ensure_dirs()
     dest = settings.skills_dir
