@@ -44,14 +44,7 @@ export function LivePanel({ run }: LivePanelProps) {
   const keyObjects = brief.key_mathematical_objects ?? [];
   const conj = run.input_spec?.conjecture || run.input_spec?.query || '';
   const domain = run.input_spec?.domain || brief.domain || '';
-  const ideationDone = pipeline.some(
-    (t) => (t.name === 'ideation' || t.name === 'direction_selection_gate') && t.status === 'completed'
-  );
-  const showDirectionGate =
-    ideationDone &&
-    dirs.length === 0 &&
-    !brief.selected_direction &&
-    status !== 'completed';
+  const showDirectionGate = status === 'awaiting_direction';
 
   const handleRetryWithDirection = async (hypothesis: string) => {
     if (!hypothesis.trim() || retrying) return;

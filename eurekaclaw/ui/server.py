@@ -464,6 +464,9 @@ class UIServerState:
             run.eureka_session = session
             run.eureka_session_id = session.session_id
 
+            # Signal orchestrator to raise instead of blocking on console.input()
+            session.bus.put("ui_mode", True)
+
             with _temporary_auth_env(config):
                 # asyncio.run() can be unreliable in non-main threads on some
                 # Python versions.  Creating an explicit loop is safer.
@@ -490,7 +493,12 @@ class UIServerState:
             }
         except Exception as exc:
             from eurekaclaw.agents.theory.checkpoint import ProofPausedException
-            if isinstance(exc, ProofPausedException):
+            from eurekaclaw.orchestrator.meta_orchestrator import AwaitingDirectionException
+            if isinstance(exc, AwaitingDirectionException):
+                logger.info("Session %s awaiting direction from UI", run_id)
+                run.status = "awaiting_direction"
+                run.error = ""
+            elif isinstance(exc, ProofPausedException):
                 logger.info("Session %s paused at stage '%s'", run_id, exc.stage_name)
                 run.status = "paused"
                 run.paused_at = datetime.utcnow()
@@ -507,12 +515,12 @@ class UIServerState:
             self._persist_run(run)
 
     def set_direction(self, run_id: str, hypothesis: str) -> dict[str, Any]:
-        """Set a user-provided research direction on a failed run and continue from theory."""
+        """Set a user-provided research direction on an awaiting_direction run and continue from theory."""
         run = self.get_run(run_id)
         if run is None:
             return {"error": "Run not found"}
-        if run.status != "failed":
-            return {"error": f"Run is not in failed state (status: {run.status})"}
+        if run.status != "awaiting_direction":
+            return {"error": f"Run is not awaiting direction (status: {run.status})"}
         if not run.eureka_session:
             return {"error": "No session available — cannot set direction"}
 

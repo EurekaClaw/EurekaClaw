@@ -36,6 +36,11 @@ logger = logging.getLogger(__name__)
 console = Console()
 
 
+class AwaitingDirectionException(Exception):
+    """Raised in UI mode when the orchestrator needs a human-supplied direction."""
+    pass
+
+
 class MetaOrchestrator:
     """Central brain. Drives the full pipeline from input spec to research output."""
 
@@ -406,9 +411,19 @@ class MetaOrchestrator:
 
         If ``brief.conjecture`` is set (prove mode), it is shown as the default;
         pressing Enter without typing anything accepts it.
+
+        In UI mode (``bus.get("ui_mode")``), raises ``AwaitingDirectionException``
+        so the server can set the run status to ``awaiting_direction`` and let the
+        frontend collect user input without blocking the thread.
         """
         import uuid
         from eurekaclaw.types.artifacts import ResearchDirection
+
+        # UI mode: signal the server to pause for user input instead of blocking
+        if self.bus.get("ui_mode"):
+            raise AwaitingDirectionException(
+                "Ideation returned 0 directions — awaiting user input via UI"
+            )
 
         console.print(
             "\n[yellow]⚠  Ideation returned 0 research directions — human input required.[/yellow]"
@@ -535,6 +550,11 @@ class MetaOrchestrator:
             has_papers = len(papers) > 0
 
         if has_papers:
+            return
+
+        # UI mode: skip terminal prompt — the frontend handles survey gate interaction
+        if self.bus.get("ui_mode"):
+            console.print("[dim]Survey found 0 papers — UI will handle retry.[/dim]")
             return
 
         console.print("\n[yellow]⚠ Survey stage completed but found 0 papers.[/yellow]")
