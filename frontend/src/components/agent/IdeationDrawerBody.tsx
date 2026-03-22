@@ -1,4 +1,5 @@
 import type { Artifacts, SessionRun } from '@/types';
+import { humanize } from '@/lib/formatters';
 
 interface IdeationDrawerBodyProps {
   arts: Artifacts;
@@ -18,7 +19,7 @@ export function IdeationDrawerBody({ arts, run }: IdeationDrawerBodyProps) {
       <div className="drawer-section">
         <h4>Research direction</h4>
         {dirStr ? (
-          <blockquote className="drawer-direction-quote">{dirStr}</blockquote>
+          <blockquote className="drawer-direction-quote">{humanize(dirStr)}</blockquote>
         ) : mode === 'detailed' && conj ? (
           <>
             <p className="drawer-muted">Using your conjecture as the research direction.</p>
@@ -31,7 +32,7 @@ export function IdeationDrawerBody({ arts, run }: IdeationDrawerBodyProps) {
       {brief.domain && (
         <div className="drawer-section">
           <h4>Research domain</h4>
-          <p>{brief.domain}</p>
+          <p>{humanize(brief.domain)}</p>
         </div>
       )}
     </>

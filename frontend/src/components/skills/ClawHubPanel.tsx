@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { apiGet, apiPost } from '@/api/client';
 import { useSkillStore } from '@/store/skillStore';
+import { humanize } from '@/lib/formatters';
 import type { Skill } from '@/types';
 
 interface ClawHubPanelProps {
@@ -34,13 +35,13 @@ export function ClawHubPanel({ status, statusError, onStatus }: ClawHubPanelProp
   };
 
   const installSkill = async (skillname: string) => {
-    const label = skillname ? `'${skillname}'` : 'seed skills';
+    const label = skillname ? `'${humanize(skillname)}'` : 'seed skills';
     setInstalling(true);
     onStatus(`Installing ${label}…`);
     try {
       const result = await apiPost<InstallResponse>('/api/skills/install', { skillname: skillname || '' });
       if (result.ok) {
-        onStatus(`✓ ${result.message ?? 'Done'}`);
+        onStatus(`${result.message ?? 'Done'}`);
         if (skillname) setInputVal('');
         await refreshSkills();
       } else {
@@ -54,74 +55,47 @@ export function ClawHubPanel({ status, statusError, onStatus }: ClawHubPanelProp
   };
 
   return (
-    <article className="panel clawhub-panel">
-      <div className="clawhub-header">
-        <span className="clawhub-logo-mark" aria-hidden="true">🦞</span>
-        <div className="clawhub-header-text">
-          <p className="eyebrow">ClawHub</p>
-          <h3>Install Skills</h3>
-        </div>
-        <p className="clawhub-tagline">
-          Add community proof strategies, domain plugins, or your own —
-          they become available in every future session automatically.
-        </p>
+    <div className="skills-hub-bar">
+      <div className="skills-hub-bar-left">
+        <button
+          className="skills-hub-seed-btn-compact"
+          disabled={installing}
+          onClick={() => void installSkill('')}
+        >
+          <span className="skills-hub-seed-icon">&#x1F4E6;</span>
+          <span>Install built-in strategies</span>
+        </button>
       </div>
-      <div className="clawhub-body">
-        <div className="clawhub-input-row">
-          <label className="clawhub-input-label" htmlFor="clawhub-input">Install from ClawHub</label>
-          <div className="clawhub-input-group">
-            <input
-              id="clawhub-input"
-              type="text"
-              placeholder="author/skill-name  (e.g. steipete/github)"
-              autoComplete="off"
-              spellCheck={false}
-              value={inputVal}
-              disabled={installing}
-              onChange={(e) => setInputVal(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') void installSkill(inputVal.trim());
-              }}
-            />
-            <button
-              className="clawhub-hub-btn"
-              id="clawhub-install-btn"
-              disabled={installing}
-              onClick={() => {
-                const slug = inputVal.trim();
-                if (!slug) {
-                  onStatus('Enter a ClawHub skill slug, e.g. steipete/github', true);
-                  return;
-                }
-                void installSkill(slug);
-              }}
-            >
-              Install
-            </button>
-          </div>
-          <span className="clawhub-input-hint">
-            Needs the <code>clawhub</code> CLI →
-            <code>pip install clawhub</code>
-          </span>
-        </div>
-        <div className="clawhub-divider"><span>or</span></div>
-        <div className="clawhub-seeds-row">
-          <button
-            className="clawhub-seeds-btn"
-            id="install-seeds-btn"
-            disabled={installing}
-            onClick={() => void installSkill('')}
-          >
-            📦 Install built-in seed skills
-          </button>
-          <span className="clawhub-seeds-hint">Copies bundled proof strategies to <code>~/.eurekaclaw/skills/</code></span>
-        </div>
-        {status && (
-          <p id="clawhub-status" className={`clawhub-status${statusError ? ' is-error' : ' is-ok'}`}>
-            {status}
-          </p>
-        )}
+
+      <div className="skills-hub-bar-right">
+        <span className="skills-hub-bar-label">ClawHub</span>
+        <input
+          type="text"
+          className="skills-hub-input"
+          placeholder="author/skill-name"
+          autoComplete="off"
+          spellCheck={false}
+          value={inputVal}
+          disabled={installing}
+          onChange={(e) => setInputVal(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') void installSkill(inputVal.trim());
+          }}
+        />
+        <button
+          className="primary-btn skills-hub-install-btn"
+          disabled={installing || !inputVal.trim()}
+          onClick={() => void installSkill(inputVal.trim())}
+        >
+          Install
+        </button>
       </div>
-    </article>
+
+      {status && (
+        <span className={`skills-hub-bar-status${statusError ? ' is-error' : ' is-ok'}`}>
+          {status}
+        </span>
+      )}
+    </div>
   );
 }

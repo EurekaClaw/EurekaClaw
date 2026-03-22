@@ -1,9 +1,10 @@
 import { useSkillStore } from '@/store/skillStore';
 import { apiDelete } from '@/api/client';
 import { SkillCard } from './SkillCard';
+import { humanize } from '@/lib/formatters';
 import type { Skill } from '@/types';
 
-const SKILLS_PER_PAGE = 4;
+const SKILLS_PER_PAGE = 6;
 
 function skillSearchText(skill: Skill): string {
   return [
@@ -49,43 +50,44 @@ export function SkillLibrary({ onClawHubStatus }: SkillLibraryProps) {
   const startIndex = (safePage - 1) * SKILLS_PER_PAGE;
   const visible = filtered.slice(startIndex, startIndex + SKILLS_PER_PAGE);
 
-  const matchingText = query ? `${filtered.length} matching` : `${availableSkills.length} available`;
-  const metaText = `${selectedSkills.length} selected · ${matchingText} · page ${safePage}/${totalPages}`;
-
   const handleDelete = async (name: string) => {
-    if (!confirm(`Remove skill '${name}' from ~/.eurekaclaw/skills/?\n\nThis only deletes your local copy; seed skills remain built-in.`)) return;
+    if (!confirm(`Remove skill '${humanize(name)}'?\n\nThis deletes your local copy. Built-in seed skills can be reinstalled anytime.`)) return;
     try {
       await apiDelete(`/api/skills/${encodeURIComponent(name)}`);
       setAvailableSkills(availableSkills.filter((s) => s.name !== name));
       setSelectedSkills(selectedSkills.filter((n) => n !== name));
-      onClawHubStatus(`Removed '${name}'.`);
+      onClawHubStatus(`Removed '${humanize(name)}'.`);
     } catch (err) {
       onClawHubStatus(`Could not delete: ${(err as Error).message}`, true);
     }
   };
 
   return (
-    <article className="panel skill-library-panel">
-      <div className="panel-header">
-        <div>
-          <p className="eyebrow">Skill Library</p>
-          <h3>Choose skills for next run</h3>
-        </div>
-        <span className="mono-label" id="skill-meta">{metaText}</span>
+    <div className="skills-library">
+      <div className="skills-library-header">
+        <h3 className="skills-library-title">Skill Library</h3>
+        <span className="skills-library-meta">
+          {query ? `${filtered.length} matching` : `${availableSkills.length} skills`}
+        </span>
       </div>
-      <label className="intent-search skill-search-bar">
-        <span>Search</span>
+
+      <div className="skills-search-wrap">
+        <svg className="skills-search-icon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
         <input
-          id="skill-search"
+          className="skills-search-input"
           type="text"
-          placeholder="proof, survey, induction…"
+          placeholder="Search by name, topic, or proof technique…"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
         />
-      </label>
-      <div className="intent-list skill-library-list" id="skill-list">
+      </div>
+
+      <div className="skills-grid">
         {filtered.length === 0 ? (
-          <div className="intent-empty">No skills match this search.</div>
+          <div className="skills-empty">
+            <p>No skills match your search.</p>
+            <p>Try a different keyword, or install new skills from ClawHub.</p>
+          </div>
         ) : (
           visible.map((skill) => (
             <SkillCard
@@ -98,27 +100,39 @@ export function SkillLibrary({ onClawHubStatus }: SkillLibraryProps) {
           ))
         )}
       </div>
+
       {totalPages > 1 && (
-        <div className="skill-pagination" id="skill-pagination">
+        <div className="skills-pagination">
           <button
             type="button"
-            className="ghost-btn"
+            className="skills-page-btn"
             disabled={safePage === 1}
             onClick={() => setCurrentSkillPage(safePage - 1)}
           >
-            ← Prev
+            ‹ Previous
           </button>
-          <span className="skill-pagination-meta">{safePage} / {totalPages}</span>
+          <div className="skills-page-dots">
+            {Array.from({ length: totalPages }, (_, i) => (
+              <button
+                key={i}
+                type="button"
+                className={`skills-page-dot${safePage === i + 1 ? ' is-active' : ''}`}
+                onClick={() => setCurrentSkillPage(i + 1)}
+              >
+                {i + 1}
+              </button>
+            ))}
+          </div>
           <button
             type="button"
-            className="ghost-btn"
+            className="skills-page-btn"
             disabled={safePage === totalPages}
             onClick={() => setCurrentSkillPage(safePage + 1)}
           >
-            Next →
+            Next ›
           </button>
         </div>
       )}
-    </article>
+    </div>
   );
 }

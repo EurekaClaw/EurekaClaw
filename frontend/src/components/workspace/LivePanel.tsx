@@ -4,7 +4,7 @@ import { getActiveOuterStage } from '@/lib/statusHelpers';
 import { AGENT_MANIFEST } from '@/lib/agentManifest';
 import { agentNarrativeLine } from '@/lib/agentManifest';
 import { friendlyInnerStage } from '@/lib/statusHelpers';
-import { titleCase, escapeHtml } from '@/lib/formatters';
+import { titleCase, escapeHtml, humanize } from '@/lib/formatters';
 import { apiPost } from '@/api/client';
 
 interface LivePanelProps {
@@ -205,7 +205,7 @@ export function LivePanel({ run }: LivePanelProps) {
 
   if (status === 'running' || status === 'queued') {
     const innerStage = run.paused_stage || '';
-    const innerLabel = innerStage ? `while ${friendlyInnerStage(innerStage) ?? innerStage}` : '';
+    const innerLabel = innerStage ? `while ${friendlyInnerStage(innerStage) ?? humanize(innerStage)}` : '';
     const stageName = activeOuter
       ? AGENT_MANIFEST.find((a) => a.role === activeOuter)?.name || titleCase(activeOuter)
       : 'Setting up';
@@ -232,6 +232,22 @@ export function LivePanel({ run }: LivePanelProps) {
         <div className="live-thinking-view">
           <p className="live-stage-label" style={{ color: 'var(--amber)' }}>⏸ Session paused</p>
           <p className="drawer-muted">Use the Resume button to continue, or add feedback below to guide the next proof attempt.</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (status === 'resuming') {
+    return (
+      <div className="live-activity-area">
+        <div className="live-thinking-view">
+          <div className="thinking-dots" aria-label="Resuming">
+            <span className="thinking-dot" />
+            <span className="thinking-dot" />
+            <span className="thinking-dot" />
+          </div>
+          <p className="live-stage-label" style={{ color: 'var(--green)' }}>Resuming proof…</p>
+          <p className="drawer-muted">Restoring your proof context and continuing from the last checkpoint.</p>
         </div>
       </div>
     );

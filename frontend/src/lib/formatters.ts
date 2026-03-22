@@ -1,5 +1,10 @@
 import type { SessionRun } from '@/types';
 
+/** Replace underscores with spaces for display. */
+export function humanize(text: string): string {
+  return text.replace(/_/g, ' ');
+}
+
 export function escapeHtml(value: string): string {
   return String(value)
     .replace(/&/g, '&amp;')

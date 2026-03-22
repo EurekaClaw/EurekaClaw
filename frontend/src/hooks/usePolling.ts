@@ -23,7 +23,7 @@ export function usePolling() {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const intervalRef = useRef(POLL_INTERVAL_ACTIVE_MS);
   const errorsRef = useRef(0);
-  const { setSessions, currentRunId, isPausingRequested } = useSessionStore();
+  const { setSessions, currentRunId, isPausingRequested, setIsPausingRequested, setPauseRequestedAt } = useSessionStore();
   const { activeWsTab, setActiveWsTab } = useUiStore();
   const prevRunRef = useRef<SessionRun | null>(null);
 
@@ -34,10 +34,23 @@ export function usePolling() {
       const sessions = data.runs || [];
       setSessions(sessions);
 
-      // Auto-tab switching
+      // Auto-tab switching & state reconciliation
       const current = currentRunId ? sessions.find((s) => s.run_id === currentRunId) : null;
       if (current) {
         const prev = prevRunRef.current;
+        const prevStatus = prev?.status;
+
+        // Clear optimistic isPausingRequested once backend confirms paused or running
+        if (isPausingRequested && (current.status === 'paused' || current.status === 'running')) {
+          setIsPausingRequested(false);
+          setPauseRequestedAt(null);
+        }
+
+        // Auto-tab: paused/resuming → running — switch to live to show proof progress
+        if ((prevStatus === 'paused' || prevStatus === 'resuming') && current.status === 'running') {
+          setActiveWsTab('live');
+        }
+
         const theoryTask = current.pipeline?.find((t) => t.name === 'theory' || t.agent_role === 'theory');
         const prevTheoryTask = prev?.pipeline?.find((t) => t.name === 'theory' || t.agent_role === 'theory');
         const wasRunning = prevTheoryTask?.status === 'in_progress';
@@ -66,7 +79,7 @@ export function usePolling() {
     } catch {
       errorsRef.current += 1;
     }
-  }, [setSessions, currentRunId, isPausingRequested, activeWsTab, setActiveWsTab]);
+  }, [setSessions, currentRunId, isPausingRequested, setIsPausingRequested, setPauseRequestedAt, activeWsTab, setActiveWsTab]);
 
   const startFast = useCallback(() => {
     if (timerRef.current) clearInterval(timerRef.current);
