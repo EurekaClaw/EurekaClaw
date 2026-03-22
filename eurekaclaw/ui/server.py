@@ -506,6 +506,112 @@ class UIServerState:
             run.updated_at = datetime.utcnow()
             self._persist_run(run)
 
+    def set_direction(self, run_id: str, hypothesis: str) -> dict[str, Any]:
+        """Set a user-provided research direction on a failed run and continue from theory."""
+        run = self.get_run(run_id)
+        if run is None:
+            return {"error": "Run not found"}
+        if run.status != "failed":
+            return {"error": f"Run is not in failed state (status: {run.status})"}
+        if not run.eureka_session:
+            return {"error": "No session available — cannot set direction"}
+
+        import uuid as _uuid
+        from eurekaclaw.types.artifacts import ResearchDirection
+
+        bus = run.eureka_session.bus
+        brief = bus.get_research_brief()
+        if not brief:
+            return {"error": "No research brief found on session bus"}
+
+        direction = ResearchDirection(
+            direction_id=str(_uuid.uuid4()),
+            title=hypothesis[:80],
+            hypothesis=hypothesis,
+            approach_sketch="User-provided direction — formalize, decompose into lemmas, attempt proof.",
+            novelty_score=0.8,
+            soundness_score=0.8,
+            transformative_score=0.7,
+        )
+        direction.compute_composite()
+        brief.directions = [direction]
+        brief.selected_direction = direction
+        bus.put_research_brief(brief)
+
+        # Reset run state and re-execute from theory
+        run.status = "running"
+        run.error = ""
+        run.started_at = datetime.utcnow()
+        run.updated_at = datetime.utcnow()
+        self._persist_run(run)
+
+        thread = threading.Thread(target=self._execute_with_direction, args=(run_id,), daemon=True)
+        thread.start()
+        return self.snapshot_run(run)
+
+    def _execute_with_direction(self, run_id: str) -> None:
+        """Continue a failed run from the theory stage after direction was set on the bus."""
+        run = self.get_run(run_id)
+        if run is None:
+            return
+
+        try:
+            config = _config_payload()
+            _preflight_check(config)
+
+            session = run.eureka_session
+            if session is None:
+                raise ValueError("Session object not available")
+
+            # Create a fresh orchestrator for the remaining stages
+            from eurekaclaw.domains import resolve_domain
+            domain = run.input_spec.domain or ""
+            domain_plugin = resolve_domain(domain) if domain else None
+            from eurekaclaw.orchestrator.meta_orchestrator import MetaOrchestrator
+            orchestrator = MetaOrchestrator(
+                bus=session.bus,
+                domain_plugin=domain_plugin,
+                selected_skills=run.input_spec.selected_skills,
+            )
+
+            with _temporary_auth_env(config):
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    result = loop.run_until_complete(orchestrator.run_from_direction())
+                finally:
+                    loop.close()
+                    asyncio.set_event_loop(None)
+
+            run.result = result
+            out_dir = save_artifacts(result, _ROOT_DIR / "results" / run.run_id)
+            run.output_dir = str(out_dir)
+            run.status = "completed"
+            run.output_summary = {
+                "latex_paper_length": len(result.latex_paper),
+                "has_experiment_result": bool(result.experiment_result_json),
+                "has_theory_state": bool(result.theory_state_json),
+                "output_dir": str(out_dir),
+                "continued_from_direction": True,
+            }
+        except Exception as exc:
+            from eurekaclaw.agents.theory.checkpoint import ProofPausedException
+            if isinstance(exc, ProofPausedException):
+                logger.info("Session %s paused at stage '%s'", run_id, exc.stage_name)
+                run.status = "paused"
+                run.paused_at = datetime.utcnow()
+                run.paused_stage = exc.stage_name
+                run.pause_requested_at = None
+                run.error = ""
+            else:
+                logger.exception("UI session run_from_direction failed")
+                run.status = "failed"
+                run.error = str(exc)
+        finally:
+            run.completed_at = datetime.utcnow()
+            run.updated_at = datetime.utcnow()
+            self._persist_run(run)
+
     def snapshot_run(self, run: SessionRun) -> dict[str, Any]:
         bus = run.eureka_session.bus if run.eureka_session else None
         pipeline = bus.get_pipeline() if bus else None
@@ -865,6 +971,19 @@ class UIRequestHandler(SimpleHTTPRequestHandler):
             payload = self._read_json()
             result = self.state.rename_run(run_id, str(payload.get("name", "")))
             if "error" in result:
+                self._send_json(result, status=HTTPStatus.BAD_REQUEST)
+            else:
+                self._send_json(result)
+            return
+        if parsed.path.startswith("/api/runs/") and parsed.path.endswith("/direction"):
+            run_id = parsed.path.removeprefix("/api/runs/").removesuffix("/direction")
+            payload = self._read_json()
+            hypothesis = str(payload.get("hypothesis", "")).strip()
+            if not hypothesis:
+                self._send_json({"error": "hypothesis is required"}, status=HTTPStatus.BAD_REQUEST)
+                return
+            result = self.state.set_direction(run_id, hypothesis)
+            if result.get("error"):
                 self._send_json(result, status=HTTPStatus.BAD_REQUEST)
             else:
                 self._send_json(result)

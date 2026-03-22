@@ -930,7 +930,7 @@ img {
 /* ── Tutorial floating button (fixed to viewport, outside grid) ── */
 .tutorial-btn {
   position: fixed;
-  top: 16px;
+  bottom: 20px;
   right: 20px;
   z-index: 9999;
   display: flex;
@@ -3417,18 +3417,141 @@ textarea {
 
 .direction-gate-card {
   background: var(--surface-strong);
-  border: 1.5px solid var(--accent-soft);
+  border: 1.5px solid var(--amber, #e8a735);
   border-radius: var(--radius-md);
   padding: 20px 22px;
-  max-width: 560px;
+  max-width: 600px;
   margin: 0 auto;
 }
 
 .direction-gate-heading {
   font-weight: 700;
   font-size: 0.95rem;
-  margin: 0 0 8px;
+  margin: 0 0 12px;
   color: var(--text);
+}
+
+.direction-gate-section {
+  margin-top: 14px;
+}
+
+.direction-gate-sublabel {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin: 0 0 6px;
+}
+
+.direction-gate-problems {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.direction-gate-problems li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 0.84rem;
+  color: var(--text);
+  line-height: 1.45;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: rgba(15, 106, 184, 0.04);
+  border: 1px solid var(--line);
+}
+
+.direction-gate-problem-text {
+  flex: 1;
+}
+
+.direction-gate-use-btn {
+  flex-shrink: 0;
+  background: var(--primary-soft);
+  color: var(--primary);
+  border: none;
+  border-radius: 6px;
+  padding: 2px 10px;
+  font-size: 0.74rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+  white-space: nowrap;
+}
+
+.direction-gate-use-btn:hover {
+  background: var(--primary);
+  color: #fff;
+}
+
+.direction-gate-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.direction-gate-tag {
+  background: var(--primary-soft);
+  color: var(--primary-strong);
+  border-radius: 20px;
+  padding: 3px 12px;
+  font-size: 0.76rem;
+  font-weight: 500;
+}
+
+.direction-gate-hint {
+  margin: 6px 0 0;
+  font-size: 0.76rem;
+  color: var(--muted);
+}
+
+/* ── Empty survey gate ───────────────────────────────────────────────────── */
+
+.survey-gate-card {
+  background: var(--surface-strong);
+  border: 1.5px solid var(--amber, #e8a735);
+  border-radius: var(--radius-md);
+  padding: 20px 22px;
+  max-width: 560px;
+  margin: 0 auto;
+}
+
+.survey-gate-heading {
+  font-weight: 700;
+  font-size: 0.95rem;
+  margin: 0 0 8px;
+  color: var(--amber, #e8a735);
+}
+
+.survey-gate-input {
+  width: 100%;
+  margin: 12px 0;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 0.86rem;
+  font-family: inherit;
+  background: #fff;
+  color: var(--text);
+  resize: vertical;
+}
+
+.survey-gate-input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(15, 106, 184, 0.1);
+}
+
+.survey-gate-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 4px;
 }
 
 /* ── Proof sketch panel ──────────────────────────────────────────────────── */
