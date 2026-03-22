@@ -1,4 +1,4 @@
-# 🦞 EurekaClaw — The Research Claw
+<img src="assets/logo.svg" alt="EurekaClaw  — The Research Claw" style="height: 3em; vertical-align: middle;">
 
 <p align="center">
   <strong>The AI that catches your Eureka moments.</strong><br/>
