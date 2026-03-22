@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
+import yaml
 
 import frontmatter  # type: ignore
 
@@ -60,46 +61,53 @@ class SkillRegistry:
         self._skills.clear()
         seed_stats = self._load_seed_stats()
         # 1. Seed skills bundled with the package (lowest priority)
-        for path in sorted(_SEED_DIR.rglob("*.md")):
-            self._load_file(path, is_seed=True, seed_stats=seed_stats)
+        # for path in sorted(_SEED_DIR.rglob("*.md")):
+        #     self._load_file(path, is_seed=True, seed_stats=seed_stats)
         # 2. Domain plugin skill dirs (medium priority)
-        for extra_dir in self._extra_dirs:
-            if extra_dir.exists():
-                for path in sorted(extra_dir.rglob("*.md")):
-                    self._load_file(path, is_seed=True, seed_stats=seed_stats)
+        # for extra_dir in self._extra_dirs:
+        #     if extra_dir.exists():
+        #         for path in sorted(extra_dir.rglob("*.md")):
+        #             self._load_file(path, is_seed=True, seed_stats=seed_stats)
         # 3. User skills from ~/.eurekaclaw/skills/ (highest priority)
         self._skills_dir.mkdir(parents=True, exist_ok=True)
-        for path in sorted(self._skills_dir.rglob("*.md")):
-            self._load_file(path, is_seed=False)
+        skill_names = [s for s in self._skills_dir.iterdir() if s.is_dir()]
+        for skill_name_path in skill_names:
+            file = skill_name_path / "SKILL.md"
+            record = self._load_file(file, is_seed=False)
+            skill_name = skill_name_path.name
+            record.meta.name = skill_name  # Override name from frontmatter with folder name
+            self._skills[skill_name] = record
         self._loaded = True
         logger.debug("Loaded %d skills total", len(self._skills))
 
     def _load_file(
         self, path: Path, is_seed: bool = False, seed_stats: dict | None = None
     ) -> None:
-        try:
-            post = frontmatter.load(str(path))
-            meta_dict = dict(post.metadata)
-            if not meta_dict.get("name"):
-                meta_dict["name"] = path.stem
-            if is_seed and "source" not in meta_dict:
-                meta_dict["source"] = "seed"
-            meta = SkillMeta.model_validate(meta_dict)
-            # Overlay usage stats from the external JSON so seed .md files
-            # are never modified by runtime activity.
-            if is_seed and seed_stats and meta.name in seed_stats:
-                entry = seed_stats[meta.name]
-                meta.usage_count = entry.get("usage_count", meta.usage_count)
-                meta.success_rate = entry.get("success_rate", meta.success_rate)
-            record = SkillRecord(meta=meta, content=post.content, file_path=str(path))
-            self._skills[meta.name] = record
-        except Exception as e:
-            logger.warning("Failed to load skill %s: %s", path, e)
+        post = frontmatter.load(str(path))
+        meta_dict = dict(post.metadata)
+        if not meta_dict.get("name"):
+            meta_dict["name"] = path.stem
+        if is_seed and "source" not in meta_dict:
+            meta_dict["source"] = "seed"
+        meta = SkillMeta.model_validate(meta_dict)
+        # Overlay usage stats from the external JSON so seed .md files
+        # are never modified by runtime activity.
+        if is_seed and seed_stats and meta.name in seed_stats:
+            entry = seed_stats[meta.name]
+            meta.usage_count = entry.get("usage_count", meta.usage_count)
+            meta.success_rate = entry.get("success_rate", meta.success_rate)
+        record = SkillRecord(meta=meta, content=post.content, file_path=str(path))
+        return record
+        # self._skills[meta.name] = record
+        # except Exception as e:
+        #     logger.warning("Failed to load skill %s: %s", path, e)
 
     # ------------------------------------------------------------------
 
     def load_all(self) -> list[SkillRecord]:
         self._ensure_loaded()
+        for skill in self._skills.values():
+            self.upsert(skill)  # Ensure all skills are upserted to persist any new stats
         return list(self._skills.values())
 
     def get(self, name: str) -> SkillRecord | None:
@@ -121,23 +129,21 @@ class SkillRegistry:
 
     def upsert(self, skill: SkillRecord) -> None:
         """Write a skill to the skills directory and update the registry."""
-        import yaml  # PyYAML — already a transitive dep via python-frontmatter
+          # PyYAML — already a transitive dep via python-frontmatter
 
         self._skills_dir.mkdir(parents=True, exist_ok=True)
-        from_distillation = skill.meta.source == "distilled"
-        if from_distillation:
-            distill_dir = self._skills_dir / "distilled"
-            distill_dir.mkdir(parents=True, exist_ok=True)
-            path = distill_dir / f"{skill.meta.name}.md"
-        else: 
-            path = self._skills_dir / f"{skill.meta.name}.md"
+        folder_name = skill.meta.name
+        folder_path = self._skills_dir / f"{folder_name}"
+        folder_path.mkdir(parents=True, exist_ok=True)
+        file_path = folder_path / "SKILL.md"
+
         meta_dict = skill.meta.model_dump(mode="json")
         # Drop None values so they don't serialize as the string 'null'
         meta_dict = {k: v for k, v in meta_dict.items() if v is not None}
         frontmatter_block = yaml.dump(meta_dict, default_flow_style=False, allow_unicode=True)
         file_content = f"---\n{frontmatter_block}---\n\n{skill.content}"
-        path.write_text(file_content)
-        skill.file_path = str(path)
+        file_path.write_text(file_content)
+        skill.file_path = str(file_path)
         self._skills[skill.meta.name] = skill
         logger.info("Upserted skill: %s", skill.meta.name)
 
@@ -200,4 +206,5 @@ if __name__ == "__main__":
     all_skills = registry.load_all()
     print(f"Loaded {len(all_skills)} skills:")
     for skill in all_skills:
-        print(f"- {skill.meta.name} (role={skill.meta.agent_roles}, tags={skill.meta.tags})")
+        print(f"- {skill.meta.name}")
+        # registry.upsert(skill)
