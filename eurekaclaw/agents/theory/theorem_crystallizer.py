@@ -132,10 +132,13 @@ class TheoremCrystallizer:
         return state
 
     def _extract_theorem_block(self, text: str) -> str:
-        if r"\begin{theorem}" in text and r"\end{theorem}" in text:
-            start = text.index(r"\begin{theorem}")
-            end = text.index(r"\end{theorem}") + len(r"\end{theorem}")
-            return text[start:end]
+        if r"\begin{theorem}" in text:
+            try:
+                start = text.index(r"\begin{theorem}")
+                end = text.index(r"\end{theorem}", start) + len(r"\end{theorem}")
+                return text[start:end]
+            except ValueError:
+                pass
         # LLM may have returned the block without the environment; wrap it
         lines = [l.strip() for l in text.split("\n") if l.strip()]
         if lines:
