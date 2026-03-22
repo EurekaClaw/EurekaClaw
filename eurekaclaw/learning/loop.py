@@ -23,6 +23,9 @@ from eurekaclaw.skills.evolver import SkillEvolver
 from eurekaclaw.skills.registry import SkillRegistry
 from eurekaclaw.types.artifacts import FailedAttempt, ProofRecord
 
+from eurekaclaw.knowledge_bus.bus import KnowledgeBus
+from eurekaclaw.types.tasks import TaskPipeline
+
 logger = logging.getLogger(__name__)
 
 # Minimum number of novel failures before skill distillation runs.
@@ -85,10 +88,9 @@ class ContinualLearningLoop:
         self.tool_pattern_extractor = ToolPatternExtractor(client=self.client)
         self.prm = ProcessRewardModel(client=self.client) if mode in ("rl", "madmax") else None
 
-    async def post_run(self, pipeline: "TaskPipeline", bus: "KnowledgeBus") -> None:  # type: ignore[name-defined]
+    async def post_run(self, pipeline: TaskPipeline, bus: KnowledgeBus) -> None:  
         """Run post-session learning. Called after the pipeline completes."""
-        from eurekaclaw.knowledge_bus.bus import KnowledgeBus
-        from eurekaclaw.types.tasks import TaskPipeline
+
 
         logger.info("Post-run learning (mode=%s)...", self.mode)
 

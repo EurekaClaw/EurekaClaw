@@ -8,6 +8,7 @@ from pathlib import Path
 
 from eurekaclaw.domains.base import DomainPlugin
 from eurekaclaw.domains import register_domain
+from eurekaclaw.tools.registry import ToolRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +31,7 @@ class MABDomainPlugin(DomainPlugin):
         "exploration", "exploitation", "stochastic bandit",
     ]
 
-    def register_tools(self, registry: "ToolRegistry") -> None:  # type: ignore[name-defined]
+    def register_tools(self, registry: ToolRegistry) -> None:
         from eurekaclaw.domains.mab.tools.bandit_tool import BanditExperimentTool
         registry.register(BanditExperimentTool())
         logger.debug("MAB domain: registered BanditExperimentTool")

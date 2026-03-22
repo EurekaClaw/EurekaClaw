@@ -37,6 +37,7 @@ from eurekaclaw.types.artifacts import (
     ProofRecord,
     TheoryState,
 )
+from eurekaclaw.memory import MemoryManager
 
 logger = logging.getLogger(__name__)
 
@@ -78,7 +79,7 @@ class TheoryInnerLoop:
         cx_searcher: CounterexampleSearcher | None = None,
         refiner: Refiner | None = None,
         resource_analyst: ResourceAnalyst | None = None,
-        memory: "MemoryManager | None" = None,  # type: ignore[name-defined]
+        memory: MemoryManager | None = None,
     ) -> None:
         self.bus = bus
         self.formalizer = formalizer or Formalizer()
