@@ -72,7 +72,7 @@ class ScientistBenchEvaluator:
 
         # 4. Citation coverage
         report.scores["citation_coverage"], report.dimension_notes["citation_coverage"] = \
-            self._citation_coverage(bib, brief)
+            self._citation_coverage(bib)
 
         # 5. Experimental alignment
         report.scores["experimental_alignment"], report.dimension_notes["experimental_alignment"] = \
@@ -148,7 +148,7 @@ Return JSON: {{"novelty_score": 0.0-1.0, "reasoning": "..."}}
         score = 0.6 * lemma_score + 0.4 * depth_score
         return score, f"{n_lemmas} lemmas, {n_proven} proven, {total_proof_tokens} proof tokens"
 
-    def _citation_coverage(self, bib: Any | None, brief: ResearchBrief | None) -> tuple[float, str]:
+    def _citation_coverage(self, bib: Any | None) -> tuple[float, str]:
         if not bib:
             return 0.0, "No bibliography"
         n_papers = len(bib.papers)

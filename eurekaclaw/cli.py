@@ -597,7 +597,7 @@ def _run_with_pause_support(
         asyncio.set_event_loop(None)
 
 
-def _print_proof_result(state: TheoryState) -> None:  # type: ignore[name-defined]
+def _print_proof_result(state: TheoryState) -> None:
     from rich.table import Table
     tbl = Table(show_header=True)
     tbl.add_column("Field", style="bold")
