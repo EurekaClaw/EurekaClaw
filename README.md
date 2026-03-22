@@ -1,4 +1,6 @@
-<img src="assets/logo.svg" alt="EurekaClaw  — The Research Claw" style="width: 100%; display: block;">
+<div style="width: 100%; display: flex; justify-content: center; align-items: center; margin: 1em 0;">
+  <img src="assets/logo.svg" alt="EurekaClaw  — The Research Claw" style="max-width: 100%; height: auto;">
+</div>
 
 <p align="center">
   <strong>The AI that catches your Eureka moments.</strong><br/>
