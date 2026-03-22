@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 import click
@@ -10,10 +11,32 @@ from rich.rule import Rule
 
 console = Console()
 
+# ── ANSI helpers (used by the arrow-key selector) ─────────────────────────────
+_A_BOLD  = "\x1b[1m"
+_A_DIM   = "\x1b[2m"
+_A_GREEN = "\x1b[32m"
+_A_BLUE  = "\x1b[34m"
+_A_RESET = "\x1b[0m"
+_A_CLRL  = "\x1b[2K\r"   # clear current line, carriage-return
+_A_UP    = "\x1b[1A"     # move cursor up one line
+
+
+def _enable_ansi_windows() -> None:
+    """Enable ANSI virtual-terminal processing on Windows consoles."""
+    if sys.platform != "win32":
+        return
+    try:
+        import ctypes
+        kernel32 = ctypes.windll.kernel32  # type: ignore[attr-defined]
+        # ENABLE_VIRTUAL_TERMINAL_PROCESSING = 0x0004, ENABLE_PROCESSED_OUTPUT = 0x0001
+        kernel32.SetConsoleMode(kernel32.GetStdHandle(-11), 7)
+    except Exception:
+        pass
+
 
 def _load_existing_env(env_path: Path) -> dict[str, str]:
     existing: dict[str, str] = {}
-    for line in env_path.read_text().splitlines():
+    for line in env_path.read_text(encoding="utf-8").splitlines():
         line = line.strip()
         if line and not line.startswith("#") and "=" in line:
             k, _, v = line.partition("=")
@@ -35,6 +58,12 @@ def _ask_choice(
 ) -> str:
     if non_interactive:
         return default
+
+    # Use arrow-key selector when stdin is a real TTY
+    if sys.stdin.isatty():
+        return _arrow_choice(prompt, choices, default)
+
+    # Fallback for piped / redirected input
     parts = "/".join(f"[bold]{c}[/bold]" if c == default else c for c in choices)
     console.print(f"  {prompt}  [{parts}]")
     while True:
@@ -44,13 +73,64 @@ def _ask_choice(
         console.print(f"  [red]Invalid. Choose one of: {', '.join(choices)}[/red]")
 
 
+def _arrow_choice(prompt: str, choices: list[str], default: str) -> str:
+    """Render an arrow-key navigable list, OpenClaw-style."""
+    import readchar  # lazy import — only needed for interactive sessions
+
+    _enable_ansi_windows()
+
+    idx = choices.index(default) if default in choices else 0
+    n = len(choices)
+
+    def _row(i: int) -> str:
+        if i == idx:
+            return f"{_A_CLRL}  {_A_GREEN}●{_A_RESET} {_A_BOLD}{choices[i]}{_A_RESET}"
+        return f"{_A_CLRL}  {_A_DIM}○ {choices[i]}{_A_RESET}"
+
+    # Header
+    sys.stdout.write(f"\n{_A_BLUE}◆{_A_RESET} {_A_BOLD}{prompt}{_A_RESET}\n")
+    # Initial list
+    for i in range(n):
+        sys.stdout.write(_row(i) + "\n")
+    sys.stdout.flush()
+
+    while True:
+        key = readchar.readkey()
+        if key == readchar.key.UP:
+            idx = (idx - 1) % n
+        elif key == readchar.key.DOWN:
+            idx = (idx + 1) % n
+        elif key in (readchar.key.ENTER, "\r", "\n"):
+            break
+        else:
+            continue
+
+        # Redraw list in place
+        sys.stdout.write(_A_UP * n)
+        for i in range(n):
+            sys.stdout.write(_row(i) + "\n")
+        sys.stdout.flush()
+
+    # Collapse to single selected line
+    sys.stdout.write(_A_UP * n)
+    for _ in range(n):
+        sys.stdout.write(f"{_A_CLRL}\n")
+    sys.stdout.write(_A_UP * n)
+    sys.stdout.write(
+        f"{_A_CLRL}  {_A_GREEN}●{_A_RESET} {_A_BOLD}{choices[idx]}{_A_RESET}\n"
+    )
+    sys.stdout.flush()
+
+    return choices[idx]
+
+
 def _write_env(env_path: Path, merged: dict[str, str]) -> None:
     """Write merged config preserving .env.example structure."""
     env_example = Path(__file__).parent.parent / ".env.example"
     if env_example.exists():
         lines: list[str] = []
         seen: set[str] = set()
-        for raw in env_example.read_text().splitlines():
+        for raw in env_example.read_text(encoding="utf-8").splitlines():
             stripped = raw.strip()
             if stripped.startswith("#") or not stripped:
                 lines.append(raw)
@@ -71,7 +151,7 @@ def _write_env(env_path: Path, merged: dict[str, str]) -> None:
         output = "\n".join(f"{k}={v}" for k, v in merged.items()) + "\n"
 
     env_path.parent.mkdir(parents=True, exist_ok=True)
-    env_path.write_text(output)
+    env_path.write_text(output, encoding="utf-8")
 
 
 def run_onboard(non_interactive: bool, reset: bool, env_file: str) -> None:

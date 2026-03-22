@@ -27,6 +27,7 @@ dependencies = [
     "bibtexparser>=1.4",
     "sentence-transformers>=3.0",
     "requests>=2.31",
+    "readchar>=4.0",
     "docling>=2.0",
 ]
 
