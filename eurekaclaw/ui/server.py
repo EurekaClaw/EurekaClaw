@@ -92,6 +92,7 @@ class SessionRun:
     paused_at: datetime | None = None
     pause_requested_at: datetime | None = None  # set when status → "pausing"
     paused_stage: str = ""                       # stage name where proof stopped
+    theory_feedback: str = ""                    # user guidance injected on next theory resume
     error: str = ""
     result: ResearchOutput | None = None
     eureka_session: EurekaSession | None = None
@@ -215,6 +216,7 @@ class UIServerState:
                 "paused_at": run.paused_at.isoformat() if run.paused_at else None,
                 "pause_requested_at": run.pause_requested_at.isoformat() if run.pause_requested_at else None,
                 "paused_stage": run.paused_stage,
+                "theory_feedback": run.theory_feedback,
                 "input_spec": _serialize_value(run.input_spec),
                 "output_dir": run.output_dir,
                 "output_summary": _serialize_value(run.output_summary),
@@ -241,6 +243,7 @@ class UIServerState:
                     error=data.get("error", ""),
                     eureka_session_id=data.get("eureka_session_id", ""),
                     paused_stage=data.get("paused_stage", ""),
+                    theory_feedback=data.get("theory_feedback", ""),
                     output_dir=data.get("output_dir", ""),
                     output_summary=data.get("output_summary", {}),
                 )
@@ -335,7 +338,7 @@ class UIServerState:
         self._persist_run(run)
         return {"ok": True, "session_id": run.eureka_session_id, "status": "pausing"}
 
-    def resume_run(self, run_id: str) -> dict[str, Any]:
+    def resume_run(self, run_id: str, feedback: str = "") -> dict[str, Any]:
         run = self.get_run(run_id)
         if run is None:
             return {"error": "Run not found"}
@@ -347,6 +350,9 @@ class UIServerState:
         cp = ProofCheckpoint(run.eureka_session_id)
         if not cp.exists():
             return {"error": f"No checkpoint found for session '{run.eureka_session_id}'"}
+        # Store user guidance to be injected into the theory context on resume
+        if feedback:
+            run.theory_feedback = feedback.strip()[:2000]
         # Transition to intermediate "resuming" state before the thread starts
         run.status = "resuming"
         run.updated_at = datetime.utcnow()
@@ -388,6 +394,13 @@ class UIServerState:
             session.bus.put_theory_state(state)
 
             domain = meta.get("domain", "")
+
+            # Inject user guidance if provided via the UI feedback dialog
+            if run.theory_feedback:
+                domain = domain + f"\n\n[Human guidance for this proof attempt]: {run.theory_feedback}"
+                run.theory_feedback = ""   # consume — clear after use
+                self._persist_run(run)
+
             memory = MemoryManager(session_id=session_id)
             skill_injector = SkillInjector(SkillRegistry())
             inner_loop = TheoryInnerLoopYaml(
@@ -540,6 +553,7 @@ class UIServerState:
             "result": _serialize_value(run.result) if run.result else None,
             "output_summary": _serialize_value(run.output_summary),
             "output_dir": run.output_dir,
+            "theory_feedback": run.theory_feedback,
         }
 
 
@@ -835,7 +849,9 @@ class UIRequestHandler(SimpleHTTPRequestHandler):
             return
         if parsed.path.startswith("/api/runs/") and parsed.path.endswith("/resume"):
             run_id = parsed.path.removeprefix("/api/runs/").removesuffix("/resume")
-            result = self.state.resume_run(run_id)
+            payload = self._read_json()
+            feedback = str(payload.get("feedback", "")).strip()
+            result = self.state.resume_run(run_id, feedback=feedback)
             if "error" in result:
                 self._send_json(result, status=HTTPStatus.BAD_REQUEST)
             else:

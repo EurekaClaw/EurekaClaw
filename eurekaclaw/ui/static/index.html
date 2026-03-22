@@ -184,6 +184,28 @@
                       <span class="proof-ctrl-paused-subtitle" id="proof-ctrl-paused-stage">Ready to continue whenever you are</span>
                     </div>
                   </div>
+
+                  <!-- Theory feedback section — collapsible review panel -->
+                  <div class="theory-feedback-section" id="theory-feedback-section" hidden>
+                    <button class="theory-feedback-toggle" id="theory-feedback-toggle" aria-expanded="false">
+                      <span class="theory-feedback-toggle-label">📐 Guide the proof before resuming</span>
+                      <span class="theory-feedback-toggle-chevron" aria-hidden="true">›</span>
+                    </button>
+                    <div class="theory-feedback-body" id="theory-feedback-body" hidden>
+                      <p class="theory-feedback-desc">
+                        Flag a step you want to challenge, or suggest a different approach.
+                        Your guidance will be injected as context when the proof resumes.
+                      </p>
+                      <div class="theory-feedback-lemma-list" id="theory-feedback-lemma-list"></div>
+                      <textarea
+                        class="theory-feedback-input"
+                        id="theory-feedback-input"
+                        rows="3"
+                        placeholder="e.g. The inductive step in L3 needs a stronger hypothesis. Try bounding the spectral norm first…"
+                      ></textarea>
+                    </div>
+                  </div>
+
                   <div class="proof-ctrl-paused-actions">
                     <button class="proof-ctrl-resume-btn" id="resume-session-btn" aria-label="Continue research from saved checkpoint">
                       <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><polygon points="5 3 19 12 5 21 5 3"/></svg>
@@ -227,45 +249,46 @@
               </div>
             </div>
 
-            <!-- Research panels -->
-            <div class="session-panels-grid">
-              <article class="panel pipeline-panel">
-                <div class="panel-header">
-                  <div><p class="eyebrow">Pipeline</p><h3>Research program</h3></div>
-                  <span class="mono-label">6 stages</span>
-                </div>
-                <div class="pipeline-list" id="pipeline-list"></div>
-              </article>
+            <!-- ── Research workspace ──────────────────────────────────── -->
+            <div class="workspace-split" id="workspace-split">
 
-              <article class="panel agent-panel">
-                <div class="panel-header">
-                  <div><p class="eyebrow">Agents</p><h3>Active agents</h3></div>
-                </div>
-                <div class="agent-grid" id="agent-grid"></div>
-              </article>
+              <!-- Left column: clickable agent pipeline steps -->
+              <nav class="agent-track-col" id="agent-track" aria-label="Research agents">
+                <!-- populated by renderAgentTrack() -->
+              </nav>
 
-              <article class="panel artifact-panel">
-                <div class="panel-header">
-                  <div><p class="eyebrow">Artifacts</p><h3>Working corpus</h3></div>
-                </div>
-                <div class="artifact-list" id="artifact-list"></div>
-              </article>
+              <!-- Right column: tabbed content area -->
+              <div class="workspace-main-col">
 
-              <article class="panel log-panel">
-                <div class="panel-header">
-                  <div><p class="eyebrow">Logs</p><h3>Execution log</h3></div>
+                <div class="ws-tab-bar" role="tablist" aria-label="Workspace views">
+                  <button class="ws-tab is-active" data-ws-tab="live"  role="tab" aria-selected="true"  aria-controls="ws-panel-live">Live</button>
+                  <button class="ws-tab"           data-ws-tab="proof" role="tab" aria-selected="false" aria-controls="ws-panel-proof">Proof</button>
+                  <button class="ws-tab"           data-ws-tab="paper" role="tab" aria-selected="false" aria-controls="ws-panel-paper">Paper</button>
+                  <button class="ws-tab"           data-ws-tab="logs"  role="tab" aria-selected="false" aria-controls="ws-panel-logs">Logs</button>
                 </div>
-                <div class="log-stream" id="log-stream"></div>
-                <div class="log-pagination" id="log-pagination"></div>
-              </article>
 
-              <article class="panel output-panel">
-                <div class="panel-header">
-                  <div><p class="eyebrow">Output</p><h3>Results</h3></div>
-                  <span class="status-pill status-idle" id="output-status-pill">Waiting</span>
+                <!-- Live panel: thinking view + direction gate -->
+                <div class="ws-panel is-visible" id="ws-panel-live" role="tabpanel">
+                  <div id="live-activity-area" class="live-activity-area"></div>
                 </div>
-                <div class="paper-preview" id="paper-preview"></div>
-              </article>
+
+                <!-- Proof panel: theorem + lemma chain -->
+                <div class="ws-panel" id="ws-panel-proof" role="tabpanel">
+                  <div id="proof-sketch-panel" class="proof-sketch-panel"></div>
+                </div>
+
+                <!-- Paper panel -->
+                <div class="ws-panel" id="ws-panel-paper" role="tabpanel">
+                  <div class="paper-preview" id="paper-preview"></div>
+                </div>
+
+                <!-- Logs panel -->
+                <div class="ws-panel" id="ws-panel-logs" role="tabpanel">
+                  <div class="log-stream" id="log-stream"></div>
+                  <div class="log-pagination" id="log-pagination"></div>
+                </div>
+
+              </div>
             </div>
 
           </div>
@@ -548,16 +571,20 @@
       </main>
     </div>
 
-    <div class="artifact-drawer-backdrop" id="artifact-drawer-backdrop" hidden></div>
-    <aside class="artifact-drawer" id="artifact-drawer" aria-hidden="true">
-      <div class="artifact-drawer-header">
-        <div>
-          <p class="eyebrow">Artifact Detail</p>
-          <h3 id="artifact-drawer-title">Artifact</h3>
+    <!-- Agent inspector drawer -->
+    <div class="agent-drawer-backdrop" id="agent-drawer-backdrop" hidden></div>
+    <aside class="agent-drawer" id="agent-drawer" aria-hidden="true">
+      <div class="agent-drawer-header">
+        <div class="agent-drawer-title-group">
+          <span class="agent-drawer-icon" id="agent-drawer-icon" aria-hidden="true"></span>
+          <div>
+            <h3 class="agent-drawer-title" id="agent-drawer-title">Agent</h3>
+            <span class="agent-drawer-status" id="agent-drawer-status"></span>
+          </div>
         </div>
-        <button class="ghost-btn" id="close-artifact-drawer-btn">Close</button>
+        <button class="ghost-btn agent-drawer-close" id="close-agent-drawer-btn" aria-label="Close agent detail">Close ×</button>
       </div>
-      <div class="artifact-drawer-body" id="artifact-drawer-body"></div>
+      <div class="agent-drawer-body" id="agent-drawer-body"></div>
     </aside>
 
     <div id="flash-overlay" aria-hidden="true"></div>

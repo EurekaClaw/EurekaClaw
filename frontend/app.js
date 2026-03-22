@@ -13,13 +13,24 @@ const runMetaEl = document.getElementById("run-meta");
 const runStatusPillEl = document.getElementById("run-status-pill");
 const tokenUsageValueEl = document.getElementById("token-usage-value");
 const tokenUsageBreakdownEl = document.getElementById("token-usage-breakdown");
-const pipelineListEl = document.getElementById("pipeline-list");
-const agentGridEl = document.getElementById("agent-grid");
-const artifactListEl = document.getElementById("artifact-list");
+const agentTrackEl = document.getElementById("agent-track");
+const liveActivityAreaEl = document.getElementById("live-activity-area");
+const proofSketchPanelEl = document.getElementById("proof-sketch-panel");
 const logStreamEl = document.getElementById("log-stream");
 const logPaginationEl = document.getElementById("log-pagination");
 const paperPreviewEl = document.getElementById("paper-preview");
-const outputStatusPillEl = document.getElementById("output-status-pill");
+const agentDrawerEl = document.getElementById("agent-drawer");
+const agentDrawerBackdropEl = document.getElementById("agent-drawer-backdrop");
+const agentDrawerIconEl = document.getElementById("agent-drawer-icon");
+const agentDrawerTitleEl = document.getElementById("agent-drawer-title");
+const agentDrawerStatusEl = document.getElementById("agent-drawer-status");
+const agentDrawerBodyEl = document.getElementById("agent-drawer-body");
+const closeAgentDrawerBtn = document.getElementById("close-agent-drawer-btn");
+const theoryFeedbackSectionEl = document.getElementById("theory-feedback-section");
+const theoryFeedbackToggleEl = document.getElementById("theory-feedback-toggle");
+const theoryFeedbackBodyEl = document.getElementById("theory-feedback-body");
+const theoryFeedbackInputEl = document.getElementById("theory-feedback-input");
+const theoryFeedbackLemmaListEl = document.getElementById("theory-feedback-lemma-list");
 const capabilityListEl = document.getElementById("capability-list");
 const configFormEl = document.getElementById("config-form");
 const configSaveStatusEl = document.getElementById("config-save-status");
@@ -41,11 +52,6 @@ const clawhubStatusEl = document.getElementById("clawhub-status");
 const installSeedsBtnEl = document.getElementById("install-seeds-btn");
 const selectAllSkillsBtnEl = document.getElementById("select-all-skills-btn");
 const sessionListEl = document.getElementById("session-list");
-const artifactDrawerEl = document.getElementById("artifact-drawer");
-const artifactDrawerBackdropEl = document.getElementById("artifact-drawer-backdrop");
-const artifactDrawerTitleEl = document.getElementById("artifact-drawer-title");
-const artifactDrawerBodyEl = document.getElementById("artifact-drawer-body");
-const closeArtifactDrawerBtn = document.getElementById("close-artifact-drawer-btn");
 const pauseSessionBtn = document.getElementById("pause-session-btn");
 const resumeSessionBtn = document.getElementById("resume-session-btn");
 const proofCtrlEl = document.getElementById("proof-ctrl");
@@ -95,7 +101,10 @@ const POLL_INTERVAL_FAST_MS = 500;   // while pausing / resuming — need fast f
 const POLL_INTERVAL_ACTIVE_MS = 1200; // while running / queued
 const POLL_INTERVAL_IDLE_MS = 3000;  // all sessions terminal — keep alive for new sessions
 const POLL_MAX_ERRORS = 4;
-let latestArtifacts = null;
+let latestRun = null;           // latest full snapshot (for agent drawer re-render)
+let openAgentDrawerRole = null; // which agent drawer is currently open
+let activeWsTab = "live";       // currently active workspace tab
+let prevTheoryTaskStatus = null; // track theory task status changes for auto-tab-switch
 let availableSkills = [];
 let selectedSkills = [];
 let allSessions = [];
@@ -631,144 +640,535 @@ function renderTokenUsage(tasks) {
   tokenUsageBreakdownEl.textContent = `Input ${totals.input.toLocaleString()} · Output ${totals.output.toLocaleString()}`;
 }
 
-function renderPipeline(tasks) {
-  if (!tasks || !tasks.length) {
-    pipelineListEl.innerHTML = `
-      <div class="pipeline-step">
-        <span class="step-index">--</span>
-        <div>
-          <strong>No active run</strong>
-          <p>Launch a session to populate the live pipeline.</p>
+// ── Agent manifest ────────────────────────────────────────────────────────────
+
+const AGENT_MANIFEST = [
+  { role: "survey",     icon: "📚", name: "Literature Survey",      tagline: "Mapping the research frontier" },
+  { role: "ideation",   icon: "💡", name: "Idea Generation",        tagline: "Formulating research directions" },
+  { role: "theory",     icon: "📐", name: "Theorem Proving",        tagline: "Building a rigorous proof" },
+  { role: "experiment", icon: "🧪", name: "Validation",             tagline: "Testing theoretical bounds" },
+  { role: "writer",     icon: "✍️", name: "Paper Writing",          tagline: "Composing the manuscript" },
+];
+
+function agentNarrativeLine(role, taskMap, run) {
+  const task = taskMap.get(role);
+  if (!task) return "Waiting to begin…";
+  const arts = run?.artifacts || {};
+  const st = task.status;
+  if (role === "survey") {
+    if (st === "in_progress") return "Navigating the academic landscape…";
+    if (st === "completed") {
+      const papers = (arts.bibliography?.papers || arts.research_brief?.papers || []).length;
+      const problems = (arts.research_brief?.open_problems || []).length;
+      return `${papers} paper${papers !== 1 ? "s" : ""} read · ${problems} open problem${problems !== 1 ? "s" : ""} found`;
+    }
+  }
+  if (role === "ideation") {
+    if (st === "in_progress") return "Exploring the hypothesis space…";
+    if (st === "completed") {
+      const dir = arts.research_brief?.selected_direction;
+      const dirStr = typeof dir === "string" ? dir : dir?.title || dir?.direction || "";
+      if (dirStr) return `"${dirStr.length > 55 ? dirStr.slice(0, 52) + "…" : dirStr}"`;
+      return "Direction set — ready for proof";
+    }
+  }
+  if (role === "theory") {
+    if (st === "in_progress") return "Constructing proof, step by step…";
+    if (st === "completed") {
+      const ts = arts.theory_state;
+      const proved = Object.keys(ts?.proven_lemmas || {}).length;
+      const lowConf = (ts?.low_confidence_lemmas || []).length;
+      if (proved > 0) return `${proved} lemma${proved !== 1 ? "s" : ""} proven${lowConf > 0 ? ` · ${lowConf} low-confidence` : " · proof complete"}`;
+      return "Proof pipeline ran";
+    }
+  }
+  if (role === "experiment") {
+    if (st === "skipped") return "Skipped — experiment mode disabled";
+    if (st === "in_progress") return "Running numerical validation…";
+    if (st === "completed") {
+      const score = arts.experiment_result?.alignment_score;
+      return score != null ? `Alignment ${(score * 100).toFixed(0)}% · bounds validated` : "Completed";
+    }
+  }
+  if (role === "writer") {
+    if (st === "in_progress") return "Composing the manuscript…";
+    if (st === "completed") {
+      const paper = run?.result?.latex_paper || "";
+      const words = paper.split(/\s+/).filter(Boolean).length;
+      return `Paper ready · ${words} words`;
+    }
+  }
+  const fallback = { pending: "Waiting…", failed: "Encountered an issue", awaiting_gate: "Awaiting your input", skipped: "Skipped" };
+  return fallback[st] || titleCase(st);
+}
+
+function renderAgentTrack(tasks, run) {
+  if (!agentTrackEl) return;
+  const taskMap = new Map((tasks || []).map((t) => [t.agent_role, t]));
+  agentTrackEl.innerHTML = AGENT_MANIFEST.map(({ role, icon, name }) => {
+    const task = taskMap.get(role);
+    const st = task?.status || "pending";
+    const isDone = st === "completed" || st === "skipped";
+    const isActive = st === "in_progress" || st === "awaiting_gate";
+    const isFailed = st === "failed";
+    const narrative = agentNarrativeLine(role, taskMap, run);
+    const stateClass = isDone ? " is-done" : isActive ? " is-active" : isFailed ? " is-failed" : "";
+    const statusLabel = isDone ? "done" : isActive ? "active" : isFailed ? "failed" : "pending";
+    return `
+      <button class="agent-step-card${stateClass}" data-agent-role="${escapeHtml(role)}" aria-label="View ${escapeHtml(name)} details">
+        <span class="agent-step-icon" aria-hidden="true">${icon}</span>
+        <div class="agent-step-body">
+          <span class="agent-step-name">${escapeHtml(name)}</span>
+          <span class="agent-step-summary">${escapeHtml(narrative)}</span>
         </div>
-        <span class="status-pill status-idle">Idle</span>
+        <span class="agent-step-badge badge-${statusLabel}">${statusLabel}</span>
+      </button>
+    `;
+  }).join("");
+}
+
+// ── Agent drawer ─────────────────────────────────────────────────────────────
+
+function openAgentDrawer(role) {
+  if (!latestRun) return;
+  openAgentDrawerRole = role;
+  const manifest = AGENT_MANIFEST.find((a) => a.role === role);
+  if (!manifest) return;
+  const taskMap = new Map((latestRun.pipeline || []).map((t) => [t.agent_role, t]));
+  const task = taskMap.get(role);
+  const st = task?.status || "pending";
+  agentDrawerIconEl.textContent = manifest.icon;
+  agentDrawerTitleEl.textContent = manifest.name;
+  agentDrawerStatusEl.textContent = titleCase(st);
+  agentDrawerStatusEl.className = `agent-drawer-status status-pill ${statusClass(st)}`;
+  agentDrawerBodyEl.innerHTML = renderAgentDrawerBody(role, latestRun);
+  agentDrawerBackdropEl.hidden = false;
+  agentDrawerEl.classList.add("is-open");
+  agentDrawerEl.setAttribute("aria-hidden", "false");
+}
+
+function closeAgentDrawer() {
+  agentDrawerEl.classList.remove("is-open");
+  agentDrawerEl.setAttribute("aria-hidden", "true");
+  agentDrawerBackdropEl.hidden = true;
+  openAgentDrawerRole = null;
+}
+
+function renderAgentDrawerBody(role, run) {
+  const arts = run?.artifacts || {};
+  if (role === "survey") return renderSurveyDrawer(arts);
+  if (role === "ideation") return renderIdeationDrawer(arts, run);
+  if (role === "theory") return renderTheoryDrawer(arts);
+  if (role === "experiment") return renderExperimentDrawer(arts);
+  if (role === "writer") return renderWriterDrawer(run);
+  return `<p class="drawer-empty">No detail available for this agent.</p>`;
+}
+
+function renderSurveyDrawer(arts) {
+  const brief = arts.research_brief || {};
+  const papers = arts.bibliography?.papers || brief.papers || [];
+  const problems = brief.open_problems || [];
+  const keyObjects = brief.key_objects || brief.key_mathematical_objects || [];
+  if (!papers.length && !problems.length) {
+    return `<div class="drawer-empty-state"><span>📚</span><p>Survey hasn't run yet — results will appear here once the literature scan completes.</p></div>`;
+  }
+  return `
+    ${papers.length ? `
+    <div class="drawer-section">
+      <h4>Papers surveyed</h4>
+      <div class="drawer-paper-list">
+        ${papers.slice(0, 15).map((p) => `
+          <div class="drawer-paper-row">
+            <span class="drawer-paper-year">${escapeHtml(String(p.year || "—"))}</span>
+            <span>${escapeHtml(p.title || "Untitled")}</span>
+          </div>
+        `).join("")}
+        ${papers.length > 15 ? `<p class="drawer-more">and ${papers.length - 15} more papers…</p>` : ""}
+      </div>
+    </div>` : ""}
+    ${problems.length ? `
+    <div class="drawer-section">
+      <h4>Open problems identified</h4>
+      <ul class="drawer-problems-list">
+        ${problems.map((p) => `<li>${escapeHtml(typeof p === "string" ? p : p.description || JSON.stringify(p))}</li>`).join("")}
+      </ul>
+    </div>` : ""}
+    ${keyObjects.length ? `
+    <div class="drawer-section">
+      <h4>Key mathematical objects</h4>
+      <div class="drawer-tags-row">
+        ${keyObjects.slice(0, 12).map((obj) => `<span class="drawer-object-tag">${escapeHtml(typeof obj === "string" ? obj : obj.name || JSON.stringify(obj))}</span>`).join("")}
+      </div>
+    </div>` : ""}
+  `;
+}
+
+function renderIdeationDrawer(arts, run) {
+  const brief = arts.research_brief || {};
+  const direction = brief.selected_direction;
+  const dirStr = typeof direction === "string" ? direction : direction?.title || direction?.direction || "";
+  const mode = run?.input_spec?.mode;
+  const conj = run?.input_spec?.conjecture || run?.input_spec?.query || "";
+  return `
+    <div class="drawer-section">
+      <h4>Research direction</h4>
+      ${dirStr
+        ? `<blockquote class="drawer-direction-quote">${escapeHtml(dirStr)}</blockquote>`
+        : (mode === "detailed" && conj
+          ? `<p class="drawer-muted">Using your conjecture as the research direction.</p>
+             <blockquote class="drawer-direction-quote">${escapeHtml(conj)}</blockquote>`
+          : `<p class="drawer-muted">No direction generated yet — ideation will run after the literature survey completes.</p>`)
+      }
+    </div>
+    ${brief.domain ? `
+    <div class="drawer-section">
+      <h4>Research domain</h4>
+      <p>${escapeHtml(brief.domain)}</p>
+    </div>` : ""}
+  `;
+}
+
+function renderTheoryDrawer(arts) {
+  const ts = arts.theory_state;
+  if (!ts) return `<div class="drawer-empty-state"><span>📐</span><p>The proof hasn't started yet — the theorem sketch will appear here once the theory agent begins its work.</p></div>`;
+  return renderProofSketchHtml(ts);
+}
+
+function renderExperimentDrawer(arts) {
+  const er = arts.experiment_result;
+  if (!er) return `<div class="drawer-empty-state"><span>🧪</span><p>Experimental results will appear here after the validation stage runs.</p></div>`;
+  const bounds = er.bounds || [];
+  const score = er.alignment_score;
+  return `
+    <div class="drawer-section">
+      <h4>Alignment score</h4>
+      <div class="drawer-alignment-row">
+        <span class="drawer-alignment-score">${score != null ? (score * 100).toFixed(0) + "%" : "—"}</span>
+        <span class="drawer-muted">1.0 = theory matches simulation perfectly</span>
+      </div>
+    </div>
+    ${bounds.length ? `
+    <div class="drawer-section">
+      <h4>Bounds verification</h4>
+      <table class="drawer-bounds-table">
+        <thead><tr><th>Bound</th><th>Theoretical</th><th>Empirical</th><th></th></tr></thead>
+        <tbody>
+          ${bounds.map((b) => `
+            <tr>
+              <td>${escapeHtml(b.name || "—")}</td>
+              <td>${escapeHtml(String(b.theoretical ?? "—"))}</td>
+              <td>${escapeHtml(String(b.empirical ?? "—"))}</td>
+              <td class="${b.passes ? "drawer-bounds-pass" : "drawer-bounds-fail"}">${b.passes ? "✓" : "✗"}</td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    </div>` : ""}
+    ${er.description ? `<div class="drawer-section"><h4>Description</h4><p>${escapeHtml(er.description)}</p></div>` : ""}
+  `;
+}
+
+function renderWriterDrawer(run) {
+  const paper = run?.result?.latex_paper || "";
+  const outputDir = run?.output_dir || "";
+  if (!paper && !outputDir) return `<div class="drawer-empty-state"><span>✍️</span><p>The paper will appear here once the writer agent completes its draft.</p></div>`;
+  const words = paper ? paper.split(/\s+/).filter(Boolean).length : 0;
+  const preview = paper ? paper.slice(0, 800) : "";
+  return `
+    ${words > 0 ? `
+    <div class="drawer-section">
+      <h4>Draft overview</h4>
+      <p class="drawer-word-count">${words.toLocaleString()} words</p>
+      ${outputDir ? `<p class="drawer-muted">Saved to: <code>${escapeHtml(outputDir)}</code></p>` : ""}
+    </div>` : ""}
+    ${preview ? `
+    <div class="drawer-section">
+      <h4>Paper excerpt</h4>
+      <pre class="drawer-paper-excerpt">${escapeHtml(preview)}${paper.length > 800 ? "\n…" : ""}</pre>
+    </div>` : ""}
+  `;
+}
+
+// ── Proof sketch HTML builder ─────────────────────────────────────────────────
+
+function renderProofSketchHtml(ts) {
+  if (!ts) return `<div class="drawer-empty-state"><span>📐</span><p>No theory state available.</p></div>`;
+
+  const theorem = ts.formal_statement || ts.proof_skeleton || "";
+  const lemmas = ts.open_goals || [];
+  const provenLemmas = ts.proven_lemmas || {};
+  const counterexamples = ts.counterexamples || [];
+  const iteration = ts.iteration ?? 0;
+
+  // Build lemma rows: proven + open
+  const provenEntries = Object.entries(provenLemmas).map(([name, proof]) => ({
+    name, proof: typeof proof === "string" ? proof : JSON.stringify(proof),
+    proven: true, conf: "verified"
+  }));
+  const openEntries = lemmas.map((g, i) => {
+    const name = typeof g === "string" ? g : (g.name || `Goal ${i + 1}`);
+    const conf = g.confidence || (g.status === "proven" ? "verified" : "low");
+    return { name, proof: typeof g === "string" ? "" : (g.description || ""), proven: false, conf };
+  });
+
+  const allLemmas = [...provenEntries, ...openEntries];
+
+  const lemmaChainHtml = allLemmas.length ? `
+    <div class="proof-lemma-chain">
+      ${allLemmas.map((l, i) => `
+        <div class="proof-lemma-row">
+          <span class="proof-lemma-number">${i + 1}</span>
+          <div class="proof-lemma-content">
+            <span class="proof-lemma-name">${escapeHtml(l.name)}</span>
+            ${l.proof ? `<span class="proof-lemma-formal">${escapeHtml(l.proof.slice(0, 160))}${l.proof.length > 160 ? "…" : ""}</span>` : ""}
+          </div>
+          <span class="proof-lemma-badge badge-${escapeHtml(l.conf)}">${escapeHtml(l.conf)}</span>
+        </div>
+      `).join("")}
+    </div>
+  ` : `<p class="drawer-muted">No lemmas yet — the proof structure will appear as the theory agent works.</p>`;
+
+  const counterHtml = counterexamples.length ? `
+    <div class="proof-counterexample-warning">
+      ⚠ ${counterexamples.length} counterexample${counterexamples.length > 1 ? "s" : ""} found — the theorem may need refinement.
+    </div>
+  ` : "";
+
+  return `
+    ${theorem ? `
+    <div class="proof-theorem-block">
+      <p class="proof-theorem-label">Theorem statement</p>
+      <pre class="proof-theorem-text">${escapeHtml(theorem.slice(0, 600))}${theorem.length > 600 ? "\n…" : ""}</pre>
+    </div>` : ""}
+    ${iteration > 0 ? `<p class="drawer-muted">Iteration ${iteration} · ${provenEntries.length} proven · ${openEntries.length} open</p>` : ""}
+    ${counterHtml}
+    ${allLemmas.length ? `<h4 style="margin:12px 0 6px">Proof steps</h4>` : ""}
+    ${lemmaChainHtml}
+  `;
+}
+
+function renderProofSketch(theoryState) {
+  if (!proofSketchPanelEl) return;
+  if (!theoryState) {
+    proofSketchPanelEl.innerHTML = `
+      <div class="proof-sketch-empty">
+        <span>📐</span>
+        <p>The proof sketch will appear here once the theory agent starts building the argument.</p>
+      </div>
+    `;
+    return;
+  }
+  proofSketchPanelEl.innerHTML = `<div class="drawer-section">${renderProofSketchHtml(theoryState)}</div>`;
+}
+
+// ── Live panel ─────────────────────────────────────────────────────────────────
+
+function renderLivePanel(run) {
+  if (!liveActivityAreaEl) return;
+  if (!run) {
+    liveActivityAreaEl.innerHTML = `<div class="live-idle-state"><span>🔬</span><p>Start a session to see live research activity.</p></div>`;
+    return;
+  }
+
+  const status = run.status;
+  const pipeline = run.pipeline || [];
+  const arts = run.artifacts || {};
+  const activeOuter = getActiveOuterStage(pipeline);
+
+  // Direction gate: show when no directions found and ideation is done
+  const brief = arts.research_brief || {};
+  const dirs = brief.directions || brief.research_directions || [];
+  const ideationDone = pipeline.some((t) => (t.name === "ideation" || t.name === "direction_selection_gate") && t.status === "completed");
+  if (ideationDone && dirs.length === 0 && status !== "completed" && status !== "failed") {
+    const conj = run.input_spec?.conjecture || run.input_spec?.query || "";
+    liveActivityAreaEl.innerHTML = `
+      <div class="direction-gate-card">
+        <p class="direction-gate-heading">📍 No research directions were generated</p>
+        <p class="drawer-muted">Ideation returned no candidate directions. EurekaClaw will use your original conjecture as the proof target:</p>
+        ${conj ? `<blockquote class="drawer-direction-quote">${escapeHtml(conj)}</blockquote>` : ""}
+        <p class="drawer-muted">The theory agent will proceed with this direction. If you'd like to guide the proof differently, pause the session and use the feedback box below.</p>
       </div>
     `;
     return;
   }
 
-  pipelineListEl.innerHTML = tasks
-    .map((task, index) => {
-      const activeClass = task.status === "in_progress" ? " is-active" : "";
-      const completeClass = task.status === "completed" ? " is-complete" : "";
-      return `
-        <div class="pipeline-step${activeClass}${completeClass}">
-          <span class="step-index">${String(index + 1).padStart(2, "0")}</span>
-          <div>
-            <strong>${escapeHtml(titleCase(task.name))}</strong>
-            <p>${escapeHtml(task.description || "No description")}</p>
-          </div>
-          <span class="status-pill ${statusClass(task.status)}">${escapeHtml(titleCase(task.status))}</span>
+  if (status === "running" || status === "queued") {
+    const innerStage = run.paused_stage || "";
+    const innerLabel = innerStage ? `while ${friendlyInnerStage(innerStage)}` : "";
+    const stageName = activeOuter ? AGENT_MANIFEST.find((a) => a.role === activeOuter)?.name || titleCase(activeOuter) : "Setting up";
+    liveActivityAreaEl.innerHTML = `
+      <div class="live-thinking-view">
+        <div class="thinking-dots" aria-label="Working">
+          <span class="thinking-dot"></span>
+          <span class="thinking-dot"></span>
+          <span class="thinking-dot"></span>
         </div>
-      `;
-    })
-    .join("");
+        <p class="live-stage-label">${escapeHtml(stageName)} ${escapeHtml(innerLabel)}</p>
+        <p class="drawer-muted live-stage-sub">${escapeHtml(agentNarrativeLine(activeOuter || "survey", new Map(pipeline.map((t) => [t.agent_role, t])), run))}</p>
+      </div>
+    `;
+    return;
+  }
+
+  if (status === "paused" || status === "pausing") {
+    liveActivityAreaEl.innerHTML = `
+      <div class="live-thinking-view">
+        <p class="live-stage-label" style="color:var(--amber)">⏸ Session paused</p>
+        <p class="drawer-muted">Use the Resume button to continue, or add feedback below to guide the next proof attempt.</p>
+      </div>
+    `;
+    return;
+  }
+
+  if (status === "completed") {
+    const dir = typeof brief.selected_direction === "string"
+      ? brief.selected_direction
+      : (brief.selected_direction?.title || "");
+    liveActivityAreaEl.innerHTML = `
+      <div class="live-thinking-view">
+        <p class="live-stage-label" style="color:var(--green)">✓ Research complete</p>
+        ${dir ? `<blockquote class="drawer-direction-quote">${escapeHtml(dir)}</blockquote>` : ""}
+        <p class="drawer-muted">Switch to the <strong>Paper</strong> tab to read the draft, or <strong>Proof</strong> for the theorem sketch.</p>
+      </div>
+    `;
+    return;
+  }
+
+  if (status === "failed") {
+    liveActivityAreaEl.innerHTML = `
+      <div class="live-thinking-view">
+        <p class="live-stage-label" style="color:var(--red)">✗ Session failed</p>
+        <p class="drawer-muted">${escapeHtml(run.error || "An error occurred. Check the Logs tab for details.")}</p>
+      </div>
+    `;
+    return;
+  }
+
+  liveActivityAreaEl.innerHTML = `<div class="live-idle-state"><span>🔬</span><p>Waiting for session to begin…</p></div>`;
 }
 
-function renderAgents(tasks) {
-  const taskMap = new Map((tasks || []).map((task) => [task.agent_role, task]));
-  const agents = [
-    ["survey", "SurveyAgent"],
-    ["ideation", "IdeationAgent"],
-    ["theory", "TheoryAgent"],
-    ["experiment", "ExperimentAgent"],
-    ["writer", "WriterAgent"]
+// ── Theory feedback section ───────────────────────────────────────────────────
+
+function updateTheoryFeedbackSection(theoryState, isPaused) {
+  if (!theoryFeedbackSectionEl) return;
+  // Only show when paused
+  theoryFeedbackSectionEl.hidden = !isPaused;
+  if (!isPaused || !theoryFeedbackLemmaListEl) return;
+
+  // Populate lemma chips
+  const lemmas = theoryState ? (theoryState.open_goals || []) : [];
+  const provenLemmas = theoryState ? Object.keys(theoryState.proven_lemmas || {}) : [];
+  const allLemmaNames = [
+    ...provenLemmas,
+    ...lemmas.map((g, i) => (typeof g === "string" ? g : (g.name || `Goal ${i + 1}`)))
   ];
 
-  agentGridEl.innerHTML = agents
-    .map(([role, label]) => {
-      const task = taskMap.get(role);
-      const activeClass = task && task.status === "in_progress" ? " active" : "";
-      const summary = task
-        ? `${titleCase(task.status)}${task.error_message ? `: ${task.error_message}` : ""}`
-        : "Waiting for pipeline data.";
-      return `
-        <div class="agent-card${activeClass}">
-          <h4>${label}</h4>
-          <p>${escapeHtml(summary)}</p>
-        </div>
-      `;
-    })
-    .join("");
+  if (allLemmaNames.length) {
+    theoryFeedbackLemmaListEl.innerHTML = allLemmaNames.map((name) => `
+      <button type="button" class="theory-feedback-lemma-chip" data-lemma="${escapeHtml(name)}">
+        ${escapeHtml(name.length > 40 ? name.slice(0, 40) + "…" : name)}
+      </button>
+    `).join("");
+  } else {
+    theoryFeedbackLemmaListEl.innerHTML = `<span class="drawer-muted" style="font-size:0.8rem">No lemmas yet</span>`;
+  }
 }
 
-function renderArtifacts(artifacts) {
-  latestArtifacts = artifacts || null;
-  const entries = [
-    ["research_brief", "Research brief"],
-    ["bibliography", "Bibliography"],
-    ["theory_state", "Theory state"],
-    ["experiment_result", "Experiment result"],
-    ["resource_analysis", "Resource analysis"]
-  ].filter(([key]) => artifacts && artifacts[key]);
+// ── Workspace tab switching ───────────────────────────────────────────────────
 
-  const sidebarArtifactsEl = document.getElementById("sidebar-artifacts");
-  if (sidebarArtifactsEl) sidebarArtifactsEl.textContent = String(entries.length);
+function switchWsTab(tabKey) {
+  activeWsTab = tabKey;
+  document.querySelectorAll(".ws-tab").forEach((btn) => {
+    btn.classList.toggle("is-active", btn.dataset.wsTab === tabKey);
+  });
+  document.querySelectorAll(".ws-panel").forEach((panel) => {
+    panel.classList.toggle("is-visible", panel.id === `ws-panel-${tabKey}`);
+  });
+}
 
-  if (!entries.length) {
-    artifactListEl.innerHTML = `
-      <div class="artifact-item">
-        <div>
-          <strong>No artifacts yet</strong>
-          <p>Artifacts will appear here as the run progresses.</p>
-        </div>
-        <span class="mono-label">waiting</span>
-      </div>
-    `;
-    return;
+function maybeAutoSwitchTab(run, prevRun) {
+  if (!run) return;
+  const tasks = run.pipeline || [];
+  const theoryTask = tasks.find((t) => t.name === "theory" || t.agent_role === "theory");
+  const wasRunning = prevRun?.pipeline?.find((t) => (t.name === "theory" || t.agent_role === "theory"))?.status === "in_progress";
+  const nowDone = theoryTask?.status === "completed";
+  // Auto-switch to Proof when theory just completed
+  if (wasRunning && nowDone && activeWsTab === "live") {
+    switchWsTab("proof");
+  }
+  // Auto-switch to Paper when run completes
+  if (prevRun?.status !== "completed" && run.status === "completed" && activeWsTab === "live") {
+    switchWsTab("paper");
+  }
+}
+
+// ── Log humanizer ────────────────────────────────────────────────────────────
+
+function humanizeLogMessage(taskName, eventType, detail) {
+  const name = taskName || "";
+  const role = STAGE_TASK_MAP[name] || name;
+  const manifest = AGENT_MANIFEST.find((a) => a.role === role);
+  const agentName = manifest?.name || titleCase(name);
+
+  if (eventType === "started") {
+    const starts = {
+      survey: "📚 Literature survey started — scanning recent papers",
+      ideation: "💡 Idea generation started — exploring research directions",
+      theory: "📐 Theorem proving started — architecting the proof",
+      experiment: "🧪 Validation started — running numerical experiments",
+      writer: "✍️ Paper writing started — composing the manuscript",
+      direction_selection_gate: "🧭 Selecting research direction…",
+      theory_review_gate: "🔍 Theory review gate reached",
+      final_review_gate: "✅ Final review gate reached",
+    };
+    return starts[name] || `${agentName} started`;
   }
 
-  artifactListEl.innerHTML = entries
-    .map(([key, label]) => {
-      const value = artifacts[key];
-      const summary = Array.isArray(value?.papers)
-        ? `${value.papers.length} papers`
-        : Array.isArray(value?.open_goals)
-          ? `${value.open_goals.length} open goals`
-          : Array.isArray(value?.bounds)
-            ? `${value.bounds.length} bounds`
-            : `${Object.keys(value || {}).length} fields`;
+  if (eventType === "completed") {
+    const done = {
+      survey: "📚 Literature survey complete — research brief ready",
+      ideation: "💡 Directions generated — research direction selected",
+      theory: "📐 Proof complete — theorem sketch ready for review",
+      experiment: "🧪 Experiments finished — bounds verified",
+      writer: "✍️ Paper draft complete",
+      direction_selection_gate: "🧭 Direction confirmed",
+      theory_review_gate: "🔍 Theory reviewed — proceeding to validation",
+      final_review_gate: "✅ Final review complete",
+    };
+    return done[name] || `${agentName} complete`;
+  }
 
-      return `
-        <div class="artifact-item" data-artifact-key="${escapeHtml(key)}">
-          <div>
-            <strong>${escapeHtml(label)}</strong>
-            <p>${escapeHtml(summary)}</p>
-          </div>
-          <span class="mono-label">live</span>
-        </div>
-      `;
-    })
-    .join("");
+  if (eventType === "error") {
+    return `⚠ ${agentName} encountered an issue${detail ? ": " + detail : ""}`;
+  }
 
-  artifactListEl.querySelectorAll("[data-artifact-key]").forEach((item) => {
-    item.addEventListener("click", () => openArtifactDrawer(item.dataset.artifactKey));
-  });
+  return `${agentName} ${eventType}`;
 }
 
 function renderLogs(run, tasks) {
   const items = [];
   if (run?.created_at) {
-    items.push({ time: run.created_at, message: "Session created from the workspace.", tone: "" });
+    items.push({ time: run.created_at, message: "🔬 Research session created", tone: "" });
   }
   (tasks || []).forEach((task) => {
     if (task.started_at) {
       items.push({
         time: task.started_at,
-        message: `${titleCase(task.name)} started.`,
+        message: humanizeLogMessage(task.name, "started", ""),
         tone: ""
       });
     }
-    if (task.completed_at) {
+    if (task.completed_at && task.status !== "failed") {
       items.push({
         time: task.completed_at,
-        message: `${titleCase(task.name)} completed.`,
+        message: humanizeLogMessage(task.name, "completed", ""),
         tone: ""
       });
     }
     if (task.error_message) {
       items.push({
         time: task.completed_at || task.started_at || run?.created_at,
-        message: `${titleCase(task.name)} failed: ${task.error_message}`,
+        message: humanizeLogMessage(task.name, "error", task.error_message),
         tone: "warning"
       });
     }
@@ -830,9 +1230,6 @@ function renderOutput(run) {
   } else if (run?.status === "failed") {
     summary = run.error || "The run failed before a paper could be generated.";
   }
-
-  outputStatusPillEl.className = `status-pill ${statusClass(run?.status || "idle")}`;
-  outputStatusPillEl.textContent = titleCase(run?.status || "waiting");
 
   paperPreviewEl.innerHTML = `
     <div class="paper-sheet">
@@ -1595,164 +1992,32 @@ function renderRun(run) {
     showNewSessionPane();
     return;
   }
+  const prevRun = latestRun;
+  latestRun = run;
   showSessionDetailPane();
   updateSessionTopbar(run);
   const tasks = run?.pipeline || [];
-  renderPipeline(tasks);
-  renderAgents(tasks);
-  renderArtifacts(run?.artifacts);
-  renderLogs(run, tasks);
+  const theoryState = run?.artifacts?.theory_state;
+  const isPaused = run.status === "paused";
+
+  renderAgentTrack(tasks, run);
+  renderLivePanel(run);
+  renderProofSketch(theoryState);
   renderOutput(run);
+  renderLogs(run, tasks);
   renderTokenUsage(tasks);
   updateSidebar(run);
   updateSessionControls(run);
+  updateTheoryFeedbackSection(theoryState, isPaused);
+  maybeAutoSwitchTab(run, prevRun);
   setRunStatus(run ? run.status : "idle", liveStatusDetail(run));
+
+  // Refresh open drawer if any
+  if (openAgentDrawerRole) {
+    agentDrawerBodyEl.innerHTML = renderAgentDrawerBody(openAgentDrawerRole, run);
+  }
 }
 
-function renderArtifactSummary(key, artifact) {
-  if (!artifact) {
-    return "<p>No data available.</p>";
-  }
-
-  if (key === "research_brief") {
-    return `
-      <section class="artifact-section">
-        <h4>Overview</h4>
-        <div class="artifact-kv">
-          <div class="artifact-kv-row"><strong>Domain</strong><span>${escapeHtml(artifact.domain || "")}</span></div>
-          <div class="artifact-kv-row"><strong>Query</strong><span>${escapeHtml(artifact.query || "")}</span></div>
-          <div class="artifact-kv-row"><strong>Input mode</strong><span>${escapeHtml(artifact.input_mode || "")}</span></div>
-          <div class="artifact-kv-row"><strong>Conjecture</strong><span>${escapeHtml(artifact.conjecture || "—")}</span></div>
-        </div>
-      </section>
-      <section class="artifact-section">
-        <h4>Open Problems</h4>
-        <div class="artifact-chip-list">
-          ${(artifact.open_problems || []).map((item) => `<span>${escapeHtml(item)}</span>`).join("") || "<span>None</span>"}
-        </div>
-      </section>
-    `;
-  }
-
-  if (key === "bibliography") {
-    const papers = artifact.papers || [];
-    return `
-      <section class="artifact-section">
-        <h4>Paper Set</h4>
-        <div class="artifact-kv">
-          <div class="artifact-kv-row"><strong>Total papers</strong><span>${escapeHtml(String(papers.length))}</span></div>
-          <div class="artifact-kv-row"><strong>Citation graph nodes</strong><span>${escapeHtml(String(Object.keys(artifact.citation_graph || {}).length))}</span></div>
-        </div>
-      </section>
-      <section class="artifact-section">
-        <h4>Top Papers</h4>
-        <div class="artifact-kv">
-          ${papers.slice(0, 8).map((paper) => `
-            <div class="artifact-kv-row">
-              <strong>${escapeHtml((paper.year || "—").toString())}</strong>
-              <span>${escapeHtml(paper.title || "")}</span>
-            </div>
-          `).join("") || '<p>No papers available.</p>'}
-        </div>
-      </section>
-    `;
-  }
-
-  if (key === "theory_state") {
-    return `
-      <section class="artifact-section">
-        <h4>Theory Snapshot</h4>
-        <div class="artifact-kv">
-          <div class="artifact-kv-row"><strong>Status</strong><span>${escapeHtml(artifact.status || "")}</span></div>
-          <div class="artifact-kv-row"><strong>Iteration</strong><span>${escapeHtml(String(artifact.iteration ?? 0))}</span></div>
-          <div class="artifact-kv-row"><strong>Problem type</strong><span>${escapeHtml(artifact.problem_type || "—")}</span></div>
-          <div class="artifact-kv-row"><strong>Template</strong><span>${escapeHtml(artifact.proof_template || "—")}</span></div>
-          <div class="artifact-kv-row"><strong>Formal statement</strong><span>${escapeHtml(artifact.formal_statement || "—")}</span></div>
-        </div>
-      </section>
-      <section class="artifact-section">
-        <h4>Analysis & Skeleton</h4>
-        <div class="artifact-kv">
-          <div class="artifact-kv-row"><strong>Memory theorems</strong><span>${escapeHtml(String((artifact.memory_theorems || []).length))}</span></div>
-          <div class="artifact-kv-row"><strong>Analysis notes</strong><span>${escapeHtml((artifact.analysis_notes || "—").slice(0, 320))}</span></div>
-          <div class="artifact-kv-row"><strong>Proof skeleton</strong><span>${escapeHtml((artifact.proof_skeleton || "—").slice(0, 320))}</span></div>
-        </div>
-      </section>
-      <section class="artifact-section">
-        <h4>Proof Progress</h4>
-        <div class="artifact-kv">
-          <div class="artifact-kv-row"><strong>Open goals</strong><span>${escapeHtml(String((artifact.open_goals || []).length))}</span></div>
-          <div class="artifact-kv-row"><strong>Proven lemmas</strong><span>${escapeHtml(String(Object.keys(artifact.proven_lemmas || {}).length))}</span></div>
-          <div class="artifact-kv-row"><strong>Counterexamples</strong><span>${escapeHtml(String((artifact.counterexamples || []).length))}</span></div>
-        </div>
-      </section>
-    `;
-  }
-
-  if (key === "experiment_result") {
-    return `
-      <section class="artifact-section">
-        <h4>Experiment Result</h4>
-        <div class="artifact-kv">
-          <div class="artifact-kv-row"><strong>Description</strong><span>${escapeHtml(artifact.description || "—")}</span></div>
-          <div class="artifact-kv-row"><strong>Alignment</strong><span>${escapeHtml(String(artifact.alignment_score ?? 0))}</span></div>
-          <div class="artifact-kv-row"><strong>Succeeded</strong><span>${escapeHtml(String(Boolean(artifact.succeeded)))}</span></div>
-        </div>
-      </section>
-      <section class="artifact-section">
-        <h4>Bounds</h4>
-        <div class="artifact-kv">
-          ${(artifact.bounds || []).map((bound) => `
-            <div class="artifact-kv-row">
-              <strong>${escapeHtml(bound.name || "bound")}</strong>
-              <span>Theoretical: ${escapeHtml(String(bound.theoretical ?? "—"))} | Empirical: ${escapeHtml(String(bound.empirical ?? "—"))}</span>
-            </div>
-          `).join("") || '<p>No bounds available.</p>'}
-        </div>
-      </section>
-    `;
-  }
-
-  if (key === "resource_analysis") {
-    return `
-      <section class="artifact-section">
-        <h4>Resource Analysis</h4>
-        <div class="artifact-kv">
-          <div class="artifact-kv-row"><strong>Atomic components</strong><span>${escapeHtml(String((artifact.atomic_components || []).length))}</span></div>
-          <div class="artifact-kv-row"><strong>Math-to-code map</strong><span>${escapeHtml(String(Object.keys(artifact.math_to_code || {}).length))}</span></div>
-          <div class="artifact-kv-row"><strong>Code-to-math map</strong><span>${escapeHtml(String(Object.keys(artifact.code_to_math || {}).length))}</span></div>
-        </div>
-      </section>
-    `;
-  }
-
-  return "<p>No formatter available for this artifact.</p>";
-}
-
-function openArtifactDrawer(key) {
-  if (!latestArtifacts || !latestArtifacts[key]) {
-    return;
-  }
-
-  const artifact = latestArtifacts[key];
-  artifactDrawerTitleEl.textContent = titleCase(key);
-  artifactDrawerBodyEl.innerHTML = `
-    ${renderArtifactSummary(key, artifact)}
-    <section class="artifact-section">
-      <h4>Raw JSON</h4>
-      <pre class="artifact-json">${escapeHtml(JSON.stringify(artifact, null, 2))}</pre>
-    </section>
-  `;
-  artifactDrawerBackdropEl.hidden = false;
-  artifactDrawerEl.classList.add("is-open");
-  artifactDrawerEl.setAttribute("aria-hidden", "false");
-}
-
-function closeArtifactDrawer() {
-  artifactDrawerEl.classList.remove("is-open");
-  artifactDrawerEl.setAttribute("aria-hidden", "true");
-  artifactDrawerBackdropEl.hidden = true;
-}
 
 // ── Polling engine ──────────────────────────────────────────────────────────
 // Adaptive-rate polling: fast (500 ms) while pausing/resuming, normal (1.2 s)
@@ -2074,12 +2339,16 @@ pauseSessionBtn.addEventListener("click", async () => {
 resumeSessionBtn.addEventListener("click", async () => {
   if (!currentRunId) return;
   resumeSessionBtn.disabled = true;
+  const feedback = theoryFeedbackInputEl ? theoryFeedbackInputEl.value.trim() : "";
+  if (theoryFeedbackInputEl) theoryFeedbackInputEl.value = "";
+  if (theoryFeedbackBodyEl) theoryFeedbackBodyEl.hidden = true;
+  if (theoryFeedbackToggleEl) theoryFeedbackToggleEl.setAttribute("aria-expanded", "false");
   // Optimistic UI: immediately show resuming state
   proofCtrlPausedEl.hidden = true;
   proofCtrlResumingEl.hidden = false;
   restartPollingFast();
   try {
-    await apiPost(`/api/runs/${currentRunId}/resume`, {});
+    await apiPost(`/api/runs/${currentRunId}/resume`, { feedback });
     // Ensure poll is running now that a session is live
     if (!pollTimer) startPolling(currentRunId);
   } catch (error) {
@@ -2155,11 +2424,44 @@ restartSessionBtn.addEventListener("click", () => {
   restartRun(currentRunId);
 });
 
-closeArtifactDrawerBtn.addEventListener("click", closeArtifactDrawer);
-artifactDrawerBackdropEl.addEventListener("click", closeArtifactDrawer);
+closeAgentDrawerBtn.addEventListener("click", closeAgentDrawer);
+agentDrawerBackdropEl.addEventListener("click", closeAgentDrawer);
 window.addEventListener("keydown", (event) => {
-  if (event.key === "Escape") {
-    closeArtifactDrawer();
+  if (event.key === "Escape") closeAgentDrawer();
+});
+
+// Workspace tab bar
+document.querySelector(".ws-tab-bar")?.addEventListener("click", (event) => {
+  const btn = event.target.closest(".ws-tab");
+  if (btn instanceof HTMLElement && btn.dataset.wsTab) {
+    switchWsTab(btn.dataset.wsTab);
+  }
+});
+
+// Agent track card clicks
+agentTrackEl?.addEventListener("click", (event) => {
+  const card = event.target.closest("[data-agent-role]");
+  if (card instanceof HTMLElement && card.dataset.agentRole) {
+    openAgentDrawer(card.dataset.agentRole);
+  }
+});
+
+// Theory feedback toggle
+theoryFeedbackToggleEl?.addEventListener("click", () => {
+  const isOpen = !theoryFeedbackBodyEl.hidden;
+  theoryFeedbackBodyEl.hidden = isOpen;
+  theoryFeedbackToggleEl.setAttribute("aria-expanded", String(!isOpen));
+  theoryFeedbackToggleEl.querySelector(".theory-feedback-toggle-chevron")?.classList.toggle("is-open", !isOpen);
+});
+
+// Lemma chip click → append to textarea
+theoryFeedbackLemmaListEl?.addEventListener("click", (event) => {
+  const chip = event.target.closest("[data-lemma]");
+  if (chip instanceof HTMLElement && theoryFeedbackInputEl) {
+    const lemma = chip.dataset.lemma || "";
+    const existing = theoryFeedbackInputEl.value.trim();
+    theoryFeedbackInputEl.value = existing ? `${existing}\nLemma "${lemma}": ` : `Lemma "${lemma}": `;
+    theoryFeedbackInputEl.focus();
   }
 });
 
