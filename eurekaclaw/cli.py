@@ -450,6 +450,24 @@ def test_paper_reader(session_id: str, paper_ref: str, mode: str, direction: str
 
 
 @main.command()
+@click.option("--non-interactive", is_flag=True, help="Write defaults without prompting.")
+@click.option("--reset", is_flag=True, help="Overwrite existing .env without merging.")
+@click.option("--env-file", default=".env", show_default=True, help="Path to the .env file to write.")
+def onboard(non_interactive: bool, reset: bool, env_file: str) -> None:
+    """Interactive wizard to configure EurekaClaw options in .env.
+
+    Walks you through LLM backend, API keys, search tools, and system
+    behaviour, then writes (or updates) the .env file.
+
+    Example:
+        eurekaclaw onboard
+        eurekaclaw onboard --env-file ~/.eurekaclaw/.env
+    """
+    from eurekaclaw.onboard import run_onboard
+    run_onboard(non_interactive=non_interactive, reset=reset, env_file=env_file)
+
+
+@main.command()
 @click.argument("skillname", default="")
 @click.option("--force", "-f", is_flag=True, help="Overwrite skills that are already installed.")
 def install_skills(force: bool, skillname: str = "") -> None:
