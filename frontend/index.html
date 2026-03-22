@@ -113,63 +113,98 @@
               </div>
             </div>
 
-            <!-- Proof pipeline controls — pause / resume -->
+            <!-- ── Research progress + pause / resume controls ─────────── -->
             <div class="proof-ctrl" id="proof-ctrl" hidden>
 
-              <!-- State 1: Running — show Pause button -->
-              <div class="proof-ctrl-state" id="proof-ctrl-running" hidden>
-                <button class="proof-ctrl-btn proof-ctrl-pause" id="pause-session-btn" aria-label="Pause proof at next lemma boundary">
-                  <span class="proof-ctrl-btn-icon" aria-hidden="true">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>
-                  </span>
-                  <span>Pause proof</span>
-                </button>
-                <span class="proof-ctrl-caption">Stops gracefully at the next lemma boundary</span>
+              <!-- Pipeline stage track — always visible while active -->
+              <div class="proof-ctrl-track" id="proof-ctrl-track" aria-label="Research pipeline progress">
+                <div class="proof-ctrl-track-stage" data-stage="survey">
+                  <span class="pct-node" aria-hidden="true">📚</span>
+                  <span class="pct-label">Reading</span>
+                </div>
+                <span class="pct-connector" aria-hidden="true"></span>
+                <div class="proof-ctrl-track-stage" data-stage="ideation">
+                  <span class="pct-node" aria-hidden="true">💡</span>
+                  <span class="pct-label">Ideas</span>
+                </div>
+                <span class="pct-connector" aria-hidden="true"></span>
+                <div class="proof-ctrl-track-stage" data-stage="theory">
+                  <span class="pct-node" aria-hidden="true">📐</span>
+                  <span class="pct-label">Proof</span>
+                </div>
+                <span class="pct-connector" aria-hidden="true"></span>
+                <div class="proof-ctrl-track-stage" data-stage="experiment">
+                  <span class="pct-node" aria-hidden="true">🧪</span>
+                  <span class="pct-label">Testing</span>
+                </div>
+                <span class="pct-connector" aria-hidden="true"></span>
+                <div class="proof-ctrl-track-stage" data-stage="writer">
+                  <span class="pct-node" aria-hidden="true">✍️</span>
+                  <span class="pct-label">Writing</span>
+                </div>
               </div>
 
-              <!-- State 2: Pausing — pause requested, waiting for lemma boundary -->
+              <!-- State 1: Running — Pause button -->
+              <div class="proof-ctrl-state" id="proof-ctrl-running" hidden>
+                <div class="proof-ctrl-running-body">
+                  <div class="proof-ctrl-running-left">
+                    <span class="proof-ctrl-live-dot" aria-hidden="true"></span>
+                    <div>
+                      <span class="proof-ctrl-live-label" id="proof-ctrl-live-label">Research in progress</span>
+                      <span class="proof-ctrl-live-sub" id="proof-ctrl-live-sub">EurekaClaw is thinking…</span>
+                    </div>
+                  </div>
+                  <button class="proof-ctrl-pause-btn" id="pause-session-btn" aria-label="Pause research at the next safe checkpoint">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="4" width="4" height="16" rx="1.5"/><rect x="14" y="4" width="4" height="16" rx="1.5"/></svg>
+                    <span>Take a break</span>
+                  </button>
+                </div>
+                <p class="proof-ctrl-running-hint" id="proof-ctrl-running-hint">Your progress is safe — EurekaClaw will stop at the next natural checkpoint.</p>
+              </div>
+
+              <!-- State 2: Pausing — waiting for safe stop -->
               <div class="proof-ctrl-state" id="proof-ctrl-pausing" hidden>
                 <div class="proof-ctrl-transition-bar proof-ctrl-transition-bar--pausing">
-                  <span class="proof-ctrl-transition-spinner" aria-hidden="true"></span>
+                  <span class="pct-spinner pct-spinner--amber" aria-hidden="true"></span>
                   <div class="proof-ctrl-status-text">
-                    <span class="proof-ctrl-status-label">Pausing…</span>
-                    <span class="proof-ctrl-transition-sub">Finishing current lemma, then saving checkpoint</span>
+                    <span class="proof-ctrl-status-label">Finding a safe stopping point…</span>
+                    <span class="proof-ctrl-transition-sub">Finishing the current thinking step before saving your progress</span>
                   </div>
                   <span class="proof-ctrl-elapsed" id="pause-elapsed" aria-live="polite"></span>
                 </div>
               </div>
 
-              <!-- State 3: Paused — checkpoint saved, ready to resume -->
+              <!-- State 3: Paused — progress saved, ready to continue -->
               <div class="proof-ctrl-state" id="proof-ctrl-paused" hidden>
-                <div class="proof-ctrl-status-bar">
-                  <span class="proof-ctrl-status-dot" aria-hidden="true"></span>
-                  <div class="proof-ctrl-status-text">
-                    <span class="proof-ctrl-status-label">Proof paused</span>
-                    <span class="proof-ctrl-paused-stage" id="proof-ctrl-paused-stage" hidden></span>
-                    <code class="proof-ctrl-session-id" id="proof-ctrl-session-id" title="Session ID for resume">—</code>
+                <div class="proof-ctrl-paused-card">
+                  <div class="proof-ctrl-paused-header">
+                    <span class="proof-ctrl-paused-icon" aria-hidden="true">☕</span>
+                    <div>
+                      <span class="proof-ctrl-paused-title">Research paused — progress saved</span>
+                      <span class="proof-ctrl-paused-subtitle" id="proof-ctrl-paused-stage">Ready to continue whenever you are</span>
+                    </div>
                   </div>
-                </div>
-                <div class="proof-ctrl-actions">
-                  <button class="proof-ctrl-btn proof-ctrl-resume" id="resume-session-btn" aria-label="Resume proof from checkpoint">
-                    <span class="proof-ctrl-btn-icon" aria-hidden="true">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-                    </span>
-                    <span>Resume proof</span>
-                  </button>
-                  <button class="proof-ctrl-copy-btn" id="copy-resume-cmd-btn" title="Copy terminal command" aria-label="Copy resume command">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-                    <span id="copy-resume-cmd-label">Copy command</span>
-                  </button>
+                  <div class="proof-ctrl-paused-actions">
+                    <button class="proof-ctrl-resume-btn" id="resume-session-btn" aria-label="Continue research from saved checkpoint">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                      <span>Continue research</span>
+                    </button>
+                    <button class="proof-ctrl-copy-btn" id="copy-resume-cmd-btn" title="Copy terminal resume command" aria-label="Copy resume command">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                      <span id="copy-resume-cmd-label">Copy terminal command</span>
+                    </button>
+                  </div>
+                  <code class="proof-ctrl-session-id" id="proof-ctrl-session-id" title="Session ID">—</code>
                 </div>
               </div>
 
-              <!-- State 4: Resuming — thread started, loading checkpoint -->
+              <!-- State 4: Resuming — loading checkpoint -->
               <div class="proof-ctrl-state" id="proof-ctrl-resuming" hidden>
                 <div class="proof-ctrl-transition-bar proof-ctrl-transition-bar--resuming">
-                  <span class="proof-ctrl-transition-spinner proof-ctrl-transition-spinner--resuming" aria-hidden="true"></span>
+                  <span class="pct-spinner pct-spinner--green" aria-hidden="true"></span>
                   <div class="proof-ctrl-status-text">
-                    <span class="proof-ctrl-status-label">Resuming…</span>
-                    <span class="proof-ctrl-transition-sub">Loading checkpoint and rebuilding agent context</span>
+                    <span class="proof-ctrl-status-label">Picking up where you left off…</span>
+                    <span class="proof-ctrl-transition-sub">Restoring your proof context — this takes just a moment</span>
                   </div>
                 </div>
               </div>

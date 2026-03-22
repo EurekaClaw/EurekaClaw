@@ -1917,121 +1917,245 @@ textarea {
   color: #005c38 !important;
 }
 
-/* ── Proof pipeline controls (Pause / Resume) — Apple-style ────────────── */
+/* ══ Proof pipeline controls — Pause / Resume ══════════════════════════════ */
 
 .proof-ctrl {
-  margin-top: 12px;
-  border-radius: var(--radius-md);
-  overflow: hidden;
+  margin-top: 14px;
+  border-radius: 14px;
   border: 1px solid var(--line);
-  background:
-    linear-gradient(180deg, rgba(255, 253, 248, 0.9) 0%, rgba(246, 243, 238, 0.72) 100%);
-  box-shadow: 0 2px 8px rgba(18, 37, 66, 0.05);
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 2px 12px rgba(18, 37, 66, 0.06);
+  overflow: hidden;
 }
 
 .proof-ctrl-state {
   padding: 14px 16px;
+}
+
+/* ── Pipeline stage track ──────────────────────────────────────────────────── */
+
+.proof-ctrl-track {
   display: flex;
   align-items: center;
+  justify-content: center;
+  gap: 0;
+  padding: 12px 16px 10px;
+  border-bottom: 1px solid var(--line);
+  background: rgba(248, 250, 252, 0.6);
+}
+
+.proof-ctrl-track-stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  position: relative;
+  opacity: 0.35;
+  transition: opacity 0.3s ease;
+  min-width: 52px;
+  cursor: default;
+}
+
+.proof-ctrl-track-stage.is-done  { opacity: 0.55; }
+.proof-ctrl-track-stage.is-active { opacity: 1; }
+.proof-ctrl-track-stage.is-paused { opacity: 1; }
+
+.pct-node {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  font-size: 1rem;
+  background: var(--surface);
+  border: 1.5px solid var(--line);
+  transition: border-color 0.3s ease, box-shadow 0.3s ease, background 0.3s ease;
+  position: relative;
+}
+
+/* Done: filled green ring */
+.proof-ctrl-track-stage.is-done .pct-node {
+  border-color: rgba(0, 150, 80, 0.4);
+  background: rgba(0, 150, 80, 0.06);
+}
+
+/* Done check overlay */
+.proof-ctrl-track-stage.is-done .pct-node::after {
+  content: "✓";
+  position: absolute;
+  bottom: -4px;
+  right: -4px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #009650;
+  color: #fff;
+  font-size: 0.55rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  animation: done-pop 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Active: blue ring + pulse */
+.proof-ctrl-track-stage.is-active .pct-node {
+  border-color: var(--accent);
+  background: rgba(0, 113, 227, 0.07);
+  box-shadow: 0 0 0 4px rgba(0, 113, 227, 0.12);
+  animation: node-pulse 2s ease-in-out infinite;
+}
+
+/* Paused: amber ring */
+.proof-ctrl-track-stage.is-paused .pct-node {
+  border-color: #b46400;
+  background: rgba(181, 100, 0, 0.08);
+  box-shadow: 0 0 0 4px rgba(181, 100, 0, 0.12);
+}
+
+.pct-label {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--subtext);
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+.proof-ctrl-track-stage.is-active .pct-label { color: var(--accent); }
+.proof-ctrl-track-stage.is-paused .pct-label { color: #8a4800; }
+.proof-ctrl-track-stage.is-done   .pct-label { color: #009650; }
+
+.pct-connector {
+  flex: 1;
+  height: 1.5px;
+  background: var(--line);
+  min-width: 12px;
+  max-width: 28px;
+  margin-bottom: 18px; /* align with node centres */
+  transition: background 0.4s ease;
+}
+
+.pct-connector.is-filled {
+  background: rgba(0, 150, 80, 0.35);
+}
+
+/* ── Shared spinner ─────────────────────────────────────────────────────────── */
+
+.pct-spinner {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  animation: spin 0.8s linear infinite;
+}
+
+.pct-spinner--amber {
+  border: 2px solid rgba(181, 100, 0, 0.2);
+  border-top-color: #b46400;
+}
+
+.pct-spinner--green {
+  border: 2px solid rgba(0, 150, 80, 0.2);
+  border-top-color: #009650;
+}
+
+/* ── Running state ───────────────────────────────────────────────────────────  */
+
+.proof-ctrl-running-body {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 12px;
   flex-wrap: wrap;
 }
 
-/* Shared button base */
-.proof-ctrl-btn {
+.proof-ctrl-running-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.proof-ctrl-live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex-shrink: 0;
+  animation: live-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes live-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(0, 113, 227, 0.5); opacity: 1; }
+  50%       { box-shadow: 0 0 0 5px rgba(0, 113, 227, 0); opacity: 0.85; }
+}
+
+.proof-ctrl-live-label {
+  display: block;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.proof-ctrl-live-sub {
+  display: block;
+  font-size: 0.74rem;
+  color: var(--muted);
+  margin-top: 1px;
+}
+
+/* Pause button — calm, reassuring amber-warm pill */
+.proof-ctrl-pause-btn {
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  padding: 9px 18px 9px 14px;
+  padding: 9px 18px;
   border-radius: 999px;
-  font-size: 0.82rem;
+  font-size: 0.81rem;
   font-weight: 600;
   letter-spacing: 0.01em;
-  border: 1px solid transparent;
-  transition: background 160ms ease, box-shadow 160ms ease, transform 120ms ease, opacity 160ms ease;
+  color: #7a4e00;
+  background: rgba(181, 100, 0, 0.09);
+  border: 1.5px solid rgba(181, 100, 0, 0.22);
+  transition: background 160ms ease, box-shadow 160ms ease, transform 120ms ease;
   white-space: nowrap;
   flex-shrink: 0;
 }
 
-.proof-ctrl-btn-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-/* Pause button — warm amber */
-.proof-ctrl-pause {
-  color: #7a5420;
-  background: rgba(155, 107, 48, 0.1);
-  border-color: rgba(155, 107, 48, 0.22);
-}
-
-.proof-ctrl-pause .proof-ctrl-btn-icon {
-  background: rgba(155, 107, 48, 0.15);
-  color: #9b6b30;
-}
-
-.proof-ctrl-pause:hover {
-  background: rgba(155, 107, 48, 0.17);
-  box-shadow: 0 4px 14px rgba(155, 107, 48, 0.18);
+.proof-ctrl-pause-btn:hover:not(:disabled) {
+  background: rgba(181, 100, 0, 0.15);
+  box-shadow: 0 4px 14px rgba(181, 100, 0, 0.16);
   transform: translateY(-1px);
 }
 
-.proof-ctrl-pause:active {
+.proof-ctrl-pause-btn:active:not(:disabled) {
   transform: translateY(0);
   box-shadow: none;
 }
 
-/* Resume button — primary blue, prominent */
-.proof-ctrl-resume {
-  color: #fff;
-  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-strong) 100%);
-  border-color: transparent;
-  box-shadow: 0 6px 16px rgba(15, 106, 184, 0.22);
-}
-
-.proof-ctrl-resume .proof-ctrl-btn-icon {
-  background: rgba(255, 255, 255, 0.2);
-  color: #fff;
-}
-
-.proof-ctrl-resume:hover {
-  box-shadow: 0 8px 22px rgba(15, 106, 184, 0.32);
-  transform: translateY(-1px);
-}
-
-.proof-ctrl-resume:active {
-  transform: translateY(0);
-  box-shadow: 0 3px 10px rgba(15, 106, 184, 0.2);
-}
-
-.proof-ctrl-btn:disabled {
-  opacity: 0.45;
+.proof-ctrl-pause-btn:disabled {
+  opacity: 0.38;
   cursor: not-allowed;
-  transform: none !important;
-  box-shadow: none !important;
 }
 
-.proof-ctrl-caption {
-  font-size: 0.75rem;
+.proof-ctrl-running-hint {
+  font-size: 0.73rem;
   color: var(--muted);
-  flex: 1;
+  margin: 6px 0 0 0;
+  line-height: 1.45;
 }
 
-/* ── Proof-ctrl transition bars (pausing & resuming) ──────────────────────── */
+/* ── Transition bars (pausing / resuming) ──────────────────────────────────── */
 
 .proof-ctrl-transition-bar {
   display: flex;
   align-items: center;
-  gap: 10px;
-  flex: 1;
-  padding: 6px 10px;
-  border-radius: 8px;
-  animation: ctrl-slide-in 0.22s ease;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  animation: ctrl-slide-in 0.24s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .proof-ctrl-transition-bar--pausing {
@@ -2040,157 +2164,185 @@ textarea {
 }
 
 .proof-ctrl-transition-bar--resuming {
-  background: rgba(0, 150, 80, 0.07);
+  background: rgba(0, 150, 80, 0.06);
   border: 1px solid rgba(0, 150, 80, 0.18);
-}
-
-.proof-ctrl-transition-spinner {
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  flex-shrink: 0;
-  animation: spin 0.8s linear infinite;
-}
-
-/* Pausing spinner: amber */
-.proof-ctrl-transition-spinner {
-  border: 2px solid rgba(181, 100, 0, 0.2);
-  border-top-color: #b46400;
-}
-
-/* Resuming spinner: green */
-.proof-ctrl-transition-spinner--resuming {
-  border: 2px solid rgba(0, 150, 80, 0.2);
-  border-top-color: #009650;
-}
-
-.proof-ctrl-transition-sub {
-  display: block;
-  font-size: 0.75rem;
-  color: var(--muted);
-  margin-top: 1px;
-}
-
-/* Elapsed timer */
-.proof-ctrl-elapsed {
-  margin-left: auto;
-  font-size: 0.72rem;
-  font-variant-numeric: tabular-nums;
-  color: var(--muted);
-  opacity: 0.7;
-}
-
-/* Paused stage label */
-.proof-ctrl-paused-stage {
-  display: block;
-  font-size: 0.74rem;
-  color: var(--muted);
-  margin-top: 1px;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-/* Flash animation when entering paused / running states */
-@keyframes ctrl-flash-in {
-  0%   { opacity: 0; transform: translateY(4px) scale(0.98); }
-  60%  { opacity: 1; transform: translateY(-1px) scale(1.005); }
-  100% { opacity: 1; transform: none; }
-}
-
-@keyframes ctrl-slide-in {
-  0%   { opacity: 0; transform: translateX(-6px); }
-  100% { opacity: 1; transform: none; }
-}
-
-.ctrl-flash-in {
-  animation: ctrl-flash-in 0.3s cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-/* Paused state — status bar */
-.proof-ctrl-status-bar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex: 1;
-  min-width: 0;
-}
-
-.proof-ctrl-status-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #c08030;
-  flex-shrink: 0;
-  box-shadow: 0 0 0 3px rgba(192, 128, 48, 0.18);
-  animation: proof-ctrl-pulse 2s ease-in-out infinite;
-}
-
-@keyframes proof-ctrl-pulse {
-  0%, 100% { box-shadow: 0 0 0 3px rgba(192, 128, 48, 0.18); }
-  50%       { box-shadow: 0 0 0 5px rgba(192, 128, 48, 0.08); }
 }
 
 .proof-ctrl-status-text {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
   min-width: 0;
 }
 
 .proof-ctrl-status-label {
-  font-size: 0.78rem;
+  font-size: 0.82rem;
   font-weight: 600;
-  color: #7a5420;
-  white-space: nowrap;
+  color: var(--text);
 }
 
-.proof-ctrl-session-id {
-  font-family: "IBM Plex Mono", monospace;
-  font-size: 0.70rem;
+.proof-ctrl-transition-sub {
+  display: block;
+  font-size: 0.74rem;
   color: var(--muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 180px;
-  cursor: default;
+  line-height: 1.4;
 }
 
-.proof-ctrl-actions {
+.proof-ctrl-elapsed {
+  margin-left: auto;
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  opacity: 0.65;
+  flex-shrink: 0;
+}
+
+/* ── Paused card ────────────────────────────────────────────────────────────── */
+
+.proof-ctrl-paused-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  animation: ctrl-flash-in 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.proof-ctrl-paused-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.proof-ctrl-paused-icon {
+  font-size: 1.5rem;
+  line-height: 1;
+  flex-shrink: 0;
+  margin-top: 1px;
+  filter: grayscale(0.1);
+}
+
+.proof-ctrl-paused-title {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.proof-ctrl-paused-subtitle {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin-top: 3px;
+  line-height: 1.4;
+}
+
+.proof-ctrl-paused-actions {
   display: flex;
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
 }
 
-/* Copy command button — ghost style */
+/* Continue / resume button — primary blue */
+.proof-ctrl-resume-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 22px;
+  border-radius: 999px;
+  font-size: 0.83rem;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-strong, #0060c0) 100%);
+  border: none;
+  box-shadow: 0 4px 16px rgba(0, 113, 227, 0.28);
+  transition: box-shadow 180ms ease, transform 120ms ease;
+  white-space: nowrap;
+}
+
+.proof-ctrl-resume-btn:hover:not(:disabled) {
+  box-shadow: 0 6px 22px rgba(0, 113, 227, 0.38);
+  transform: translateY(-1px);
+}
+
+.proof-ctrl-resume-btn:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: 0 3px 10px rgba(0, 113, 227, 0.22);
+}
+
+.proof-ctrl-resume-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Copy command button */
 .proof-ctrl-copy-btn {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 7px 12px;
-  border-radius: 8px;
+  gap: 6px;
+  padding: 9px 14px;
+  border-radius: 10px;
   font-size: 0.75rem;
   font-weight: 500;
   color: var(--muted);
   background: rgba(100, 116, 139, 0.07);
   border: 1px solid var(--line);
-  transition: background 140ms ease, color 140ms ease, border-color 140ms ease;
+  transition: background 140ms ease, color 140ms ease;
   white-space: nowrap;
 }
 
 .proof-ctrl-copy-btn:hover {
   background: rgba(100, 116, 139, 0.13);
   color: var(--text);
-  border-color: var(--line-strong);
 }
 
-/* Paused state inner layout — stack status bar above actions on narrow viewports */
-#proof-ctrl-paused {
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 12px;
+/* Session ID chip */
+.proof-ctrl-session-id {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 0.68rem;
+  color: var(--muted);
+  background: rgba(100, 116, 139, 0.07);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 3px 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
+  display: inline-block;
+  cursor: default;
+  align-self: flex-start;
+}
+
+/* ── Animations ─────────────────────────────────────────────────────────────── */
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes node-pulse {
+  0%, 100% { box-shadow: 0 0 0 4px rgba(0, 113, 227, 0.12); }
+  50%       { box-shadow: 0 0 0 7px rgba(0, 113, 227, 0.04); }
+}
+
+@keyframes done-pop {
+  0%   { transform: scale(0); opacity: 0; }
+  70%  { transform: scale(1.2); opacity: 1; }
+  100% { transform: scale(1); }
+}
+
+@keyframes ctrl-flash-in {
+  0%   { opacity: 0; transform: translateY(6px) scale(0.98); }
+  60%  { opacity: 1; transform: translateY(-1px) scale(1.003); }
+  100% { opacity: 1; transform: none; }
+}
+
+@keyframes ctrl-slide-in {
+  0%   { opacity: 0; transform: translateX(-8px); }
+  100% { opacity: 1; transform: none; }
+}
+
+.ctrl-flash-in {
+  animation: ctrl-flash-in 0.32s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 /* ── Failed session immutable note — Claude Code style ──────────────────── */

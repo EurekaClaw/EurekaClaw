@@ -44,11 +44,15 @@ const closeArtifactDrawerBtn = document.getElementById("close-artifact-drawer-bt
 const pauseSessionBtn = document.getElementById("pause-session-btn");
 const resumeSessionBtn = document.getElementById("resume-session-btn");
 const proofCtrlEl = document.getElementById("proof-ctrl");
+const proofCtrlTrackEl = document.getElementById("proof-ctrl-track");
 const proofCtrlRunningEl = document.getElementById("proof-ctrl-running");
 const proofCtrlPausingEl = document.getElementById("proof-ctrl-pausing");
 const proofCtrlPausedEl = document.getElementById("proof-ctrl-paused");
 const proofCtrlResumingEl = document.getElementById("proof-ctrl-resuming");
 const proofCtrlPausedStageEl = document.getElementById("proof-ctrl-paused-stage");
+const proofCtrlLiveLabelEl = document.getElementById("proof-ctrl-live-label");
+const proofCtrlLiveSubEl = document.getElementById("proof-ctrl-live-sub");
+const proofCtrlRunningHintEl = document.getElementById("proof-ctrl-running-hint");
 const pauseElapsedEl = document.getElementById("pause-elapsed");
 const proofCtrlSessionIdEl = document.getElementById("proof-ctrl-session-id");
 const copyResumeCmdBtn = document.getElementById("copy-resume-cmd-btn");
@@ -850,7 +854,121 @@ function updateSidebar(run) {
   });
 }
 
-// ── Elapsed timer for "Pausing…" state ──────────────────────────────────────
+// ── Stage name helpers ────────────────────────────────────────────────────────
+
+// Maps outer pipeline task names → track stage keys
+const STAGE_TASK_MAP = {
+  survey: "survey",
+  ideation: "ideation",
+  direction_selection_gate: "ideation",
+  theory: "theory",
+  theory_review_gate: "theory",
+  experiment: "experiment",
+  final_review_gate: "experiment",
+  writer: "writer",
+};
+
+// Maps Theory inner-loop stage names → readable descriptions
+const INNER_STAGE_LABELS = {
+  ArchitectAgent: "planning the proof structure",
+  LemmaDeveloper: "developing key lemmas",
+  Verifier: "checking the proof",
+  CrystallizerAgent: "crystallising the theorem",
+  CompressAgent: "compressing context",
+  FormalAgent: "formalising the proof",
+  AssemblerAgent: "assembling the argument",
+};
+
+function getActiveOuterStage(pipeline) {
+  if (!pipeline || !pipeline.length) return null;
+  const running = pipeline.find((t) => t.status === "in_progress" || t.status === "running");
+  if (running) return STAGE_TASK_MAP[running.name] || null;
+  // Fall back: last completed task
+  const done = pipeline.filter((t) => t.status === "completed");
+  if (done.length) return STAGE_TASK_MAP[done[done.length - 1].name] || null;
+  return null;
+}
+
+function friendlyInnerStage(rawStage) {
+  if (!rawStage) return null;
+  return INNER_STAGE_LABELS[rawStage] || rawStage.replace(/Agent$/, "").replace(/([A-Z])/g, " $1").trim().toLowerCase();
+}
+
+// ── Stage track renderer ──────────────────────────────────────────────────────
+
+function renderStageTrack(run) {
+  if (!proofCtrlTrackEl) return;
+  const status = run ? run.status : null;
+  const pipeline = run ? (run.pipeline || []) : [];
+  const activeOuter = getActiveOuterStage(pipeline);
+  const isPaused = status === "paused" || status === "pausing";
+
+  const stageOrder = ["survey", "ideation", "theory", "experiment", "writer"];
+
+  stageOrder.forEach((stageKey) => {
+    const el = proofCtrlTrackEl.querySelector(`[data-stage="${stageKey}"]`);
+    if (!el) return;
+
+    // Determine completion: any task mapping to this stage is completed
+    const tasksForStage = pipeline.filter((t) => STAGE_TASK_MAP[t.name] === stageKey);
+    const isCompleted = tasksForStage.length > 0 && tasksForStage.every((t) => t.status === "completed");
+    const isActive = activeOuter === stageKey;
+    const isPausedHere = isPaused && stageKey === "theory"; // pause only in theory
+
+    el.classList.remove("is-active", "is-done", "is-paused");
+    if (isCompleted) el.classList.add("is-done");
+    else if (isPausedHere) el.classList.add("is-paused");
+    else if (isActive) el.classList.add("is-active");
+  });
+
+  // Update connectors — fill up to the active stage
+  const connectors = proofCtrlTrackEl.querySelectorAll(".pct-connector");
+  let activeIdx = stageOrder.indexOf(activeOuter);
+  if (activeIdx < 0) activeIdx = -1;
+  connectors.forEach((c, i) => {
+    c.classList.toggle("is-filled", i < activeIdx || (activeIdx < 0 && pipeline.some((t) => t.status === "completed")));
+  });
+}
+
+// ── Pause caption based on current outer stage ────────────────────────────────
+
+function updateRunningCaption(run) {
+  const pipeline = run ? (run.pipeline || []) : [];
+  const activeOuter = getActiveOuterStage(pipeline);
+
+  const labels = {
+    survey: { label: "Reading papers", sub: "Searching the literature — pause will queue for the proof stage" },
+    ideation: { label: "Generating ideas", sub: "Exploring hypotheses — pause will queue for the proof stage" },
+    theory: { label: "Proving the theorem", sub: "Pause will stop safely at the next proof checkpoint" },
+    experiment: { label: "Running experiments", sub: "Validating the theory numerically" },
+    writer: { label: "Writing the paper", sub: "Assembling your LaTeX paper" },
+  };
+
+  const info = labels[activeOuter] || { label: "Research in progress", sub: "EurekaClaw is thinking…" };
+
+  if (proofCtrlLiveLabelEl) proofCtrlLiveLabelEl.textContent = info.label;
+  if (proofCtrlLiveSubEl) proofCtrlLiveSubEl.textContent = info.sub;
+
+  // Hint text below button
+  if (proofCtrlRunningHintEl) {
+    if (activeOuter === "theory") {
+      proofCtrlRunningHintEl.textContent = "Your progress is safe — EurekaClaw will stop at the next natural checkpoint.";
+    } else if (activeOuter === "experiment" || activeOuter === "writer") {
+      proofCtrlRunningHintEl.textContent = "The theorem proof is complete. Pause is not available at this stage.";
+      if (pauseSessionBtn) { pauseSessionBtn.disabled = true; pauseSessionBtn.style.opacity = "0.4"; }
+    } else {
+      proofCtrlRunningHintEl.textContent = "Pause will take effect when theorem-proving begins.";
+      if (pauseSessionBtn) { pauseSessionBtn.disabled = false; pauseSessionBtn.style.opacity = ""; }
+    }
+    // Re-enable for theory
+    if (activeOuter === "theory" && pauseSessionBtn) {
+      pauseSessionBtn.disabled = false;
+      pauseSessionBtn.style.opacity = "";
+    }
+  }
+}
+
+// ── Elapsed timer for "Pausing…" state ───────────────────────────────────────
 function startElapsedTimer(fromDate) {
   stopElapsedTimer();
   pauseRequestedAt = fromDate || new Date();
@@ -867,7 +985,7 @@ function stopElapsedTimer() {
   pauseRequestedAt = null;
 }
 
-// ── Proof-ctrl state machine ─────────────────────────────────────────────────
+// ── Proof-ctrl state machine ──────────────────────────────────────────────────
 function updateSessionControls(run) {
   const status = run ? run.status : null;
   const isRunning = status === "running";
@@ -877,12 +995,12 @@ function updateSessionControls(run) {
   const isFailed = status === "failed";
   const showCtrl = isRunning || isPausing || isPaused || isResuming;
 
-  // Sync local flag with authoritative server status
+  // Sync local optimistic flag with authoritative server status
   if (status === "pausing" || status === "paused" || status === "resuming") {
     isPausingRequested = false;
   }
 
-  // Elapsed timer: start on pausing, stop on any other state
+  // Elapsed timer
   if (isPausing && !elapsedTimer) {
     const fromDate = run && run.pause_requested_at ? new Date(run.pause_requested_at) : null;
     startElapsedTimer(fromDate);
@@ -890,13 +1008,12 @@ function updateSessionControls(run) {
     stopElapsedTimer();
   }
 
-  // Animate transition into paused (flash the ctrl once)
-  if (isPaused && proofCtrlPausedEl.hidden) {
+  // Entry animations
+  if (isPaused && proofCtrlPausedEl && proofCtrlPausedEl.hidden) {
     proofCtrlPausedEl.classList.remove("ctrl-flash-in");
     requestAnimationFrame(() => proofCtrlPausedEl.classList.add("ctrl-flash-in"));
   }
-  // Animate transition into running after resume
-  if (isRunning && !isPausingRequested && proofCtrlRunningEl.hidden) {
+  if (isRunning && !isPausingRequested && proofCtrlRunningEl && proofCtrlRunningEl.hidden) {
     proofCtrlRunningEl.classList.remove("ctrl-flash-in");
     requestAnimationFrame(() => proofCtrlRunningEl.classList.add("ctrl-flash-in"));
   }
@@ -904,25 +1021,30 @@ function updateSessionControls(run) {
   // Outer container
   proofCtrlEl.hidden = !showCtrl;
 
-  // Sub-states — mutually exclusive
+  // Sub-states (mutually exclusive)
   proofCtrlRunningEl.hidden = !isRunning || isPausing;
   proofCtrlPausingEl.hidden = !isPausing;
   proofCtrlPausedEl.hidden = !isPaused;
   proofCtrlResumingEl.hidden = !isResuming;
 
+  // Stage track (shown in all active states)
+  if (proofCtrlTrackEl) proofCtrlTrackEl.hidden = false;
+  renderStageTrack(run);
+
+  // Running caption
+  if (isRunning && !isPausing) updateRunningCaption(run);
+
   // Paused details
   if (isPaused && run) {
-    if (run.session_id) {
+    if (proofCtrlSessionIdEl && run.session_id) {
       proofCtrlSessionIdEl.textContent = run.session_id.slice(0, 16) + "…";
       proofCtrlSessionIdEl.title = `eurekaclaw resume ${run.session_id}`;
     }
     if (proofCtrlPausedStageEl) {
-      if (run.paused_stage) {
-        proofCtrlPausedStageEl.textContent = `Stage: ${run.paused_stage}`;
-        proofCtrlPausedStageEl.hidden = false;
-      } else {
-        proofCtrlPausedStageEl.hidden = true;
-      }
+      const friendly = run.paused_stage ? friendlyInnerStage(run.paused_stage) : null;
+      proofCtrlPausedStageEl.textContent = friendly
+        ? `Paused while ${friendly}`
+        : "Ready to continue whenever you are";
     }
   }
 
