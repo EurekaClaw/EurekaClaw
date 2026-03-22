@@ -175,21 +175,27 @@ introduce \\newcommand for anything already listed here.
     \\opnorm{x}{p}     triple-bar operator norm
     \\inner{x}{y}      auto-sized ⟨x, y⟩
     \\dotp{x}{y}       fixed-size ⟨x, y⟩
+    \\bigdotp{x}{y}    large ⟨x, y⟩
     \\rbr{x}           auto-sized ( )
     \\sbr{x}           auto-sized [ ]
     \\cbr{x}           auto-sized { }
     \\abr{x}           auto-sized | |
+    \\ceil{x}           ⌈x⌉
+    \\floor{x}          ⌊x⌋
 
   Operators (already defined — do NOT redefine with \\DeclareMathOperator):
-    \\argmin  \\argmax  \\minimize  \\sign  \\tr  \\diag  \\Var  \\Cov  \\Cor
+    \\argmin  \\argmax  \\minimize  \\sign  \\tr  \\diag  \\Var  \\Cov  \\corr    \\ind
 
   Other:
     \\zero  \\one              bold 0 / 1 vectors
-    \\smallfrac{a}{b}         textstyle fraction
+    \\nicefrac{a}{b}          fraction that auto-switches to textstyle in inline math
     \\given                   conditional bar: p(y \\given x)
     \\ud                      upright d for integrals: \\int f(x)\\ud x
     \\hat{} → \\widehat{}     (auto-redefined by smile.sty)
     \\tilde{} → \\widetilde{} (auto-redefined by smile.sty)
+    \\poly  \\polylog         for generic polynomial / polylogarithmic factors in bounds
+    \\iid                     for "i.i.d." in math mode)
+    \\iidsim                  for "i.i.d. \\sim" in math mode)
 
   Do NOT use or define: \\R \\N \\Z \\E \\Prob  — use \\RR \\NN \\ZZ \\EE \\PP instead.
 """
