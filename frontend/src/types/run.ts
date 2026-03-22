@@ -178,8 +178,7 @@ export type RunStatus =
   | 'pausing'
   | 'paused'
   | 'resuming'
-  | 'awaiting_direction'
-  | 'awaiting_review'
+  | 'awaiting_gate'
   | 'completed'
   | 'failed';
 

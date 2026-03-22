@@ -15,5 +15,5 @@ export function TheoryDrawerBody({ arts }: TheoryDrawerBodyProps) {
       </div>
     );
   }
-  return <ProofPanel theoryState={ts} />;
+  return <ProofPanel run={null} theoryState={ts} />;
 }

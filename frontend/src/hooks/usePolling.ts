@@ -54,17 +54,16 @@ export function usePolling() {
         // Auto-tab: theory in_progress → completed — switch to proof
         const theoryTask = current.pipeline?.find((t) => t.name === 'theory' || t.agent_role === 'theory');
         const prevTheoryTask = prev?.pipeline?.find((t) => t.name === 'theory' || t.agent_role === 'theory');
-        if (prevTheoryTask?.status === 'in_progress' && theoryTask?.status === 'completed' && activeWsTab === 'live') {
-          setActiveWsTab('proof');
-        }
+        const wasRunning = prevTheoryTask?.status === 'in_progress';
+        const nowDone = theoryTask?.status === 'completed';
+        if (wasRunning && nowDone && activeWsTab === 'live') setActiveWsTab('proof');
 
-        // Auto-tab: awaiting_review — switch to live to show review gate
-        if (prevStatus !== 'awaiting_review' && current.status === 'awaiting_review') {
-          setActiveWsTab('live');
-        }
-
-        // Auto-tab: run completed — switch to paper
-        if (prevStatus !== 'completed' && current.status === 'completed' && activeWsTab === 'live') {
+        // Auto-switch to Proof tab when theory review gate becomes active
+        const reviewGateTask = current.pipeline?.find((t) => t.name === 'theory_review_gate');
+        const prevReviewGateTask = prev?.pipeline?.find((t) => t.name === 'theory_review_gate');
+        const gateJustActivated = prevReviewGateTask?.status !== 'awaiting_gate' && reviewGateTask?.status === 'awaiting_gate';
+        if (gateJustActivated) setActiveWsTab('proof');
+        if (prev?.status !== 'completed' && current.status === 'completed' && activeWsTab === 'live') {
           setActiveWsTab('paper');
         }
 

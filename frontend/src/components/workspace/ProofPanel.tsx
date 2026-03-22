@@ -1,7 +1,10 @@
-import type { TheoryState, LemmaNode } from '@/types';
+import { useState } from 'react';
+import type { TheoryState, LemmaNode, SessionRun } from '@/types';
+import { apiPost } from '@/api/client';
 
 interface ProofPanelProps {
-  theoryState: TheoryState | null | undefined;
+  run: SessionRun | null;
+  theoryState?: TheoryState | null;
 }
 
 interface LemmaEntry {
@@ -28,7 +31,114 @@ function lemmaConf(node: LemmaNode | undefined): string {
   return 'open';
 }
 
-export function ProofPanel({ theoryState: ts }: ProofPanelProps) {
+function TheoryReviewGate({ run, ts }: { run: SessionRun; ts: TheoryState }) {
+  const lemmaDAG = ts.lemma_dag ?? {};
+  const lemmaEntries = Object.entries(lemmaDAG);
+  const [selectedLemma, setSelectedLemma] = useState('');
+  const [reason, setReason] = useState('');
+  const [rejecting, setRejecting] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  async function handleApprove() {
+    setSubmitting(true);
+    try {
+      await apiPost(`/api/runs/${run.run_id}/gate/theory`, { approved: true });
+    } catch (err) {
+      console.error('Theory gate approve failed:', err);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleReject() {
+    setSubmitting(true);
+    try {
+      await apiPost(`/api/runs/${run.run_id}/gate/theory`, {
+        approved: false,
+        lemma_id: selectedLemma,
+        reason,
+      });
+      setRejecting(false);
+      setSelectedLemma('');
+      setReason('');
+    } catch (err) {
+      console.error('Theory gate reject failed:', err);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="proof-gate-review">
+      <p className="proof-gate-heading">🔍 Theory ready for review</p>
+      <p className="drawer-muted">
+        The theory agent has completed a proof attempt. Review the proof sketch above and approve
+        to proceed, or flag a lemma with a concern to request a revision.
+      </p>
+      {!rejecting ? (
+        <div className="gate-btn-row">
+          <button className="btn btn-primary" disabled={submitting} onClick={handleApprove}>
+            Approve &amp; continue
+          </button>
+          <button
+            className="btn btn-secondary"
+            disabled={submitting}
+            onClick={() => setRejecting(true)}
+          >
+            Flag a concern
+          </button>
+        </div>
+      ) : (
+        <div className="proof-gate-reject-form">
+          {lemmaEntries.length > 0 && (
+            <select
+              className="gate-select"
+              value={selectedLemma}
+              onChange={(e) => setSelectedLemma(e.target.value)}
+              disabled={submitting}
+            >
+              <option value="">— Select a lemma (optional) —</option>
+              {lemmaEntries.map(([id, node]) => (
+                <option key={id} value={id}>
+                  {lemmaLabel(node, id)}
+                </option>
+              ))}
+            </select>
+          )}
+          <textarea
+            className="gate-textarea"
+            placeholder="Describe the logical gap or issue…"
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            rows={3}
+            disabled={submitting}
+          />
+          <div className="gate-btn-row">
+            <button
+              className="btn btn-primary"
+              disabled={submitting || !reason.trim()}
+              onClick={handleReject}
+            >
+              Submit feedback &amp; revise
+            </button>
+            <button
+              className="btn btn-ghost"
+              disabled={submitting}
+              onClick={() => setRejecting(false)}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function ProofPanel({ run, theoryState: theoryStateOverride }: ProofPanelProps) {
+  const ts = theoryStateOverride ?? run?.artifacts?.theory_state;
+  const pipeline = run?.pipeline ?? [];
+
   if (!ts) {
     return (
       <div className="proof-sketch-panel">
@@ -71,6 +181,10 @@ export function ProofPanel({ theoryState: ts }: ProofPanelProps) {
   });
 
   const allLemmas = [...provenEntries, ...openEntries];
+
+  // Theory review gate
+  const theoryReviewTask = pipeline.find((t) => t.name === 'theory_review_gate');
+  const showReviewGate = theoryReviewTask?.status === 'awaiting_gate' && run != null;
 
   return (
     <div className="proof-sketch-panel">
@@ -128,6 +242,7 @@ export function ProofPanel({ theoryState: ts }: ProofPanelProps) {
         ) : (
           <p className="drawer-muted">No lemmas yet — the proof structure will appear as the theory agent works.</p>
         )}
+        {showReviewGate && <TheoryReviewGate run={run!} ts={ts} />}
       </div>
     </div>
   );

@@ -44,7 +44,7 @@ export function WorkspaceTabs({ run }: WorkspaceTabsProps) {
         <LivePanel run={run} />
       </div>
       <div className={`ws-panel${activeWsTab === 'proof' ? ' is-visible' : ''}`} id="ws-panel-proof" role="tabpanel">
-        <ProofPanel theoryState={run?.artifacts?.theory_state} />
+        <ProofPanel run={run} />
       </div>
       <div className={`ws-panel${activeWsTab === 'paper' ? ' is-visible' : ''}`} id="ws-panel-paper" role="tabpanel">
         <PaperPanel run={run} />
