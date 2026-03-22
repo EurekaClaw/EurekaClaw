@@ -219,6 +219,21 @@ EurekaClaw builds on ideas and inspiration from the broader AI-for-science commu
 
 ---
 
+## Citation
+
+If you use EurekaClaw in your research, please cite:
+
+```bibtex
+@misc{eurekaclaw2026,
+  title     = {EurekaClaw: An AI Agent for Capturing Eureka Moments},
+  author    = {Li, Xuheng and Di, Qiwei and Zhang, Chenggong and Ji, Kaixuan and Zhao, Qingyue and Liu, Yifeng and Zhang, Shiyuan and Gu, Quanquan},
+  year      = {2026},
+  url       = {https://github.com/EurekaClaw/EurekaClaw}
+}
+```
+
+---
+
 ## License
 
 MIT License. See [LICENSE](LICENSE) for details.
