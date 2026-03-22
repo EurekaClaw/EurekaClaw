@@ -286,7 +286,7 @@ class WriterAgent(BaseAgent):
                 # Resolve the arxiv ID to a cite key (strip version suffix)
                 src_base = src.split("v")[0]
                 ckey = arxiv_to_citekey.get(src_base) or arxiv_to_citekey.get(src) or ""
-                cite = f"\\citet{{{ckey}}}" if ckey else (f"\\citet{{{src}}}" if src else "the cited work")
+                cite = f"\\cite{{{ckey}}}" if ckey else (f"\\cite{{{src}}}" if src else "the cited work")
                 return f"\\begin{{proof}}\nRefer to {cite}.\n\\end{{proof}}"
             # adapted / new — full proof injected post-generation via placeholder
             return f"\\begin{{proof}}\n%%PROOF:{lid}%%\n\\end{{proof}}"
@@ -552,7 +552,125 @@ If a section has little content, write at least two sentences rather than omitti
         #    Also drop any trailing partial tabular row (no closing \\) before closing.
         text = WriterAgent._close_open_environments(text)
 
+        # 8. Fix [lemma_id] / [lemma\_id] cross-references written by the LLM
+        #    (e.g. in theorem proofs and prose) → Lemma~\ref{lem:lemma_id}.
+        #    Require at least one underscore so normal math brackets are not touched.
+        def _body_ref_repl(m: re.Match) -> str:  # type: ignore[type-arg]
+            lid = m.group(1).replace(r"\_", "_")
+            return f"Lemma~\\ref{{lem:{lid}}}"
+        text = re.sub(
+            r"(?<!\\)(?<!\{)\[([a-z][a-z0-9]*(?:(?:_|\\_)[a-z0-9]+)+)\]",
+            _body_ref_repl, text,
+        )
+
         return text.strip()
+
+    @staticmethod
+    def _clean_proof_text(pt: str, arxiv_to_citekey: dict | None = None) -> str:
+        """Convert raw Prover output to clean LaTeX-compatible proof body.
+
+        Strips:
+        - The "Proof Strategy / Goals" preamble section (before the first
+          standalone ``---`` separator line, or before the second ``###`` header
+          when no ``---`` is present).
+        - Trailing standalone ``---`` markers.
+        - Markdown ``###`` headers inside the formal proof.
+        - ``**bold**`` / ``*italic*`` markers → converted to ``\\textit{}``.
+        - Numbered/bulleted list prefixes (``1.  **Title**: text`` →
+          ``\\textit{Title.} text``; plain ``1.  text`` → plain ``text``).
+        - ``Cited from: <arxiv_id>.`` → ``Refer to \\cite{key}.``.
+        - ``[lemma_id]`` and ``[lemma\\_id]`` cross-references →
+          ``Lemma~\\ref{lem:lemma_id}``.
+        - ``$$...$$`` display-math → ``\\[...\\]``.
+        """
+        import re
+
+        arxiv_to_citekey = arxiv_to_citekey or {}
+
+        # ── Step 1: extract the formal proof body ─────────────────────────────
+        # The Prover structures its output as:
+        #   [Strategy/Goals section]
+        #   ---
+        #   [Formal Proof section]          ← we want this
+        #   ---                             ← trailing separator (strip)
+        #
+        # When no '---' is present, a second '###' header marks the formal part.
+
+        _SEP = re.compile(r"\n[ \t]*---+[ \t]*\n")
+        sep_m = _SEP.search(pt)
+        if sep_m:
+            # Take everything after the first --- separator
+            formal = pt[sep_m.end():]
+            # Strip any trailing standalone --- at the very end
+            formal = re.sub(r"\n[ \t]*---+[ \t]*\s*$", "", formal)
+        else:
+            # No --- separator: look for a second ### header
+            _HDR = re.compile(r"(?m)^#{1,3}\s+\S[^\n]*$")
+            hdrs = list(_HDR.finditer(pt))
+            if len(hdrs) >= 2:
+                formal = pt[hdrs[1].end():].lstrip("\n")
+            elif len(hdrs) == 1:
+                # Only one header — take everything after it
+                formal = pt[hdrs[0].end():].lstrip("\n")
+            else:
+                formal = pt  # no structure at all — use as-is
+
+        pt = formal.strip()
+
+        # ── Step 2: strip leading ### section header of the formal part ───────
+        pt = re.sub(r"^#{1,3}[^\n]*\n", "", pt.lstrip()).strip()
+
+        # ── Step 3: strip any remaining ### headers inside the proof ──────────
+        pt = re.sub(r"(?m)^#{1,3}[^\n]*\n?", "", pt)
+
+        # ── Step 4: convert numbered/bulleted list items ───────────────────────
+        # "1.  **Title**: rest" or "1.  **Title.** rest" → \textit{Title.} rest
+        pt = re.sub(
+            r"(?m)^\s*\d+\.\s+\*\*([^*:]+?)\*\*[:.]\s*", r"\\textit{\1.}\\ ", pt
+        )
+        # "-  **Title**: rest" → \textit{Title.} rest
+        pt = re.sub(
+            r"(?m)^\s*[-*]\s+\*\*([^*:]+?)\*\*[:.]\s*", r"\\textit{\1.}\\ ", pt
+        )
+        # Plain "1.  text" or "-  text" — strip bullet/number prefix
+        pt = re.sub(r"(?m)^\s*\d+\.\s{1,4}", "", pt)
+        pt = re.sub(r"(?m)^\s*[-*]\s+", "", pt)
+
+        # ── Step 5: convert remaining **bold** / *italic* ─────────────────────
+        pt = re.sub(r"\*\*([^*\n]+)\*\*", r"\\textit{\1}", pt)
+        pt = re.sub(r"\*([^*\n]+)\*",     r"\\textit{\1}", pt)
+
+        # ── Step 6: "Cited from: <arxiv_id>." → \cite{key} ───────────────────
+        def _cited_repl(m: re.Match) -> str:  # type: ignore[type-arg]
+            raw = m.group(1).strip().rstrip(".")
+            base = raw.split("v")[0]
+            key = arxiv_to_citekey.get(base) or arxiv_to_citekey.get(raw) or ""
+            return f"Refer to \\cite{{{key or base}}}.\n"
+        pt = re.sub(r"(?m)^Cited from:\s*([^\n]+)\s*\n?", _cited_repl, pt)
+
+        # ── Step 7: [lemma_id] / [lemma\_id] → Lemma~\ref{lem:lemma_id} ──────
+        # Require at least one underscore to avoid matching normal math brackets.
+        # Negative lookbehind for '\' and '{' to avoid \cite[...] and similar.
+        def _ref_repl(m: re.Match) -> str:  # type: ignore[type-arg]
+            lid = m.group(1).replace(r"\_", "_")
+            return f"Lemma~\\ref{{lem:{lid}}}"
+        pt = re.sub(
+            r"(?<!\\)(?<!\{)\[([a-z][a-z0-9]*(?:(?:_|\\_)[a-z0-9]+)+)\]",
+            _ref_repl, pt,
+        )
+
+        # ── Step 8: $$...$$ → \[...\] ─────────────────────────────────────────
+        pt = re.sub(
+            r"\$\$(.*?)\$\$",
+            lambda m: "\\[\n" + m.group(1).strip() + "\n\\]",
+            pt,
+            flags=re.DOTALL,
+        )
+
+        # ── Step 9: collapse excessive blank lines ─────────────────────────────
+        pt = re.sub(r"\n{3,}", "\n\n", pt)
+
+        return pt.strip()
 
     @staticmethod
     def _replace_proof_placeholders(
@@ -560,13 +678,7 @@ If a section has little content, write at least two sentences rather than omitti
         theory_state,  # type: ignore[override]
         arxiv_to_citekey: dict | None = None,
     ) -> str:
-        """Pass 1: replace every %%PROOF:lemma_id%% with the full stored proof_text.
-
-        The LLM is instructed to emit these placeholders verbatim inside each
-        \\begin{proof}...\\end{proof} block so that the context it must handle is
-        small.  We expand them here with the full proof generated by the Prover,
-        cleaned of Markdown formatting artefacts.
-        """
+        """Pass 1: replace every %%PROOF:lemma_id%% with the full stored proof_text."""
         import re
 
         if not (theory_state and getattr(theory_state, "proven_lemmas", None)):
@@ -574,54 +686,23 @@ If a section has little content, write at least two sentences rather than omitti
 
         arxiv_to_citekey = arxiv_to_citekey or {}
 
-        # Build provenance/source lookup
         prov_of: dict[str, str] = {}
         src_of:  dict[str, str] = {}
         for pp in getattr(theory_state, "proof_plan", None) or []:
             prov_of[pp.lemma_id] = pp.provenance
             src_of[pp.lemma_id]  = getattr(pp, "source", "") or ""
 
-        # Patterns that introduce redundant "goal restatement" preambles emitted
-        # by the Prover before the actual proof steps.  Strip them so the LaTeX
-        # proof body starts directly with the argument.
-        _GOAL_PREFIX = re.compile(
-            r"(?i)^(?:the\s+)?(?:goal|objective|aim)\s+(?:is|of\s+this\s+(?:proof|lemma))\s+"
-            r"(?:to\s+\S[^\n.]*\.?\s*|[^\n]*\n)",
-            re.MULTILINE,
-        )
-        # Also strip "Cited from: <arxiv_id>." lines (legacy Prover output)
-        _CITED_FROM = re.compile(r"(?m)^Cited from:\s*([^\n]+)\s*\n?")
-
-        def _clean(pt: str, lid: str) -> str:
-            # Strip Markdown formatting
-            pt = re.sub(r"(?m)^#{1,3}[^\n]*\n?", "", pt).strip()   # headers
-            pt = re.sub(r"\*\*([^*]+)\*\*", r"\1", pt)              # bold
-            pt = re.sub(r"\*([^*]+)\*",     r"\1", pt)              # italic
-            # Replace "Cited from: <id>." with a proper \citet{} call
-            def _cited_repl(m: re.Match) -> str:  # type: ignore[type-arg]
-                raw_src = m.group(1).strip().rstrip(".")
-                src_base = raw_src.split("v")[0]
-                ckey = arxiv_to_citekey.get(src_base) or arxiv_to_citekey.get(raw_src) or ""
-                if ckey:
-                    return f"Refer to \\citet{{{ckey}}}.\n"
-                return f"Refer to \\citet{{{raw_src}}}.\n"
-            pt = _CITED_FROM.sub(_cited_repl, pt)
-            # Strip leading goal-restatement sentence
-            pt = _GOAL_PREFIX.sub("", pt, count=1).strip()
-            return pt
-
         def replacer(m: re.Match) -> str:  # type: ignore[type-arg]
             lid = m.group(1)
             rec = theory_state.proven_lemmas.get(lid)
             if rec and rec.proof_text:
-                return _clean(rec.proof_text, lid)
-            # Fallback: cite source for known lemmas
+                return WriterAgent._clean_proof_text(rec.proof_text, arxiv_to_citekey)
             prov = prov_of.get(lid, "new")
             src  = src_of.get(lid, "")
             if prov == "known" and src:
                 src_base = src.split("v")[0]
                 ckey = arxiv_to_citekey.get(src_base) or arxiv_to_citekey.get(src) or ""
-                cite = f"\\citet{{{ckey}}}" if ckey else f"\\citet{{{src}}}"
+                cite = f"\\cite{{{ckey}}}" if ckey else f"\\cite{{{src}}}"
                 return f"Refer to {cite}."
             return "(Proof sketch — see supplementary material.)"
 
@@ -642,26 +723,11 @@ If a section has little content, write at least two sentences rather than omitti
         if not (theory_state and getattr(theory_state, "proven_lemmas", None)):
             return text
 
-        _GOAL_PREFIX = re.compile(
-            r"(?i)^(?:the\s+)?(?:goal|objective|aim)\s+(?:is|of\s+this\s+(?:proof|lemma))\s+"
-            r"(?:to\s+\S[^\n.]*\.?\s*|[^\n]*\n)",
-            re.MULTILINE,
-        )
-        _CITED_FROM = re.compile(r"(?m)^Cited from:\s*([^\n]+)\s*\n?")
-
-        # Build per-lemma proof text (strip Markdown headers/bold so it's plain text)
+        # Build per-lemma proof text using the shared cleaner
         proof_map: dict[str, str] = {}
         verified_map: dict[str, bool] = {}
         for lid, rec in theory_state.proven_lemmas.items():
-            pt = (rec.proof_text or "").strip()
-            pt = re.sub(r"(?m)^#{1,3}[^\n]*\n?", "", pt).strip()   # MD headers
-            pt = re.sub(r"\*\*([^*]+)\*\*", r"\1", pt)              # MD bold
-            pt = re.sub(r"\*([^*]+)\*",     r"\1", pt)              # MD italic
-            pt = re.sub(r"(?m)^\s*[-*]\s+", "- ", pt)               # unify bullets
-            pt = _CITED_FROM.sub(
-                lambda m: f"Refer to \\citet{{{m.group(1).strip().rstrip('.').split('v')[0]}}}.\n", pt
-            )
-            pt = _GOAL_PREFIX.sub("", pt, count=1).strip()
+            pt = WriterAgent._clean_proof_text(rec.proof_text or "")
             if pt:
                 proof_map[lid] = pt
             verified_map[lid] = bool(getattr(rec, "verified", False))
