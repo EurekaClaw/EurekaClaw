@@ -46,10 +46,18 @@ Important: if the proof is marked "[compressed]", do NOT flag missing
 intermediate steps as issues — only flag things you can positively verify
 are wrong or missing from what you can see.
 
+Classify the failure severity:
+- "uncited": the proof logic is sound but one or more proved lemmas are not cited
+- "major": a specific lemma statement is incorrect, or the logical link between
+  two lemmas is broken, but the overall proof structure is salvageable
+- "all_wrong": the proof is fundamentally broken — wrong approach, multiple lemmas
+  are incorrect, or the assembled proof does not establish the theorem at all
+
 Return JSON:
 {
   "consistent": true | false,
   "confidence": 0.0-1.0,
+  "severity": "uncited" | "major" | "all_wrong",
   "issues": ["list of specific inconsistencies"],
   "uncited_lemmas": ["lemma_ids present in required list but not cited"],
   "notes": "brief summary"
@@ -76,6 +84,7 @@ Return ONLY valid JSON.
 class ConsistencyResult:
     consistent: bool
     confidence: float
+    severity: str  # "uncited" | "major" | "all_wrong" | "" (on pass)
     issues: list[str]
     uncited_lemmas: list[str]
     notes: str
@@ -108,16 +117,20 @@ class ConsistencyChecker:
             state.status = "proved"
         else:
             logger.warning(
-                "ConsistencyChecker: FAIL — %d issues: %s",
-                len(all_issues), "; ".join(all_issues[:3]),
+                "ConsistencyChecker: FAIL severity=%s — %d issues: %s",
+                result.severity, len(all_issues), "; ".join(all_issues[:3]),
             )
             state.status = "in_progress"
             from eurekaclaw.types.artifacts import FailedAttempt
+            failure_reason = "; ".join(all_issues[:5]) or result.notes
+            # Embed severity tag so inner_loop_yaml can route retries correctly.
+            if result.severity:
+                failure_reason = f"[severity:{result.severity}] {failure_reason}"
             state.failed_attempts.append(
                 FailedAttempt(
                     lemma_id="_theorem_consistency",
                     attempt_text=state.formal_statement[:500],
-                    failure_reason="; ".join(all_issues[:5]) or result.notes,
+                    failure_reason=failure_reason,
                     iteration=state.iteration,
                 )
             )
@@ -143,18 +156,26 @@ class ConsistencyChecker:
             )
             text = response.content[0].text
             data = self._parse_json(text)
+            consistent = bool(data.get("consistent", False))
+            uncited_lemmas = data.get("uncited_lemmas", [])
+            # Derive severity: LLM value takes priority; fall back to heuristics.
+            severity = data.get("severity", "")
+            if not consistent or uncited_lemmas:
+                if not severity:
+                    severity = "uncited" if uncited_lemmas and not data.get("issues") else "major"
             return ConsistencyResult(
-                consistent=bool(data.get("consistent", False)),
+                consistent=consistent,
                 confidence=float(data.get("confidence", 0.5)),
+                severity=severity,
                 issues=data.get("issues", []),
-                uncited_lemmas=data.get("uncited_lemmas", []),
+                uncited_lemmas=uncited_lemmas,
                 notes=data.get("notes", ""),
             )
         except Exception as e:
             logger.warning("ConsistencyChecker LLM call failed: %s — defaulting to pass", e)
             return ConsistencyResult(
-                consistent=True, confidence=0.5, issues=[],
-                uncited_lemmas=[],
+                consistent=True, confidence=0.5, severity="",
+                issues=[], uncited_lemmas=[],
                 notes=f"Checker unavailable: {e}",
             )
 

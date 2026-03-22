@@ -48,8 +48,8 @@ def prove(conjecture: str, domain: str, mode: str, gate: str, output: str) -> No
 
     Example: eurekaclaw prove "The sample complexity of transformers is O(L*d*log(d)/eps^2)"
 
-    Press Ctrl+C at any time to pause.  The pipeline will finish the
-    current lemma and save a checkpoint.  Resume with:
+    Press Ctrl+C at any time to pause.  The pipeline will stop before the
+    next lemma and save a checkpoint.  Resume with:
         eurekaclaw resume <session-id>
     """
     _run_session(
@@ -178,18 +178,14 @@ def resume(session_id: str) -> None:
         bus=bus, skill_injector=skill_injector, memory=memory
     )
 
-    _install_pause_handler(cp)
-
     try:
-        final_state = asyncio.run(inner_loop.run(session_id, domain=domain))
+        final_state = _run_with_pause_support(inner_loop.run(session_id, domain=domain), cp)
         _print_proof_result(final_state)
     except ProofPausedException as exc:
         console.print(
             f"\n[yellow]Paused again before stage '{exc.stage_name}'.[/yellow]"
             f"\nResume with:  [bold]eurekaclaw resume {session_id}[/bold]\n"
         )
-    except KeyboardInterrupt:
-        console.print("\n[yellow]Interrupted.[/yellow]")
 
 
 @main.command()
@@ -506,20 +502,65 @@ def ui(host: str, port: int, open_browser: bool) -> None:
     serve_ui(host=host, port=port)
 
 
-def _install_pause_handler(cp: "ProofCheckpoint") -> None:  # type: ignore[name-defined]
-    """Replace SIGINT with a graceful pause-flag writer.
+def _run_with_pause_support(
+    coro: "Any",
+    cp: "ProofCheckpoint",
+) -> "Any":
+    """Run *coro* in a new event loop with Ctrl+C wired to immediate cancellation.
 
-    On Ctrl+C the handler writes the pause flag and prints a message.
-    The pipeline polls this flag at every stage/lemma boundary and
-    saves a checkpoint before raising ProofPausedException.
+    When SIGINT fires:
+    1. The pause flag is written.
+    2. The running asyncio task is cancelled — the current LLM await is
+       interrupted immediately.
+    3. inner_loop_yaml.run() catches CancelledError, saves a checkpoint
+       with all lemmas proved so far, and raises ProofPausedException.
     """
-    def _handler(signum: int, frame: object) -> None:
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    _task_ref: "list[asyncio.Task[Any]]" = []
+
+    def _pause_now() -> None:
         cp.request_pause()
         console.print(
-            "\n[yellow]Pause requested — finishing current lemma, then saving checkpoint...[/yellow]"
+            "\n[yellow]Pause requested — stopping immediately and saving checkpoint...[/yellow]"
         )
+        if _task_ref:
+            _task_ref[0].cancel()
 
-    signal.signal(signal.SIGINT, _handler)
+    try:
+        loop.add_signal_handler(signal.SIGINT, _pause_now)
+
+        async def _wrap() -> "Any":
+            task = asyncio.current_task()
+            assert task is not None
+            _task_ref.append(task)
+
+            # Background poller: cancel the task when pause flag is written
+            # by an external `eurekaclaw pause <session_id>` command.
+            async def _poll_pause_flag() -> None:
+                while True:
+                    await asyncio.sleep(1)
+                    if cp.is_pause_requested() and not task.cancelled():
+                        console.print(
+                            "\n[yellow]Pause flag detected — stopping immediately and saving checkpoint...[/yellow]"
+                        )
+                        task.cancel()
+                        return
+
+            poll_task = asyncio.create_task(_poll_pause_flag())
+            try:
+                return await coro
+            finally:
+                poll_task.cancel()
+
+        return loop.run_until_complete(_wrap())
+    finally:
+        try:
+            loop.remove_signal_handler(signal.SIGINT)
+        except Exception:
+            pass
+        loop.close()
+        asyncio.set_event_loop(None)
 
 
 def _print_proof_result(state: "TheoryState") -> None:  # type: ignore[name-defined]
@@ -644,11 +685,8 @@ def _run_session(
 
     session = EurekaSession()
 
-    # Install Ctrl+C → graceful pause handler.
-    # We need the session_id before run() so we can hand the checkpoint to
-    # the SIGINT handler; EurekaSession exposes it immediately after __init__.
     from eurekaclaw.agents.theory.checkpoint import ProofCheckpoint, ProofPausedException
-    _install_pause_handler(ProofCheckpoint(session.session_id))
+    _cp = ProofCheckpoint(session.session_id)
 
     console.print(
         f"[dim]Session ID: [cyan]{session.session_id}[/cyan]"
@@ -656,11 +694,19 @@ def _run_session(
     )
 
     try:
-        result = asyncio.run(session.run(spec))
+        result = _run_with_pause_support(session.run(spec), _cp)
     except ProofPausedException as exc:
         console.print(
             f"\n[yellow]Proof paused before stage '{exc.stage_name}'.[/yellow]"
             f"\nResume with:  [bold]eurekaclaw resume {exc.session_id}[/bold]\n"
+        )
+        return
+    except asyncio.CancelledError:
+        # Pause fired during a non-theory stage (survey, ideation, etc.)
+        # No theory checkpoint exists yet, but session state is written to disk.
+        console.print(
+            f"\n[yellow]Session interrupted during early pipeline stage.[/yellow]"
+            f"\nNo checkpoint available — restart with the same command to try again.\n"
         )
         return
 

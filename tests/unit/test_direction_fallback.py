@@ -1,7 +1,14 @@
 """Unit tests for the direction planning fallback in MetaOrchestrator."""
 
-import pytest
+import sys
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+
+# Stub out sentence_transformers before any eurekaclaw submodule is imported,
+# since embedding_utils.py imports it at module level and it may not be installed
+# in the test environment.
+sys.modules.setdefault("sentence_transformers", MagicMock())
 
 from eurekaclaw.knowledge_bus.bus import KnowledgeBus
 from eurekaclaw.types.artifacts import ResearchBrief
@@ -126,5 +133,86 @@ async def test_manual_direction_ctrl_c_raises(bus, brief):
 
     with patch("eurekaclaw.orchestrator.meta_orchestrator.console") as mock_console:
         mock_console.input = MagicMock(side_effect=EOFError)
+        with pytest.raises(RuntimeError):
+            await orch._handle_manual_direction(brief)
+
+
+# ---------------------------------------------------------------------------
+# Tests specific to "ideation returned 0 directions" in prove / detailed mode
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def detailed_brief():
+    """A ResearchBrief simulating the `prove` command (detailed mode)."""
+    return ResearchBrief(
+        session_id="test-session-detailed",
+        input_mode="detailed",
+        domain="number theory",
+        query="prove 1+1=2",
+        conjecture="1+1=2 in Peano arithmetic",
+    )
+
+
+@pytest.fixture
+def detailed_bus(detailed_brief):
+    b = KnowledgeBus(detailed_brief.session_id)
+    b.put_research_brief(detailed_brief)
+    return b
+
+
+@pytest.mark.asyncio
+async def test_fallback_called_when_ideation_returns_zero_in_detailed_mode(
+    detailed_bus, detailed_brief
+):
+    """In prove/detailed mode with 0 ideation directions, _handle_manual_direction must be called."""
+    orch = _make_orchestrator(detailed_bus)
+    # brief.directions is empty — simulates ideation returning 0
+
+    with patch.object(orch, "_handle_manual_direction", new_callable=AsyncMock) as mock_manual:
+        await orch._handle_direction_gate(detailed_brief)
+        mock_manual.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_conjecture_used_as_default_when_user_presses_enter(
+    detailed_bus, detailed_brief
+):
+    """In prove mode, pressing Enter (empty input) should use the conjecture as direction."""
+    orch = _make_orchestrator(detailed_bus)
+
+    # User presses Enter without typing anything
+    with patch("eurekaclaw.orchestrator.meta_orchestrator.console") as mock_console:
+        mock_console.input = MagicMock(return_value="")
+        await orch._handle_manual_direction(detailed_brief)
+
+    updated = detailed_bus.get_research_brief()
+    assert updated.selected_direction is not None
+    assert updated.selected_direction.hypothesis == detailed_brief.conjecture
+
+
+@pytest.mark.asyncio
+async def test_user_can_override_conjecture_in_detailed_mode(
+    detailed_bus, detailed_brief
+):
+    """In prove mode, the user can type a different direction instead of accepting the conjecture."""
+    orch = _make_orchestrator(detailed_bus)
+
+    with patch("eurekaclaw.orchestrator.meta_orchestrator.console") as mock_console:
+        mock_console.input = MagicMock(return_value="1+1=2 via ZFC set theory")
+        await orch._handle_manual_direction(detailed_brief)
+
+    updated = detailed_bus.get_research_brief()
+    assert updated.selected_direction is not None
+    assert "ZFC" in updated.selected_direction.hypothesis
+
+
+@pytest.mark.asyncio
+async def test_empty_input_no_conjecture_raises(bus, brief):
+    """Empty input with no conjecture fallback should raise RuntimeError."""
+    orch = _make_orchestrator(bus)
+    # brief.conjecture is not set in the exploration fixture
+
+    with patch("eurekaclaw.orchestrator.meta_orchestrator.console") as mock_console:
+        mock_console.input = MagicMock(return_value="")
         with pytest.raises(RuntimeError):
             await orch._handle_manual_direction(brief)
