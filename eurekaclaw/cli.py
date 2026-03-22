@@ -8,6 +8,7 @@ import logging
 import signal
 import sys
 from pathlib import Path
+from typing import Any
 
 import click
 from rich.console import Console
@@ -15,6 +16,8 @@ from rich.logging import RichHandler
 from rich.panel import Panel
 
 from eurekaclaw.config import settings
+
+from eurekaclaw.agents.theory.checkpoint import ProofCheckpoint
 
 console = Console()
 
@@ -525,9 +528,9 @@ def ui(host: str, port: int, open_browser: bool) -> None:
 
 
 def _run_with_pause_support(
-    coro: "Any",
-    cp: "ProofCheckpoint",
-) -> "Any":
+    coro: Any,
+    cp: ProofCheckpoint,
+) -> Any:
     """Run *coro* in a new event loop with Ctrl+C wired to immediate cancellation.
 
     When SIGINT fires:
@@ -539,7 +542,7 @@ def _run_with_pause_support(
     """
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    _task_ref: "list[asyncio.Task[Any]]" = []
+    _task_ref: list[asyncio.Task[Any]] = []
 
     def _pause_now() -> None:
         cp.request_pause()
