@@ -67,6 +67,18 @@ export function ClawHubPanel({ status, statusError, onStatus }: ClawHubPanelProp
         </p>
       </div>
       <div className="clawhub-body">
+        <div className="clawhub-seeds-row">
+          <button
+            className="clawhub-seeds-btn"
+            id="install-seeds-btn"
+            disabled={installing}
+            onClick={() => void installSkill('')}
+          >
+            📦 Install built-in seed skills
+          </button>
+          <span className="clawhub-seeds-hint">Copies bundled proof strategies to <code>~/.eurekaclaw/skills/</code></span>
+        </div>
+        <div className="clawhub-divider"><span>or</span></div>
         <div className="clawhub-input-row">
           <label className="clawhub-input-label" htmlFor="clawhub-input">Install from ClawHub</label>
           <div className="clawhub-input-group">
@@ -103,18 +115,6 @@ export function ClawHubPanel({ status, statusError, onStatus }: ClawHubPanelProp
             Needs the <code>clawhub</code> CLI →
             <code>pip install clawhub</code>
           </span>
-        </div>
-        <div className="clawhub-divider"><span>or</span></div>
-        <div className="clawhub-seeds-row">
-          <button
-            className="clawhub-seeds-btn"
-            id="install-seeds-btn"
-            disabled={installing}
-            onClick={() => void installSkill('')}
-          >
-            📦 Install built-in seed skills
-          </button>
-          <span className="clawhub-seeds-hint">Copies bundled proof strategies to <code>~/.eurekaclaw/skills/</code></span>
         </div>
         {status && (
           <p id="clawhub-status" className={`clawhub-status${statusError ? ' is-error' : ' is-ok'}`}>

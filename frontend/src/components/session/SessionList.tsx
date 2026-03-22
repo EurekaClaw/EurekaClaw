@@ -88,6 +88,7 @@ export function SessionList() {
         const status = s.status || 'queued';
         const time = formatRelativeTime(s.created_at);
         const isActive = s.run_id === currentRunId;
+        const isCompleted = status === 'completed';
         const isFailed = status === 'failed';
         const isPaused = status === 'paused';
         const isPausing = status === 'pausing';
@@ -96,7 +97,8 @@ export function SessionList() {
         const isLive = isRunning || isPausing || isResuming;
         const canDelete = !isLive;
         const statusLabel = titleCase(status);
-        const extraClass = isActive ? ' is-active' : isFailed ? ' is-failed' : '';
+        const stateClass = isCompleted ? ' is-completed' : isFailed ? ' is-failed' : '';
+        const extraClass = (isActive ? ' is-active' : '') + stateClass;
 
         return (
           <div
@@ -126,10 +128,12 @@ export function SessionList() {
               <div className="session-item-meta">
                 <span className={`session-status-dot ${status}`} aria-label={statusLabel} />
                 <span>{time}</span>
-                {isFailed && <span className="session-item-failed-tag">failed</span>}
-                {isPaused && <span className="session-item-failed-tag session-item-paused-tag">paused</span>}
-                {isPausing && <span className="session-item-failed-tag session-item-pausing-tag">pausing…</span>}
-                {isResuming && <span className="session-item-failed-tag session-item-resuming-tag">resuming…</span>}
+                {isCompleted && <span className="session-item-status-tag session-item-completed-tag">finished</span>}
+                {isFailed && <span className="session-item-status-tag session-item-failed-tag">failed</span>}
+                {isPaused && <span className="session-item-status-tag session-item-paused-tag">paused</span>}
+                {isPausing && <span className="session-item-status-tag session-item-pausing-tag">pausing…</span>}
+                {isResuming && <span className="session-item-status-tag session-item-resuming-tag">resuming…</span>}
+                {isRunning && <span className="session-item-status-tag session-item-running-tag">running</span>}
               </div>
             </div>
             <div className="session-item-actions">

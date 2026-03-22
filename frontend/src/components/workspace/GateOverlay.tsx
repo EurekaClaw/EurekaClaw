@@ -51,7 +51,9 @@ function SurveyGate({ run }: Props) {
 function DirectionGate({ run }: Props) {
   const brief = run.artifacts?.research_brief ?? {};
   const openProblems = (brief.open_problems ?? []) as string[];
+  const keyObjects = (brief.key_mathematical_objects ?? []) as string[];
   const conjecture = run.input_spec?.conjecture || run.input_spec?.query || '';
+  const domain = run.input_spec?.domain || (brief.domain as string) || '';
   const [dirText, setDirText] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -66,38 +68,98 @@ function DirectionGate({ run }: Props) {
 
   return (
     <div className="gate-overlay-body">
-      <p className="gate-overlay-heading">🧭 No research directions generated</p>
-      <p className="gate-overlay-sub">
-        Ideation returned no candidate directions. Enter a research direction to proceed.
+      <p className="gate-overlay-heading">
+        🧭 No research directions generated
       </p>
+      <p className="gate-overlay-sub">
+        The ideation agent could not find a viable research direction.
+        Review the context below and provide a direction or hypothesis to continue.
+      </p>
+
       {openProblems.length > 0 && (
-        <>
-          <p className="gate-overlay-label">Open problems found by survey:</p>
-          <ul className="gate-problem-list">
+        <div className="direction-gate-section">
+          <p className="direction-gate-sublabel">
+            {domain ? `Open problems in ${domain}` : 'Open problems found by survey'}
+          </p>
+          <ul className="direction-gate-problems">
             {openProblems.slice(0, 5).map((p, i) => (
-              <li key={i}>{p.slice(0, 140)}</li>
+              <li key={i}>
+                <span className="direction-gate-problem-text">
+                  {typeof p === 'string' ? p : String(p)}
+                </span>
+                <button
+                  className="direction-gate-use-btn"
+                  disabled={submitting}
+                  onClick={() => setDirText(typeof p === 'string' ? p : String(p))}
+                >
+                  Use
+                </button>
+              </li>
             ))}
           </ul>
-        </>
+        </div>
       )}
-      <textarea
-        className="gate-textarea"
-        placeholder="Enter a research direction or hypothesis…"
-        value={dirText}
-        onChange={(e) => setDirText(e.target.value)}
-        rows={3}
-        disabled={submitting}
-      />
+
+      {keyObjects.length > 0 && (
+        <div className="direction-gate-section">
+          <p className="direction-gate-sublabel">Key mathematical objects</p>
+          <div className="direction-gate-tags">
+            {keyObjects.slice(0, 8).map((obj, i) => (
+              <span key={i} className="direction-gate-tag">{obj}</span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {conjecture && (
+        <div className="direction-gate-section">
+          <p className="direction-gate-sublabel">Your conjecture</p>
+          <blockquote className="gate-overlay-conjecture">{conjecture}</blockquote>
+        </div>
+      )}
+
+      <div className="direction-gate-section">
+        <p className="direction-gate-sublabel">
+          {conjecture
+            ? 'Type a different direction, or use your conjecture below'
+            : 'Enter a research direction or hypothesis'}
+        </p>
+        <textarea
+          className="gate-textarea"
+          placeholder='e.g. "Prove a generalization bound for sparse transformer attention under low-rank kernel assumptions"'
+          value={dirText}
+          onChange={(e) => setDirText(e.target.value)}
+          rows={3}
+          disabled={submitting}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              const val = dirText.trim() || conjecture;
+              if (val) submit(val);
+            }
+          }}
+        />
+      </div>
+
       <div className="gate-btn-row">
-        <button className="btn btn-primary" disabled={submitting || !dirText.trim()} onClick={() => submit(dirText.trim())}>
-          Use this direction
-        </button>
         {conjecture && (
-          <button className="btn btn-secondary" disabled={submitting} onClick={() => submit(conjecture)}>
-            Use original conjecture
+          <button className="btn btn-primary" disabled={submitting} onClick={() => submit(conjecture)}>
+            Use conjecture
           </button>
         )}
+        <button
+          className={conjecture ? 'btn btn-secondary' : 'btn btn-primary'}
+          disabled={submitting || !dirText.trim()}
+          onClick={() => submit(dirText.trim())}
+        >
+          Use this direction
+        </button>
       </div>
+      <p className="direction-gate-hint">
+        {conjecture
+          ? 'Press Enter to use your conjecture, or type a custom direction.'
+          : 'Press Enter to submit. Shift+Enter for a new line.'}
+      </p>
     </div>
   );
 }
@@ -203,7 +265,7 @@ export function GateOverlay({ run }: Props) {
 
   return (
     <div className="gate-overlay-backdrop">
-      <div className="gate-overlay-card">
+      <div className={`gate-overlay-card${activeGate === 'theory' || activeGate === 'direction' ? ' gate-overlay-card--wide' : ''}`}>
         {activeGate === 'survey' && <SurveyGate run={run} />}
         {activeGate === 'direction' && <DirectionGate run={run} />}
         {activeGate === 'theory' && <TheoryReviewGate run={run} />}

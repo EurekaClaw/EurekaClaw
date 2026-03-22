@@ -913,6 +913,7 @@ img {
 }
 
 .main-shell {
+  position: relative;
   padding: 20px 24px;
   display: flex;
   flex-direction: column;
@@ -927,12 +928,12 @@ img {
   flex-direction: column;
 }
 
-/* ── Tutorial floating button (fixed to viewport, outside grid) ── */
+/* ── Tutorial / Guide button — bottom-right of main content area ── */
 .tutorial-btn {
   position: fixed;
   bottom: 20px;
   right: 20px;
-  z-index: 9999;
+  z-index: 100;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -1278,36 +1279,303 @@ textarea {
 
 .paper-sheet {
   width: 100%;
-  padding: 24px;
+  padding: 28px 30px;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 245, 239, 0.92));
   border: 1px solid rgba(27, 63, 104, 0.09);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   position: relative;
 }
 
-.paper-sheet::before {
-  content: "Draft";
-  position: absolute;
-  top: 14px;
-  right: 16px;
-  font-family: "IBM Plex Mono", monospace;
-  font-size: 0.76rem;
-  color: var(--accent);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+.paper-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.paper-header-left {
+  flex: 1;
+  min-width: 0;
 }
 
 .paper-title {
-  font-size: 1.15rem;
+  font-size: 1.2rem;
   font-weight: 700;
   color: var(--text);
-  margin-bottom: 8px;
+  margin: 0 0 8px;
+  line-height: 1.35;
 }
 
 .paper-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 0;
+}
+
+.paper-status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border-radius: 12px;
   font-family: "IBM Plex Mono", monospace;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.paper-status-badge--completed {
+  background: rgba(40, 167, 69, 0.10);
+  border: 1px solid rgba(40, 167, 69, 0.22);
+  color: #1a7a35;
+}
+
+.paper-status-badge--running {
+  background: rgba(15, 106, 184, 0.08);
+  border: 1px solid rgba(15, 106, 184, 0.18);
+  color: var(--primary);
+}
+
+.paper-status-badge--failed {
+  background: rgba(159, 47, 47, 0.10);
+  border: 1px solid rgba(159, 47, 47, 0.18);
+  color: #9f2f2f;
+}
+
+.paper-status-badge--queued,
+.paper-status-badge--paused,
+.paper-status-badge--pausing,
+.paper-status-badge--resuming {
+  background: rgba(0, 0, 0, 0.05);
+  border: 1px solid var(--line);
+  color: var(--muted);
+}
+
+.paper-theory-stats {
+  display: inline-flex;
+  gap: 8px;
+  font-size: 0.78rem;
+  font-family: "IBM Plex Mono", monospace;
+}
+
+.paper-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.paper-stat--ok { color: var(--ok); }
+.paper-stat--open { color: var(--muted); }
+
+.paper-output-dir {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin: 0;
+  font-size: 0.72rem;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
+.paper-output-dir code {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.68rem;
+  background: rgba(0, 0, 0, 0.04);
+  padding: 2px 6px;
+  border-radius: 4px;
+  max-width: 300px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.paper-summary {
+  font-size: 0.88rem;
+  color: var(--muted);
+  line-height: 1.55;
+  margin: 0 0 16px;
+}
+
+/* ── Paper actions row ── */
+.paper-actions-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+  padding: 14px 16px;
+  background: var(--surface-cool);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.paper-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 0.84rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.1s;
+  border: none;
+  white-space: nowrap;
+}
+
+.paper-action-btn:hover { opacity: 0.88; }
+.paper-action-btn:active { transform: scale(0.97); }
+.paper-action-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+.paper-action-btn--primary {
+  background: var(--primary);
+  color: #fff;
+}
+
+.paper-action-btn--secondary {
+  background: var(--surface-strong);
+  color: var(--text);
+  border: 1.5px solid var(--line);
+}
+
+.paper-action-btn--secondary:hover {
+  background: var(--primary-soft);
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.paper-spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: paper-spin 0.6s linear infinite;
+}
+
+@keyframes paper-spin {
+  to { transform: rotate(360deg); }
+}
+
+.paper-compile-msg {
+  font-size: 0.78rem;
+  color: var(--ok);
+  font-weight: 500;
+}
+
+.paper-compile-msg.is-error {
+  color: #c0392b;
+}
+
+/* ── LaTeX source collapsible ── */
+.paper-latex-section {
+  border-top: 1px solid var(--line);
+  padding-top: 16px;
+}
+
+.paper-latex-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  cursor: pointer;
   font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text);
+  padding: 6px 0;
+  transition: color 0.15s;
+  width: 100%;
+  text-align: left;
+}
+
+.paper-latex-toggle:hover {
+  color: var(--primary);
+}
+
+.paper-latex-chevron {
+  transition: transform 0.2s;
+  flex-shrink: 0;
+}
+
+.paper-latex-chevron.is-open {
+  transform: rotate(90deg);
+}
+
+.paper-latex-size {
+  margin-left: auto;
+  font-size: 0.72rem;
+  font-weight: 400;
+  color: var(--muted);
+  font-family: "IBM Plex Mono", monospace;
+}
+
+.paper-latex-viewer {
+  margin-top: 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+  background: #1e2430;
+}
+
+.paper-latex-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  padding: 6px 10px;
+  background: #262d3a;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.paper-copy-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 12px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 0.76rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.paper-copy-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+}
+
+.paper-latex-code {
+  margin: 0;
+  padding: 16px 18px;
+  font-family: "Fira Code", "IBM Plex Mono", monospace;
+  font-size: 0.78rem;
+  line-height: 1.55;
+  color: #d4d8e0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 400px;
+  overflow-y: auto;
+  tab-size: 2;
+}
+
+.paper-latex-code::-webkit-scrollbar {
+  width: 6px;
+}
+
+.paper-latex-code::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.paper-latex-code::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 3px;
 }
 
 /* ── Onboarding / Setup Wizard ─────────────────────────────────── */
@@ -2228,21 +2496,21 @@ textarea {
 
 /* Sidebar micro-tags */
 .session-item-paused-tag {
-  background: rgba(122, 84, 32, 0.10) !important;
-  border-color: rgba(122, 84, 32, 0.2) !important;
-  color: #7a5420 !important;
+  background: rgba(122, 84, 32, 0.10);
+  border: 1px solid rgba(122, 84, 32, 0.2);
+  color: #7a5420;
 }
 
 .session-item-pausing-tag {
-  background: rgba(181, 100, 0, 0.10) !important;
-  border-color: rgba(181, 100, 0, 0.22) !important;
-  color: #8a4800 !important;
+  background: rgba(181, 100, 0, 0.10);
+  border: 1px solid rgba(181, 100, 0, 0.22);
+  color: #8a4800;
 }
 
 .session-item-resuming-tag {
-  background: rgba(0, 150, 80, 0.10) !important;
-  border-color: rgba(0, 150, 80, 0.22) !important;
-  color: #005c38 !important;
+  background: rgba(0, 150, 80, 0.10);
+  border: 1px solid rgba(0, 150, 80, 0.22);
+  color: #005c38;
 }
 
 /* ══ Proof pipeline controls — Pause / Resume ══════════════════════════════ */
@@ -2752,6 +3020,21 @@ textarea {
   gap: 7px;
 }
 
+/* Completed session items — subtle green accent */
+.session-item.is-completed {
+  border-left: 2.5px solid rgba(40, 167, 69, 0.4);
+}
+
+.session-item.is-completed:hover {
+  background: rgba(40, 167, 69, 0.06);
+}
+
+.session-item.is-completed.is-active {
+  background: rgba(40, 167, 69, 0.07);
+  border-color: rgba(40, 167, 69, 0.25);
+  border-left: 2.5px solid rgba(40, 167, 69, 0.5);
+}
+
 /* Failed session items — visually terminal, not interactive-looking */
 .session-item.is-failed {
   opacity: 0.72;
@@ -2762,7 +3045,6 @@ textarea {
 }
 
 .session-item.is-failed:hover {
-  /* Subtler hover for failed items — suggests "view only", not "do something" */
   background: rgba(159, 47, 47, 0.05);
   border-color: rgba(159, 47, 47, 0.12);
 }
@@ -2772,20 +3054,36 @@ textarea {
   border-color: rgba(159, 47, 47, 0.18);
 }
 
-/* "failed" tag chip in session item meta row */
-.session-item-failed-tag {
+/* Status tag chips in session item meta row */
+.session-item-status-tag {
   display: inline-flex;
   align-items: center;
-  padding: 0 5px;
+  padding: 1px 6px;
   border-radius: 4px;
-  background: rgba(159, 47, 47, 0.1);
-  border: 1px solid rgba(159, 47, 47, 0.18);
-  font-size: 0.65rem;
+  font-size: 0.62rem;
   font-weight: 600;
-  color: #9f2f2f;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.03em;
   text-transform: uppercase;
   font-family: "IBM Plex Mono", monospace;
+  line-height: 1.4;
+}
+
+.session-item-completed-tag {
+  background: rgba(40, 167, 69, 0.10);
+  border: 1px solid rgba(40, 167, 69, 0.22);
+  color: #1a7a35;
+}
+
+.session-item-running-tag {
+  background: rgba(15, 106, 184, 0.08);
+  border: 1px solid rgba(15, 106, 184, 0.18);
+  color: var(--primary);
+}
+
+.session-item-failed-tag {
+  background: rgba(159, 47, 47, 0.1);
+  border: 1px solid rgba(159, 47, 47, 0.18);
+  color: #9f2f2f;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -3417,7 +3715,7 @@ textarea {
 
 .direction-gate-card {
   background: var(--surface-strong);
-  border: 1.5px solid var(--amber, #e8a735);
+  border: 1.5px solid var(--primary-soft);
   border-radius: var(--radius-md);
   padding: 20px 22px;
   max-width: 600px;
@@ -3432,16 +3730,16 @@ textarea {
 }
 
 .direction-gate-section {
-  margin-top: 14px;
+  margin-top: 18px;
 }
 
 .direction-gate-sublabel {
-  font-size: 0.8rem;
+  font-size: 0.85rem;
   font-weight: 600;
   color: var(--muted);
   text-transform: uppercase;
   letter-spacing: 0.03em;
-  margin: 0 0 6px;
+  margin: 0 0 8px;
 }
 
 .direction-gate-problems {
@@ -3456,11 +3754,11 @@ textarea {
 .direction-gate-problems li {
   display: flex;
   align-items: flex-start;
-  gap: 8px;
-  font-size: 0.84rem;
+  gap: 10px;
+  font-size: 0.9rem;
   color: var(--text);
-  line-height: 1.45;
-  padding: 6px 8px;
+  line-height: 1.5;
+  padding: 8px 12px;
   border-radius: 8px;
   background: rgba(15, 106, 184, 0.04);
   border: 1px solid var(--line);
@@ -3476,8 +3774,8 @@ textarea {
   color: var(--primary);
   border: none;
   border-radius: 6px;
-  padding: 2px 10px;
-  font-size: 0.74rem;
+  padding: 4px 14px;
+  font-size: 0.8rem;
   font-weight: 600;
   cursor: pointer;
   transition: background 0.15s;
@@ -3499,29 +3797,29 @@ textarea {
   background: var(--primary-soft);
   color: var(--primary-strong);
   border-radius: 20px;
-  padding: 3px 12px;
-  font-size: 0.76rem;
+  padding: 4px 14px;
+  font-size: 0.82rem;
   font-weight: 500;
 }
 
 .direction-gate-hint {
-  margin: 6px 0 0;
-  font-size: 0.76rem;
+  margin: 8px 0 0;
+  font-size: 0.82rem;
   color: var(--muted);
 }
 
 /* ── Review Gate ───────────────────────────────────────────────────── */
 .review-gate-card {
-  background: var(--surface);
-  border: 1px solid var(--cyan, #58a6ff);
-  border-radius: 12px;
-  padding: 20px;
+  background: var(--surface-strong);
+  border: 1.5px solid var(--primary-soft);
+  border-radius: var(--radius-md);
+  padding: 24px 26px;
 }
 .review-gate-heading {
-  font-size: 1rem;
-  font-weight: 600;
-  margin: 0 0 4px;
-  color: var(--fg);
+  font-size: 1.05rem;
+  font-weight: 700;
+  margin: 0 0 6px;
+  color: var(--text);
 }
 .review-gate-lemma-chain {
   display: flex;
@@ -3534,22 +3832,22 @@ textarea {
   align-items: center;
   gap: 10px;
   padding: 10px 14px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--line);
   border-radius: 8px;
-  background: var(--bg);
+  background: #fff;
   cursor: pointer;
   text-align: left;
   font-size: 0.85rem;
-  color: var(--fg);
+  color: var(--text);
   transition: border-color 0.15s, background 0.15s;
 }
 .review-gate-lemma:hover {
-  border-color: var(--cyan, #58a6ff);
-  background: rgba(88, 166, 255, 0.06);
+  border-color: var(--primary);
+  background: rgba(15, 106, 184, 0.04);
 }
 .review-gate-lemma.is-selected {
-  border-color: var(--red, #f85149);
-  background: rgba(248, 81, 73, 0.08);
+  border-color: var(--primary-strong);
+  background: rgba(15, 106, 184, 0.08);
 }
 .review-gate-lemma--open {
   border-style: dashed;
@@ -3558,10 +3856,10 @@ textarea {
   font-weight: 700;
   font-size: 0.8rem;
   min-width: 28px;
-  color: var(--cyan, #58a6ff);
+  color: var(--primary);
 }
 .review-gate-lemma--open .review-gate-lemma-num {
-  color: var(--amber, #e8a735);
+  color: var(--muted);
 }
 .review-gate-lemma-name {
   flex: 1;
@@ -3578,8 +3876,8 @@ textarea {
   color: var(--green, #3fb950);
 }
 .review-gate-lemma-badge.badge-unverified {
-  background: rgba(232, 167, 53, 0.15);
-  color: var(--amber, #e8a735);
+  background: rgba(15, 106, 184, 0.1);
+  color: var(--primary);
 }
 .review-gate-lemma-badge.badge-open {
   background: rgba(248, 81, 73, 0.12);
@@ -3591,7 +3889,7 @@ textarea {
 .review-gate-feedback-label {
   font-size: 0.85rem;
   margin: 0 0 6px;
-  color: var(--fg);
+  color: var(--text);
 }
 .review-gate-actions {
   display: flex;
@@ -3603,7 +3901,7 @@ textarea {
 
 .survey-gate-card {
   background: var(--surface-strong);
-  border: 1.5px solid var(--amber, #e8a735);
+  border: 1.5px solid var(--primary-soft);
   border-radius: var(--radius-md);
   padding: 20px 22px;
   max-width: 560px;
@@ -3614,7 +3912,7 @@ textarea {
   font-weight: 700;
   font-size: 0.95rem;
   margin: 0 0 8px;
-  color: var(--amber, #e8a735);
+  color: var(--primary);
 }
 
 .survey-gate-input {
@@ -4143,16 +4441,18 @@ textarea {
   border: 1.5px solid var(--line);
   border-radius: var(--radius-sm);
   color: var(--text);
-  font-size: 0.85rem;
-  padding: 8px 10px;
+  font-size: 0.9rem;
+  padding: 10px 14px;
   resize: vertical;
-  margin-top: 10px;
+  margin-top: 12px;
   font-family: inherit;
+  line-height: 1.5;
 }
 
 .gate-textarea:focus {
   outline: none;
-  border-color: var(--accent);
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(15, 106, 184, 0.1);
 }
 
 .gate-select {
@@ -4167,10 +4467,16 @@ textarea {
   margin-top: 10px;
 }
 
+.gate-select:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(15, 106, 184, 0.1);
+}
+
 .gate-btn-row {
   display: flex;
-  gap: 8px;
-  margin-top: 12px;
+  gap: 10px;
+  margin-top: 16px;
   flex-wrap: wrap;
 }
 
@@ -4185,9 +4491,9 @@ textarea {
 .gate-problem-list li { margin-bottom: 2px; }
 
 .btn {
-  padding: 7px 14px;
+  padding: 9px 18px;
   border-radius: var(--radius-sm);
-  font-size: 0.83rem;
+  font-size: 0.88rem;
   font-weight: 600;
   cursor: pointer;
   border: none;
@@ -4197,7 +4503,7 @@ textarea {
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .btn-primary {
-  background: var(--accent);
+  background: var(--primary);
   color: #fff;
 }
 
@@ -4224,9 +4530,9 @@ textarea {
 .proof-gate-review {
   margin-top: 18px;
   background: var(--surface-strong);
-  border: 1.5px solid var(--accent-soft);
+  border: 1.5px solid var(--primary-soft);
   border-radius: var(--radius-md);
-  padding: 16px 18px;
+  padding: 20px 22px;
 }
 
 .proof-gate-heading {
@@ -4254,13 +4560,30 @@ textarea {
 }
 
 .gate-overlay-card {
-  background: var(--surface);
-  border: 1.5px solid var(--accent-soft);
-  border-radius: var(--radius-md);
-  padding: 28px 32px;
+  background: var(--surface-strong);
+  border: 1.5px solid var(--primary-soft);
+  border-radius: var(--radius-lg);
+  padding: 36px 40px;
   width: 100%;
-  max-width: 520px;
+  max-width: 640px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+.gate-overlay-card--wide {
+  max-width: 740px;
+  padding: 40px 48px;
+}
+
+.gate-overlay-conjecture {
+  background: var(--surface-cool);
+  border-left: 3px solid var(--primary);
+  border-radius: 6px;
+  padding: 12px 16px;
+  font-size: 0.9rem;
+  color: var(--text);
+  line-height: 1.55;
+  margin: 0;
+  font-style: italic;
 }
 
 .gate-overlay-body {
@@ -4271,15 +4594,16 @@ textarea {
 
 .gate-overlay-heading {
   font-weight: 700;
-  font-size: 1.05rem;
-  margin: 0 0 8px;
+  font-size: 1.25rem;
+  margin: 0 0 12px;
   color: var(--text);
 }
 
 .gate-overlay-sub {
-  font-size: 0.87rem;
+  font-size: 0.95rem;
   color: var(--muted);
-  margin: 0 0 14px;
+  margin: 0 0 20px;
+  line-height: 1.55;
 }
 
 .gate-overlay-label {
@@ -4292,13 +4616,15 @@ textarea {
 .gate-overlay-theorem {
   background: var(--surface-cool);
   border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  padding: 10px 12px;
-  font-size: 0.78rem;
+  border-radius: 8px;
+  padding: 14px 16px;
+  font-size: 0.82rem;
+  font-family: "Fira Code", "IBM Plex Mono", monospace;
   white-space: pre-wrap;
   word-break: break-word;
-  margin-bottom: 14px;
-  max-height: 140px;
+  margin-bottom: 18px;
+  max-height: 200px;
   overflow-y: auto;
   color: var(--text);
+  line-height: 1.5;
 }
