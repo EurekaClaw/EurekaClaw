@@ -124,7 +124,13 @@ class SkillRegistry:
         import yaml  # PyYAML — already a transitive dep via python-frontmatter
 
         self._skills_dir.mkdir(parents=True, exist_ok=True)
-        path = self._skills_dir / f"{skill.meta.name}.md"
+        from_distillation = skill.meta.source == "distilled"
+        if from_distillation:
+            distill_dir = self._skills_dir / "distilled"
+            distill_dir.mkdir(parents=True, exist_ok=True)
+            path = distill_dir / f"{skill.meta.name}.md"
+        else: 
+            path = self._skills_dir / f"{skill.meta.name}.md"
         meta_dict = skill.meta.model_dump(mode="json")
         # Drop None values so they don't serialize as the string 'null'
         meta_dict = {k: v for k, v in meta_dict.items() if v is not None}

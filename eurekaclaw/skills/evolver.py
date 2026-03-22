@@ -136,13 +136,14 @@ class SkillEvolver:
             if stripped.startswith("# "):
                 raw_title = stripped[2:].strip()
                 break
+
         uid = uuid.uuid4().hex[:6]
         if raw_title:
             title_slug = re.sub(r"[^a-z0-9]+", "_", raw_title.lower()).strip("_")[:40]
-            skill_name = f"distilled_{title_slug}_{uid}"
+            skill_name = f"{title_slug}_{uid}"
             description = description or raw_title
         else:
-            skill_name = f"distilled_{session_id[:8]}_{uid}"
+            skill_name = f"{session_id[:8]}_{uid}"
 
         meta = SkillMeta(
             name=skill_name,
@@ -152,10 +153,49 @@ class SkillEvolver:
             pipeline_stages=[s for s in stages if s],
             description=description or "Distilled from session evidence",
             source="distilled",
-            created_at=datetime.utcnow(),
+            created_at=datetime.now(),
         )
         record = SkillRecord(meta=meta, content=content)
         self.registry.upsert(record)
         skills.append(record)
         logger.info("Distilled new skill: %s", skill_name)
         return skills
+
+
+TESTING_TEXT = """
+
+---SKILL START---
+# Match Lower Bounds with Parameter-Aware Algorithm Design
+
+When to apply  
+Use this strategy when a problem introduces structural parameters (e.g., fraction of optimal solutions, sparsity, margin) that influence hardness, and you want near-optimal algorithms that scale with those parameters.
+
+Strategy  
+1. Derive or identify an information-theoretic lower bound that explicitly depends on structural parameters (e.g., \(p^*\), \(\Delta\)).  
+2. Interpret the lower bound to understand which term dominates in different regimes (e.g., exploration-limited vs. horizon-limited).  
+3. Modify a standard baseline algorithm (e.g., UCB) by incorporating these parameters into exploration bonuses or stopping rules.  
+4. Tune confidence widths or sampling schedules so the regret upper bound matches the lower bound scaling (up to log factors).  
+5. Verify tightness by comparing asymptotic dependence on each parameter with the minimax lower bound.
+
+Example application  
+After proving that regret must scale like \(\log(T)/(p^*\Delta)\) in a bandit problem with many optimal arms, adjust the exploration bonus in a UCB algorithm to shrink faster when \(p^*\) is large, yielding an upper bound that matches the lower bound scaling.
+
+Pitfalls to avoid  
+- Ignoring structural parameters when designing the algorithm, leading to suboptimal dependence.  
+- Matching only the \(T\)-dependence but missing key factors like \(p^*\) or \(\Delta\).  
+- Overfitting the algorithm to known parameters without checking robustness when they are mis-specified.
+---SKILL END---
+
+metadata:
+- tags: theory, lower-bounds, algorithms, regret-analysis, minimax
+- agent_roles: survey, ideation, theory
+- pipeline_stages: literature-extraction, abstraction, algorithm-design
+- description: Use parameter-dependent lower bounds to guide the design of nearly optimal algorithms.
+"""
+
+
+if __name__ == "__main__":
+    registry = SkillRegistry()
+    evolver = SkillEvolver(registry, client=create_client(anthropic_api_key="sk-anthropic-..."))
+    evolver._parse_skill_response(TESTING_TEXT, session_id="testsession123", agent_role="theory")
+    
