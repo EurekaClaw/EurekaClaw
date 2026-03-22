@@ -510,18 +510,37 @@ def ui(host: str, port: int, open_browser: bool) -> None:
     import time
     import webbrowser
 
-    from eurekaclaw.ui.server import serve_ui
+    from eurekaclaw.ui.server import bind_ui_server
 
-    console.print(f"[green]Starting EurekaClaw UI on http://{host}:{port}[/green]")
+    try:
+        server = bind_ui_server(host=host, port=port)
+    except OSError as exc:
+        console.print(f"[red]Failed to start UI server: {exc}[/red]")
+        raise SystemExit(1) from exc
+
+    actual_host, actual_port = server.server_address
+    url = f"http://{actual_host}:{actual_port}/"
+    if actual_port != port:
+        console.print(
+            f"[yellow]Port {port} unavailable — using {url} instead.[/yellow]\n"
+            f"  Run [bold]eurekaclaw ui --port {actual_port}[/bold] to avoid this message."
+        )
+    else:
+        console.print(f"[green]Starting EurekaClaw UI on {url}[/green]")
 
     if open_browser:
         def _open() -> None:
             time.sleep(1.0)
-            webbrowser.open(f"http://{host}:{port}/")
+            webbrowser.open(url)
 
         threading.Thread(target=_open, daemon=True).start()
 
-    serve_ui(host=host, port=port)
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        server.server_close()
 
 
 def _run_with_pause_support(
