@@ -3921,3 +3921,109 @@ textarea {
   --green: #16a34a;
   --red:   #dc2626;
 }
+
+/* ── Gate form shared styles ─────────────────────────────────────────────── */
+
+.gate-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--surface-cool);
+  border: 1.5px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: 0.85rem;
+  padding: 8px 10px;
+  resize: vertical;
+  margin-top: 10px;
+  font-family: inherit;
+}
+
+.gate-textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.gate-select {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--surface-cool);
+  border: 1.5px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: 0.85rem;
+  padding: 7px 10px;
+  margin-top: 10px;
+}
+
+.gate-btn-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+
+.gate-problem-list {
+  margin: 4px 0 0 16px;
+  padding: 0;
+  font-size: 0.82rem;
+  color: var(--muted);
+  list-style: disc;
+}
+
+.gate-problem-list li { margin-bottom: 2px; }
+
+.btn {
+  padding: 7px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 0.83rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: opacity 0.15s;
+}
+
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.btn-primary {
+  background: var(--accent);
+  color: #fff;
+}
+
+.btn-primary:hover:not(:disabled) { opacity: 0.88; }
+
+.btn-secondary {
+  background: var(--surface-strong);
+  color: var(--text);
+  border: 1.5px solid var(--line);
+}
+
+.btn-secondary:hover:not(:disabled) { background: var(--surface-cool); }
+
+.btn-ghost {
+  background: transparent;
+  color: var(--muted);
+  border: 1.5px solid var(--line);
+}
+
+.btn-ghost:hover:not(:disabled) { color: var(--text); }
+
+/* ── Theory review gate ──────────────────────────────────────────────────── */
+
+.proof-gate-review {
+  margin-top: 18px;
+  background: var(--surface-strong);
+  border: 1.5px solid var(--accent-soft);
+  border-radius: var(--radius-md);
+  padding: 16px 18px;
+}
+
+.proof-gate-heading {
+  font-weight: 700;
+  font-size: 0.92rem;
+  margin: 0 0 6px;
+  color: var(--text);
+}
+
+.proof-gate-reject-form {
+  margin-top: 10px;
+}

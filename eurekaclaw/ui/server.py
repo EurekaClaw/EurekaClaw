@@ -464,6 +464,11 @@ class UIServerState:
             run.eureka_session = session
             run.eureka_session_id = session.session_id
 
+            from eurekaclaw.ui import review_gate as _rg
+            _rg.register_survey(session.session_id)
+            _rg.register_direction(session.session_id)
+            _rg.register_theory(session.session_id)
+
             with _temporary_auth_env(config):
                 # asyncio.run() can be unreliable in non-main threads on some
                 # Python versions.  Creating an explicit loop is safer.
@@ -502,6 +507,9 @@ class UIServerState:
                 run.status = "failed"
                 run.error = str(exc)
         finally:
+            if run.eureka_session_id:
+                from eurekaclaw.ui import review_gate as _rg
+                _rg.unregister_all(run.eureka_session_id)
             run.completed_at = datetime.utcnow()
             run.updated_at = datetime.utcnow()
             self._persist_run(run)
@@ -884,6 +892,46 @@ class UIRequestHandler(SimpleHTTPRequestHandler):
             result = _install_skill(skillname)
             status = HTTPStatus.OK if result.get("ok") else HTTPStatus.BAD_REQUEST
             self._send_json(result, status=status)
+            return
+
+        # Gate submission endpoints: /api/runs/<run_id>/gate/{survey|direction|theory}
+        parts = parsed.path.strip("/").split("/")
+        if len(parts) == 4 and parts[0] == "api" and parts[1] == "runs" and parts[3] == "gate":
+            self._send_json({"error": "Not found"}, status=HTTPStatus.NOT_FOUND)
+            return
+        if len(parts) == 5 and parts[0] == "api" and parts[1] == "runs" and parts[3] == "gate":
+            run_id = parts[2]
+            gate_type = parts[4]
+            run = self.state.get_run(run_id)
+            if run is None:
+                self._send_json({"error": "Run not found"}, status=HTTPStatus.NOT_FOUND)
+                return
+            session_id = run.eureka_session_id
+            if not session_id:
+                self._send_json({"error": "No active session"}, status=HTTPStatus.BAD_REQUEST)
+                return
+            from eurekaclaw.ui import review_gate as _rg
+            payload = self._read_json()
+            if gate_type == "survey":
+                raw_ids = payload.get("paper_ids", [])
+                paper_ids = [str(x).strip() for x in raw_ids if str(x).strip()]
+                ok = _rg.submit_survey(session_id, paper_ids)
+            elif gate_type == "direction":
+                direction = str(payload.get("direction", "")).strip()
+                ok = _rg.submit_direction(session_id, direction)
+            elif gate_type == "theory":
+                from eurekaclaw.ui.review_gate import TheoryDecision
+                approved = bool(payload.get("approved", True))
+                lemma_id = str(payload.get("lemma_id", "")).strip()
+                reason = str(payload.get("reason", "")).strip()
+                ok = _rg.submit_theory(session_id, TheoryDecision(approved=approved, lemma_id=lemma_id, reason=reason))
+            else:
+                self._send_json({"error": f"Unknown gate type: {gate_type}"}, status=HTTPStatus.BAD_REQUEST)
+                return
+            if ok:
+                self._send_json({"ok": True})
+            else:
+                self._send_json({"error": "Gate not active for this session"}, status=HTTPStatus.BAD_REQUEST)
             return
 
         self._send_json({"error": "Not found"}, status=HTTPStatus.NOT_FOUND)

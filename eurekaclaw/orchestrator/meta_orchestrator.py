@@ -286,8 +286,53 @@ class MetaOrchestrator:
         If ``brief.conjecture`` is set (prove mode), it is shown as the default;
         pressing Enter without typing anything accepts it.
         """
+        import sys
         import uuid
         from eurekaclaw.types.artifacts import ResearchDirection
+
+        if not sys.stdin.isatty():
+            # UI mode: block until the frontend submits a direction
+            from eurekaclaw.ui import review_gate
+            from eurekaclaw.types.tasks import TaskStatus
+
+            session_id = self.bus.session_id
+            pipeline = self.bus.get_pipeline()
+            gate_task = next(
+                (t for t in pipeline.tasks if t.name == "direction_selection_gate"),
+                None,
+            ) if pipeline else None
+
+            if gate_task is not None:
+                gate_task.status = TaskStatus.AWAITING_GATE
+                self.bus.put_pipeline(pipeline)
+
+            decision = review_gate.wait_direction(session_id)
+            hypothesis = (decision.direction or "").strip() if decision else ""
+            if not hypothesis:
+                hypothesis = brief.conjecture or ""
+
+            if gate_task is not None:
+                gate_task.status = TaskStatus.COMPLETED
+                self.bus.put_pipeline(pipeline)
+
+            if not hypothesis:
+                logger.warning("Direction gate: no direction provided and no conjecture fallback — skipping")
+                return
+
+            direction = ResearchDirection(
+                direction_id=str(uuid.uuid4()),
+                title=hypothesis[:80],
+                hypothesis=hypothesis,
+                approach_sketch="User-provided direction — formalize, decompose into lemmas, attempt proof.",
+                novelty_score=0.8,
+                soundness_score=0.8,
+                transformative_score=0.7,
+            )
+            direction.compute_composite()
+            brief.directions = [direction]
+            brief.selected_direction = direction
+            self.bus.put_research_brief(brief)
+            return
 
         console.print(
             "\n[yellow]⚠  Ideation returned 0 research directions — human input required.[/yellow]"
@@ -349,10 +394,66 @@ class MetaOrchestrator:
         After the retry limit is reached the pipeline proceeds to writer
         without further prompting.
         """
+        import sys
         from eurekaclaw.types.tasks import TaskStatus
 
         max_retries = settings.theory_review_max_retries
         attempt = 0
+
+        if not sys.stdin.isatty():
+            # UI mode: use event-based gate
+            from eurekaclaw.ui import review_gate
+
+            session_id = self.bus.session_id
+
+            while True:
+                gate_task = next(
+                    (t for t in pipeline.tasks if t.name == "theory_review_gate"),
+                    None,
+                )
+                if gate_task is not None:
+                    gate_task.status = TaskStatus.AWAITING_GATE
+                    self.bus.put_pipeline(pipeline)
+
+                decision = review_gate.wait_theory(session_id)
+
+                if gate_task is not None:
+                    gate_task.status = TaskStatus.COMPLETED
+                    self.bus.put_pipeline(pipeline)
+
+                if decision is None or decision.approved:
+                    return
+
+                attempt += 1
+                if attempt > max_retries:
+                    logger.info("Theory review: retry limit reached — proceeding to writer")
+                    return
+
+                theory_task = next((t for t in pipeline.tasks if t.name == "theory"), None)
+                if theory_task is None:
+                    logger.warning("theory_review_gate: no 'theory' task found — proceeding")
+                    return
+
+                feedback = (
+                    f"The user flagged lemma '{decision.lemma_id}' as having a critical logical gap.\n"
+                    f"Issue: {decision.reason}\n"
+                    f"Please re-examine this lemma and fix the logical chain before assembling the proof."
+                )
+                theory_task.description = (theory_task.description or "") + f"\n\n[User feedback]: {feedback}"
+                theory_task.retries = 0
+                theory_task.status = TaskStatus.PENDING
+
+                agent = self.router.resolve(theory_task)
+                result = await agent.execute(theory_task)
+
+                if result.failed:
+                    theory_task.mark_failed(result.error)
+                else:
+                    theory_task.mark_completed(dict(result.output))
+
+                self.bus.put_pipeline(pipeline)
+                review_gate.reset_theory(session_id)
+            return
 
         while True:
             approved, lemma_ref, reason = self.gate.theory_review_prompt()
@@ -405,6 +506,8 @@ class MetaOrchestrator:
 
     async def _handle_empty_survey_fallback(self, pipeline: TaskPipeline) -> None:
         """If the survey found 0 papers, pause and ask the user for paper IDs."""
+        import sys
+
         bib = self.bus.get_bibliography()
         has_papers = False
         if bib:
@@ -414,6 +517,59 @@ class MetaOrchestrator:
             has_papers = len(papers) > 0
 
         if has_papers:
+            return
+
+        if not sys.stdin.isatty():
+            # UI mode: block until the frontend submits paper IDs (or skips)
+            from eurekaclaw.ui import review_gate
+
+            session_id = self.bus.session_id
+            survey_task = next((t for t in pipeline.tasks if t.name == "survey"), None)
+
+            if survey_task is not None:
+                survey_task.status = TaskStatus.AWAITING_GATE
+                self.bus.put_pipeline(pipeline)
+
+            decision = review_gate.wait_survey(session_id)
+
+            if survey_task is not None:
+                survey_task.status = TaskStatus.COMPLETED
+                self.bus.put_pipeline(pipeline)
+
+            if not decision.paper_ids:
+                return
+
+            paper_input = ", ".join(decision.paper_ids)
+            if survey_task is None:
+                return
+
+            feedback = f"Please specifically use and analyze these papers: {paper_input}"
+            survey_task.description = (survey_task.description or "") + f"\n\n[User provided papers]: {feedback}"
+            survey_task.retries = 0
+            survey_task.status = TaskStatus.PENDING
+
+            arxiv_tool = self.tool_registry.get("arxiv_search")
+            if arxiv_tool:
+                arxiv_tool.exact_match_mode = True
+
+            agent = self.router.resolve(survey_task)
+            result = await agent.execute(survey_task)
+
+            if arxiv_tool:
+                arxiv_tool.exact_match_mode = False
+
+            if result.failed:
+                survey_task.mark_failed(result.error)
+            else:
+                task_outputs = dict(result.output)
+                if result.text_summary:
+                    task_outputs["text_summary"] = result.text_summary
+                if result.token_usage:
+                    task_outputs["token_usage"] = result.token_usage
+                survey_task.mark_completed(task_outputs)
+                self.gate.print_stage_summary("survey")
+
+            self.bus.put_pipeline(pipeline)
             return
 
         console.print("\n[yellow]⚠ Survey stage completed but found 0 papers.[/yellow]")
