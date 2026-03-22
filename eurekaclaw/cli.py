@@ -514,6 +514,9 @@ def ui(host: str, port: int, open_browser: bool) -> None:
     import time
     import webbrowser
 
+    import os
+    os.environ["EUREKACLAW_UI_MODE"] = "1"
+
     from eurekaclaw.ui.server import bind_ui_server
 
     try:

@@ -43,6 +43,12 @@ export function usePolling() {
         const wasRunning = prevTheoryTask?.status === 'in_progress';
         const nowDone = theoryTask?.status === 'completed';
         if (wasRunning && nowDone && activeWsTab === 'live') setActiveWsTab('proof');
+
+        // Auto-switch to Proof tab when theory review gate becomes active
+        const reviewGateTask = current.pipeline?.find((t) => t.name === 'theory_review_gate');
+        const prevReviewGateTask = prev?.pipeline?.find((t) => t.name === 'theory_review_gate');
+        const gateJustActivated = prevReviewGateTask?.status !== 'awaiting_gate' && reviewGateTask?.status === 'awaiting_gate';
+        if (gateJustActivated) setActiveWsTab('proof');
         if (prev?.status !== 'completed' && current.status === 'completed' && activeWsTab === 'live') {
           setActiveWsTab('paper');
         }

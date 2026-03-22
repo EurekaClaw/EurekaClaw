@@ -2,6 +2,7 @@ import { SessionTopBar } from './SessionTopBar';
 import { ProofCtrl } from '@/components/controls/ProofCtrl';
 import { FailedSessionNote } from '@/components/controls/FailedSessionNote';
 import { WorkspaceSplit } from '@/components/workspace/WorkspaceSplit';
+import { GateOverlay } from '@/components/workspace/GateOverlay';
 import type { SessionRun } from '@/types';
 
 interface SessionDetailPaneProps {
@@ -20,6 +21,7 @@ export function SessionDetailPane({ run, onRestartFast }: SessionDetailPaneProps
       {showCtrl && <ProofCtrl run={run} onRestartFast={onRestartFast} />}
       {isFailed && <FailedSessionNote run={run} />}
       <WorkspaceSplit run={run} />
+      <GateOverlay run={run} />
     </div>
   );
 }

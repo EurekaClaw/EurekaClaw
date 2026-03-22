@@ -1,0 +1,213 @@
+import { useState } from 'react';
+import type { SessionRun } from '@/types';
+import { apiPost } from '@/api/client';
+
+interface Props {
+  run: SessionRun;
+}
+
+function SurveyGate({ run }: Props) {
+  const [paperText, setPaperText] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  async function submit(skip: boolean) {
+    setSubmitting(true);
+    try {
+      const paper_ids = skip
+        ? []
+        : paperText.split(/[\n,]+/).map((s) => s.trim()).filter(Boolean);
+      await apiPost(`/api/runs/${run.run_id}/gate/survey`, { paper_ids });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="gate-overlay-body">
+      <p className="gate-overlay-heading">📄 Survey found no papers</p>
+      <p className="gate-overlay-sub">
+        Provide paper IDs or arXiv IDs to retry, or continue without papers.
+      </p>
+      <textarea
+        className="gate-textarea"
+        placeholder="Enter paper IDs, one per line or comma-separated…"
+        value={paperText}
+        onChange={(e) => setPaperText(e.target.value)}
+        rows={4}
+        disabled={submitting}
+      />
+      <div className="gate-btn-row">
+        <button className="btn btn-primary" disabled={submitting || !paperText.trim()} onClick={() => submit(false)}>
+          Retry with these papers
+        </button>
+        <button className="btn btn-secondary" disabled={submitting} onClick={() => submit(true)}>
+          Continue without papers
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function DirectionGate({ run }: Props) {
+  const brief = run.artifacts?.research_brief ?? {};
+  const openProblems = (brief.open_problems ?? []) as string[];
+  const conjecture = run.input_spec?.conjecture || run.input_spec?.query || '';
+  const [dirText, setDirText] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  async function submit(direction: string) {
+    setSubmitting(true);
+    try {
+      await apiPost(`/api/runs/${run.run_id}/gate/direction`, { direction });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="gate-overlay-body">
+      <p className="gate-overlay-heading">🧭 No research directions generated</p>
+      <p className="gate-overlay-sub">
+        Ideation returned no candidate directions. Enter a research direction to proceed.
+      </p>
+      {openProblems.length > 0 && (
+        <>
+          <p className="gate-overlay-label">Open problems found by survey:</p>
+          <ul className="gate-problem-list">
+            {openProblems.slice(0, 5).map((p, i) => (
+              <li key={i}>{p.slice(0, 140)}</li>
+            ))}
+          </ul>
+        </>
+      )}
+      <textarea
+        className="gate-textarea"
+        placeholder="Enter a research direction or hypothesis…"
+        value={dirText}
+        onChange={(e) => setDirText(e.target.value)}
+        rows={3}
+        disabled={submitting}
+      />
+      <div className="gate-btn-row">
+        <button className="btn btn-primary" disabled={submitting || !dirText.trim()} onClick={() => submit(dirText.trim())}>
+          Use this direction
+        </button>
+        {conjecture && (
+          <button className="btn btn-secondary" disabled={submitting} onClick={() => submit(conjecture)}>
+            Use original conjecture
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function TheoryReviewGate({ run }: Props) {
+  const ts = run.artifacts?.theory_state;
+  const lemmaDAG = ts?.lemma_dag ?? {};
+  const lemmaEntries = Object.entries(lemmaDAG);
+  const [rejecting, setRejecting] = useState(false);
+  const [selectedLemma, setSelectedLemma] = useState('');
+  const [reason, setReason] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  async function approve() {
+    setSubmitting(true);
+    try {
+      await apiPost(`/api/runs/${run.run_id}/gate/theory`, { approved: true });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function reject() {
+    setSubmitting(true);
+    try {
+      await apiPost(`/api/runs/${run.run_id}/gate/theory`, {
+        approved: false,
+        lemma_id: selectedLemma,
+        reason,
+      });
+      setRejecting(false);
+      setSelectedLemma('');
+      setReason('');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="gate-overlay-body">
+      <p className="gate-overlay-heading">🔍 Proof ready for review</p>
+      <p className="gate-overlay-sub">
+        The theory agent has completed a proof attempt. Approve to continue, or flag a concern to request a revision.
+      </p>
+      {ts?.formal_statement && (
+        <pre className="gate-overlay-theorem">{ts.formal_statement.slice(0, 400)}{ts.formal_statement.length > 400 ? '\n…' : ''}</pre>
+      )}
+      {!rejecting ? (
+        <div className="gate-btn-row">
+          <button className="btn btn-primary" disabled={submitting} onClick={approve}>
+            Approve &amp; continue
+          </button>
+          <button className="btn btn-secondary" disabled={submitting} onClick={() => setRejecting(true)}>
+            Flag a concern
+          </button>
+        </div>
+      ) : (
+        <>
+          {lemmaEntries.length > 0 && (
+            <select className="gate-select" value={selectedLemma} onChange={(e) => setSelectedLemma(e.target.value)} disabled={submitting}>
+              <option value="">— Select a lemma (optional) —</option>
+              {lemmaEntries.map(([id, node]) => (
+                <option key={id} value={id}>{(node as any).informal || (node as any).statement || id}</option>
+              ))}
+            </select>
+          )}
+          <textarea
+            className="gate-textarea"
+            placeholder="Describe the logical gap or issue…"
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            rows={3}
+            disabled={submitting}
+          />
+          <div className="gate-btn-row">
+            <button className="btn btn-primary" disabled={submitting || !reason.trim()} onClick={reject}>
+              Submit feedback &amp; revise
+            </button>
+            <button className="btn btn-ghost" disabled={submitting} onClick={() => setRejecting(false)}>
+              Cancel
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+export function GateOverlay({ run }: Props) {
+  const pipeline = run.pipeline ?? [];
+
+  const surveyTask = pipeline.find((t) => t.name === 'survey');
+  const dirTask = pipeline.find((t) => t.name === 'direction_selection_gate');
+  const theoryTask = pipeline.find((t) => t.name === 'theory_review_gate');
+
+  const activeGate =
+    surveyTask?.status === 'awaiting_gate' ? 'survey' :
+    dirTask?.status === 'awaiting_gate' ? 'direction' :
+    theoryTask?.status === 'awaiting_gate' ? 'theory' :
+    null;
+
+  if (!activeGate) return null;
+
+  return (
+    <div className="gate-overlay-backdrop">
+      <div className="gate-overlay-card">
+        {activeGate === 'survey' && <SurveyGate run={run} />}
+        {activeGate === 'direction' && <DirectionGate run={run} />}
+        {activeGate === 'theory' && <TheoryReviewGate run={run} />}
+      </div>
+    </div>
+  );
+}
