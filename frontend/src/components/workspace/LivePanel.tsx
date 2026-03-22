@@ -7,6 +7,7 @@ import { AGENT_MANIFEST } from '@/lib/agentManifest';
 import { agentNarrativeLine } from '@/lib/agentManifest';
 import { friendlyInnerStage } from '@/lib/statusHelpers';
 import { titleCase, escapeHtml } from '@/lib/formatters';
+import { DirectionDialog } from './DirectionDialog';
 
 interface LivePanelProps {
   run: SessionRun | null;
@@ -15,7 +16,7 @@ interface LivePanelProps {
 export function LivePanel({ run }: LivePanelProps) {
   const [surveyPaperInput, setSurveyPaperInput] = useState('');
   const [surveyGateDismissed, setSurveyGateDismissed] = useState('');
-  const [directionInput, setDirectionInput] = useState('');
+  const [showDirectionDialog, setShowDirectionDialog] = useState(false);
   const [retrying, setRetrying] = useState(false);
   const sessions = useSessionStore((s) => s.sessions);
   const setSessions = useSessionStore((s) => s.setSessions);
@@ -39,8 +40,6 @@ export function LivePanel({ run }: LivePanelProps) {
   // Direction gate — ideation returned 0 directions
   const brief = arts.research_brief ?? {};
   const dirs = brief.directions ?? [];
-  const openProblems = brief.open_problems ?? [];
-  const conj = run.input_spec?.conjecture || run.input_spec?.query || '';
   const ideationDone = pipeline.some(
     (t) => (t.name === 'ideation' || t.name === 'direction_selection_gate') && t.status === 'completed'
   );
@@ -53,87 +52,29 @@ export function LivePanel({ run }: LivePanelProps) {
     !brief.selected_direction &&
     status !== 'completed';
 
-  const handleRetryWithDirection = async (hypothesis: string) => {
-    if (!hypothesis.trim()) return;
-    setRetrying(true);
-    try {
-      const spec = run.input_spec ?? {};
-      const newRun = await apiPost<SessionRun>('/api/runs', {
-        mode: 'detailed',
-        domain: spec.domain || '',
-        conjecture: hypothesis.trim(),
-        query: hypothesis.trim(),
-        additional_context: spec.additional_context || '',
-        selected_skills: spec.selected_skills || [],
-      });
-      setSessions([newRun, ...sessions.filter((s) => s.run_id !== newRun.run_id)]);
-      setCurrentRunId(newRun.run_id);
-      setDirectionInput('');
-    } catch (err) {
-      alert(`Could not start new session: ${(err as Error).message}`);
-    } finally {
-      setRetrying(false);
-    }
-  };
-
   if (showDirectionGate) {
     return (
-      <div className="live-activity-area">
-        <div className="direction-gate-card">
-          <p className="direction-gate-heading">💡 Ideation returned 0 directions — your input is needed</p>
-
-          {openProblems.length > 0 && (
-            <div className="direction-gate-section">
-              <p className="direction-gate-sublabel">Open problems found by survey:</p>
-              <ul className="direction-gate-problems">
-                {openProblems.slice(0, 5).map((p, i) => (
-                  <li key={i}>{typeof p === 'string' ? p : String(p)}</li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {conj && (
-            <div className="direction-gate-section">
-              <p className="direction-gate-sublabel">Your conjecture:</p>
-              <blockquote className="drawer-direction-quote">{conj}</blockquote>
-            </div>
-          )}
-
-          <div className="direction-gate-section">
-            <p className="direction-gate-sublabel">
-              {conj
-                ? 'Press "Use conjecture" to proceed with your original statement, or type a different research direction:'
-                : 'Enter a research direction or hypothesis to pursue:'}
+      <>
+        <div className="live-activity-area">
+          <div className="direction-gate-card">
+            <p className="direction-gate-heading">💡 Ideation returned 0 directions — your input is needed</p>
+            <p className="drawer-muted">
+              The automated ideation did not produce research directions. Click below to provide your own.
             </p>
-            <textarea
-              className="survey-gate-input"
-              rows={2}
-              placeholder='e.g. "UCB1 achieves O(√(KT log T)) regret in the stochastic MAB setting"'
-              value={directionInput}
-              onChange={(e) => setDirectionInput(e.target.value)}
-            />
             <div className="survey-gate-actions">
-              {conj && (
-                <button
-                  className="primary-btn"
-                  disabled={retrying}
-                  onClick={() => void handleRetryWithDirection(conj)}
-                >
-                  {retrying ? 'Starting…' : 'Use conjecture'}
-                </button>
-              )}
               <button
-                className={conj ? 'secondary-btn' : 'primary-btn'}
-                disabled={retrying || !directionInput.trim()}
-                onClick={() => void handleRetryWithDirection(directionInput)}
+                className="primary-btn"
+                onClick={() => setShowDirectionDialog(true)}
               >
-                {retrying ? 'Starting…' : 'Use this direction'}
+                Choose a direction
               </button>
             </div>
           </div>
         </div>
-      </div>
+        {showDirectionDialog && (
+          <DirectionDialog run={run} onClose={() => setShowDirectionDialog(false)} />
+        )}
+      </>
     );
   }
 
