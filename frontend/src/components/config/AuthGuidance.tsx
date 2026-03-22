@@ -9,123 +9,106 @@ interface AuthGuidanceProps {
 export function AuthGuidance({ backend, authMode, ccproxyPort }: AuthGuidanceProps) {
   const [isOpen, setIsOpen] = useState(false);
 
-  let title = 'Connection guidance';
-  let content: React.ReactNode = null;
+  let title = '';
+  let steps: { heading: string; items: string[] }[] = [];
+  let terminalCmds = '';
 
   if (backend === 'anthropic' && authMode === 'oauth') {
-    title = 'Anthropic OAuth guidance';
-    content = (
-      <>
-        <div>
-          <p className="eyebrow">OAuth Guidance</p>
-          <h4>Anthropic + OAuth requires local ccproxy setup</h4>
-        </div>
-        <p>This mode does not work from frontend settings alone. EurekaClaw must be able to find a working <code>ccproxy</code> binary and a valid OAuth login for <code>claude_api</code>.</p>
-        <div className="hint-grid">
-          <div className="hint-card">
-            <h5>What to configure</h5>
-            <ul>
-              <li>Set <code>LLM_BACKEND=anthropic</code></li>
-              <li>Set <code>ANTHROPIC_AUTH_MODE=oauth</code></li>
-              <li>Choose a <code>CCPROXY_PORT</code> such as <code>{ccproxyPort}</code></li>
-              <li>Leave <code>ANTHROPIC_API_KEY</code> empty</li>
-            </ul>
-          </div>
-          <div className="hint-card">
-            <h5>What must exist locally</h5>
-            <ul>
-              <li><code>ccproxy</code> installed and on PATH</li>
-              <li>OAuth login completed with Claude provider</li>
-              <li>The selected port available locally</li>
-            </ul>
-          </div>
-        </div>
-        <div>
-          <h5>Recommended terminal checks</h5>
-          <pre>{`which ccproxy\nccproxy auth login claude_api\nccproxy auth status claude_api`}</pre>
-        </div>
-        <p>If <code>Test connection</code> still fails, the most likely causes are: missing <code>ccproxy</code>, no OAuth login, wrong port, or missing project OAuth dependencies.</p>
-      </>
-    );
+    title = 'OAuth setup guide';
+    steps = [
+      {
+        heading: 'Configure',
+        items: [
+          'Set backend to Anthropic',
+          'Set auth mode to OAuth',
+          `Choose ccproxy port (e.g. ${ccproxyPort})`,
+          'Leave API key empty',
+        ],
+      },
+      {
+        heading: 'Requirements',
+        items: [
+          'Click "Install OAuth dependencies" if ccproxy is not installed',
+          'Click "Login with Anthropic" to authorize',
+          'Click "Save & test" to verify the connection',
+        ],
+      },
+    ];
+    terminalCmds = `# Manual setup (if the buttons above don't work):\npip install -e '.[oauth]'\nccproxy auth login claude_api\nccproxy auth status claude_api`;
   } else if (backend === 'anthropic') {
-    title = 'Anthropic API key guidance';
-    content = (
-      <>
-        <div>
-          <p className="eyebrow">API Key Guidance</p>
-          <h4>Anthropic API key is the simplest way to get running</h4>
-        </div>
-        <p>Use this path if you want the fastest setup. Fill in <code>ANTHROPIC_API_KEY</code>, keep <code>ANTHROPIC_AUTH_MODE=api_key</code>, then click <code>Test connection</code>.</p>
-        <div className="hint-grid">
-          <div className="hint-card">
-            <h5>Required</h5>
-            <ul>
-              <li><code>LLM_BACKEND=anthropic</code></li>
-              <li><code>ANTHROPIC_AUTH_MODE=api_key</code></li>
-              <li>A valid <code>ANTHROPIC_API_KEY</code></li>
-            </ul>
-          </div>
-          <div className="hint-card">
-            <h5>Common issues</h5>
-            <ul>
-              <li>Empty or expired key</li>
-              <li>Extra whitespace when pasting</li>
-              <li>Model access not enabled for the selected model</li>
-            </ul>
-          </div>
-        </div>
-      </>
-    );
+    title = 'API key setup guide';
+    steps = [
+      {
+        heading: 'Steps',
+        items: [
+          'Get an API key from console.anthropic.com',
+          'Paste it in the field above',
+          'Click "Save & test"',
+        ],
+      },
+      {
+        heading: 'Troubleshooting',
+        items: [
+          'Check for extra whitespace when pasting',
+          'Ensure key is not expired',
+          'Verify model access is enabled',
+        ],
+      },
+    ];
   } else {
-    title = 'OpenAI-compatible guidance';
-    content = (
-      <>
-        <div>
-          <p className="eyebrow">OpenAI-Compatible Guidance</p>
-          <h4>Custom endpoint mode needs base URL, API key, and model</h4>
-        </div>
-        <p>Use this mode for OpenRouter, vLLM, SGLang, LM Studio, or another OpenAI-compatible endpoint.</p>
-        <div className="hint-grid">
-          <div className="hint-card">
-            <h5>Required</h5>
-            <ul>
-              <li><code>OPENAI_COMPAT_BASE_URL</code></li>
-              <li><code>OPENAI_COMPAT_API_KEY</code></li>
-              <li><code>OPENAI_COMPAT_MODEL</code></li>
-            </ul>
-          </div>
-          <div className="hint-card">
-            <h5>Common issues</h5>
-            <ul>
-              <li>Missing <code>/v1</code> suffix in base URL</li>
-              <li>Model name not supported by the endpoint</li>
-              <li>OpenAI Python package not installed in the backend environment</li>
-            </ul>
-          </div>
-        </div>
-      </>
-    );
+    title = 'OpenAI-compatible setup guide';
+    steps = [
+      {
+        heading: 'Steps',
+        items: [
+          'Enter the base URL (include /v1 if needed)',
+          'Enter your API key',
+          'Set the model name',
+          'Click "Save & test"',
+        ],
+      },
+      {
+        heading: 'Troubleshooting',
+        items: [
+          'Missing /v1 suffix in base URL',
+          'Model not supported by endpoint',
+          'OpenAI Python package not installed',
+        ],
+      },
+    ];
   }
 
   return (
-    <div className={`full-width auth-guidance-shell${isOpen ? ' is-open' : ''}`} id="auth-guidance-shell">
+    <div className={`settings-guidance${isOpen ? ' is-open' : ''}`}>
       <button
-        className="auth-guidance-toggle"
+        className="settings-guidance-toggle"
         type="button"
-        id="auth-guidance-toggle"
-        aria-expanded={isOpen}
         onClick={() => setIsOpen(!isOpen)}
-        onMouseEnter={() => setIsOpen(true)}
-        onMouseLeave={() => setIsOpen(false)}
       >
-        <span className="auth-guidance-toggle-label">{title}</span>
-        <span className="auth-guidance-toggle-meta" id="auth-guidance-toggle-meta">
-          {isOpen ? 'Tap to hide' : 'Tap to view'}
-        </span>
+        <span className="settings-guidance-icon">💡</span>
+        <span className="settings-guidance-label">{title}</span>
+        <span className="settings-guidance-arrow">{isOpen ? '▾' : '▸'}</span>
       </button>
       {isOpen && (
-        <div className="auth-guidance" id="auth-guidance">
-          {content}
+        <div className="settings-guidance-body">
+          <div className="settings-guidance-grid">
+            {steps.map((s, i) => (
+              <div key={i} className="settings-guidance-card">
+                <p className="settings-guidance-card-heading">{s.heading}</p>
+                <ol className="settings-guidance-list">
+                  {s.items.map((item, j) => (
+                    <li key={j}>{item}</li>
+                  ))}
+                </ol>
+              </div>
+            ))}
+          </div>
+          {terminalCmds && (
+            <div className="settings-guidance-terminal">
+              <p className="settings-guidance-card-heading">Terminal commands</p>
+              <pre>{terminalCmds}</pre>
+            </div>
+          )}
         </div>
       )}
     </div>

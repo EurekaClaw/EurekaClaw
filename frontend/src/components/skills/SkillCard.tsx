@@ -1,4 +1,5 @@
 import type { Skill } from '@/types';
+import { humanize } from '@/lib/formatters';
 
 interface SkillCardProps {
   skill: Skill;
@@ -12,8 +13,8 @@ function skillSourceClass(source: string | undefined): string {
 }
 
 function skillSourceLabel(source: string | undefined): string {
-  const map: Record<string, string> = { seed: 'seed', distilled: 'auto-learned', manual: 'manual', clawhub: 'ClawHub' };
-  return map[source || 'manual'] || source || 'manual';
+  const map: Record<string, string> = { seed: 'Built-in', distilled: 'Learned', manual: 'Custom', clawhub: 'ClawHub' };
+  return map[source || 'manual'] || source || 'Custom';
 }
 
 function skillIsDeletable(skill: Skill): boolean {
@@ -22,60 +23,39 @@ function skillIsDeletable(skill: Skill): boolean {
 
 export function SkillCard({ skill, isSelected, onToggle, onDelete }: SkillCardProps) {
   const deletable = skillIsDeletable(skill);
-  const usageCount = skill.usage_count ?? 0;
-  const successRate = skill.success_rate;
-
-  const stagesHtml = (skill.pipeline_stages ?? []).slice(0, 3);
-  const tags = (skill.tags ?? []).slice(0, 3);
 
   return (
-    <div className={`intent-skill-wrap${isSelected ? ' is-selected' : ''}`}>
-      <button
-        type="button"
-        className="intent-skill"
-        data-skill-name={skill.name}
+    <div className={`skill-card-wrap${isSelected ? ' is-selected' : ''}`}>
+      <div
+        role="button"
+        tabIndex={0}
+        className="skill-card"
         onClick={() => onToggle(skill.name)}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onToggle(skill.name); }}
       >
-        <div className="intent-skill-head">
-          <span className="intent-skill-name">{skill.name}</span>
-          <span className={`intent-skill-source ${skillSourceClass(skill.source)}`}>
-            {skillSourceLabel(skill.source)}
+        {isSelected && (
+          <span className="skill-card-check">
+            <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
           </span>
-        </div>
-        <p className="intent-skill-desc">{skill.description || 'No description.'}</p>
-        <div className="intent-tag-row">
-          {stagesHtml.map((s) => (
-            <span key={s} className="skill-pipeline-tag">{s}</span>
-          ))}
-          {tags.map((t) => (
-            <span key={t} className="intent-tag">{t}</span>
-          ))}
-        </div>
-        {(usageCount > 0 || successRate != null) && (
-          <div className="skill-stats-bar">
-            {usageCount > 0 && (
-              <span className="skill-usage-badge">{usageCount} use{usageCount !== 1 ? 's' : ''}</span>
-            )}
-            {successRate != null && (
-              <>
-                <span className="skill-success-label">{Math.round(successRate * 100)}% success</span>
-                <div className="skill-success-track">
-                  <div className="skill-success-fill" style={{ width: `${Math.round(successRate * 100)}%` }} />
-                </div>
-              </>
-            )}
-          </div>
         )}
-      </button>
+        <div className="skill-card-scroll">
+          <div className="skill-card-top">
+            <span className="skill-card-name">{humanize(skill.name)}</span>
+            <span className={`skill-card-source ${skillSourceClass(skill.source)}`}>
+              {skillSourceLabel(skill.source)}
+            </span>
+          </div>
+          <p className="skill-card-desc">{humanize(skill.description || 'No description provided.')}</p>
+        </div>
+      </div>
       {deletable && (
         <button
           type="button"
-          className="skill-delete-btn"
-          data-delete-skill={skill.name}
-          title={`Remove '${skill.name}' from ~/.eurekaclaw/skills/`}
-          onClick={() => onDelete(skill.name)}
+          className="skill-card-delete"
+          title={`Remove '${humanize(skill.name)}'`}
+          onClick={(e) => { e.stopPropagation(); onDelete(skill.name); }}
         >
-          🗑
+          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
         </button>
       )}
     </div>

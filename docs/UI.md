@@ -49,6 +49,126 @@ make typecheck   # type-check only, no output
 
 ## Version history
 
+### [v0.8] — Gate System Finalization, Paper Panel, Theme Unification
+
+**Goal**: Adopt the unified gate system from `main`, enhance all gate modals, build a full-featured Paper tab, add session status indicators, and unify the entire UI to a consistent blue/white theme.
+
+#### Gate system — backend reset to `main`
+
+The `chenggong` branch's exception-based gate code (`AwaitingDirectionException`, `AwaitingReviewException`, `run_from_direction`, `run_from_review`) was replaced by `main`'s working thread-based gate system:
+
+| Component | Mechanism |
+|---|---|
+| `review_gate.py` | Thread-safe `threading.Event` blocking waits with `SurveyDecision`, `DirectionDecision`, `TheoryDecision` dataclasses |
+| `server.py` | `POST /api/runs/<id>/gate/{survey\|direction\|theory}` endpoints call `review_gate.submit_*()` to unblock the pipeline thread |
+| `meta_orchestrator.py` | Uses `EUREKACLAW_UI_MODE` env var + `review_gate.wait_*()` for UI-mode gates |
+| Pipeline tasks | `TaskStatus.AWAITING_GATE` on individual pipeline tasks signals the frontend |
+
+Three gates: **Survey** (0 papers found), **Direction** (0 directions), **Theory Review** (proof approval).
+
+#### Gate overlay modals — redesigned
+
+| Gate | Changes |
+|---|---|
+| **Survey** | Blue/white theme, enlarged textarea and buttons |
+| **Direction** | Compact modal (560px), open problems list with clickable "Use" buttons, key objects tags, simplified description text, no verbose hints |
+| **Theory Review** | `--wide` card (740px), enlarged theorem preview (200px), **new "Flag a concern" section** with styled lemma picker (clickable cards with blue ID pill, checkmark selection, blue border highlight) replacing the plain `<select>` dropdown |
+
+All gate modals share: `max-height: 85vh; overflow-y: auto` to prevent page overflow.
+
+#### Paper tab — full rewrite (`PaperPanel.tsx`)
+
+| Feature | Details |
+|---|---|
+| **Status badge** | Color-coded pill — green (completed), blue (running), red (failed) |
+| **Theory stats** | Proven lemmas count + open goals inline |
+| **Output directory** | Shown for completed runs with folder icon |
+| **Download PDF** | Button appears if PDF exists on disk |
+| **Generate PDF** | Triggers `POST /api/runs/<id>/compile-pdf` with spinner animation; appears when no PDF exists |
+| **Download .tex / .bib** | Secondary buttons to download LaTeX source and bibliography |
+| **LaTeX source viewer** | Collapsible dark-themed code viewer with file size indicator, **Copy LaTeX** button with checkmark feedback, 400px scrollable area |
+
+#### Backend — new API endpoints
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /api/runs/<id>/artifacts/<filename>` | Serves artifact files (paper.pdf, paper.tex, references.bib, etc.) with security allowlist |
+| `POST /api/runs/<id>/compile-pdf` | Triggers pdflatex compilation on the server; returns success or descriptive error |
+
+#### Backend — robust PDF compilation (`main.py`)
+
+- `_resolve_latex_bin()` — searches `PATH` + common TeX directories (`/Library/TeX/texbin`, `/usr/local/texlive/*/bin/*/`, `/opt/homebrew/bin`) so pdflatex works even when not on the server process's PATH
+- `_compile_pdf()` failure is now caught in `save_artifacts()` — PDF generation never crashes the run
+- `_send_file()` method added to `UIRequestHandler` for binary file downloads with proper Content-Type and Content-Disposition headers
+
+#### Sidebar session list — status indicators
+
+| Status | Visual |
+|---|---|
+| **Completed** | Green `FINISHED` tag + green left border accent on the session item |
+| **Running** | Blue `RUNNING` tag |
+| **Failed** | Red `FAILED` tag + dimmed opacity |
+| **Paused** | Amber `PAUSED` tag |
+| **Pausing** | Dark orange `PAUSING…` tag with pulse animation |
+| **Resuming** | Green `RESUMING…` tag with pulse animation |
+
+All tags use a shared `.session-item-status-tag` base class.
+
+#### Theme unification — blue/white
+
+All accent colors unified to the `--primary` / `--primary-soft` / `--primary-strong` palette:
+
+| Element | Before | After |
+|---|---|---|
+| `.btn-primary` | `var(--accent)` (brown) | `var(--primary)` (blue) |
+| Gate borders | `var(--amber)` / `var(--cyan)` | `var(--primary-soft)` |
+| Review gate lemma badges | Red / amber / cyan | Blue theme |
+| Focus rings | Brown accent | Blue `box-shadow` |
+
+#### Polling — auto-refresh on pause/resume
+
+- **`isPausingRequested` clearing**: When backend confirms `paused` or `running`, the optimistic flag is cleared so polling returns to normal interval
+- **Auto-tab switch**: `paused/resuming → running` automatically switches to the Live tab so users see proof progress resume in real-time
+
+#### Layout changes
+
+| Change | Details |
+|---|---|
+| **Guide button** | Moved from Sidebar to `App.tsx` bottom-right corner (`position: absolute`) |
+| **Skills page** | Swapped layout — "Install built-in seed skills" on the left, ClawHub external install on the right |
+
+#### Updated component tree
+
+```
+App
+├── FlashOverlay
+├── Sidebar
+│   └── SessionList (with status tags: finished/running/failed/paused/pausing/resuming)
+├── <active view>
+│   ├── WorkspaceView
+│   │   └── SessionDetailPane
+│   │       ├── SessionTopBar
+│   │       ├── ProofCtrl
+│   │       ├── WorkspaceSplit
+│   │       │   ├── AgentTrack
+│   │       │   └── WorkspaceTabs
+│   │       │       ├── LivePanel
+│   │       │       ├── ProofPanel
+│   │       │       ├── PaperPanel (PDF download, Generate PDF, LaTeX viewer, copy)
+│   │       │       └── LogsPanel
+│   │       ├── AgentDrawer
+│   │       └── GateOverlay
+│   │           ├── SurveyGate
+│   │           ├── DirectionGate (open problems, key objects, compact)
+│   │           └── TheoryReviewGate (lemma picker cards, feedback section)
+│   ├── SkillsView (seed skills left, ClawHub right)
+│   ├── ConfigView
+│   └── OnboardingView
+└── Guide button (bottom-right)
+```
+
+---
+
 ### [v0.7] — React + TypeScript + Vite Migration
 
 **Goal**: Replace the 7 000-line monolithic frontend (`app.js` / `styles.css` / `index.html`) with a properly typed, component-split Vite 5 + React 18 + TypeScript 5 project that is maintainable by humans and agents alike.

@@ -1,5 +1,5 @@
 import type { SessionRun, PipelineTask } from '@/types';
-import { titleCase } from './formatters';
+import { titleCase, humanize } from './formatters';
 import { STAGE_TASK_MAP, INNER_STAGE_LABELS } from './agentManifest';
 
 export function statusClass(status: string): string {
@@ -50,7 +50,7 @@ export function friendlyInnerStage(rawStage: string): string | null {
   if (!rawStage) return null;
   return (
     INNER_STAGE_LABELS[rawStage] ||
-    rawStage
+    humanize(rawStage)
       .replace(/Agent$/, '')
       .replace(/([A-Z])/g, ' $1')
       .trim()

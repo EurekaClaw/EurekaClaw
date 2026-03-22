@@ -1,8 +1,10 @@
 import { useRef } from 'react';
 import { useSessionStore } from '@/store/sessionStore';
+import { useUiStore } from '@/store/uiStore';
 import { useElapsedTimer } from '@/hooks/useElapsedTimer';
 import { apiPost } from '@/api/client';
 import { getActiveOuterStage, friendlyInnerStage } from '@/lib/statusHelpers';
+import { humanize } from '@/lib/formatters';
 import { StageTrack } from './StageTrack';
 import { TheoryFeedback } from './TheoryFeedback';
 import type { SessionRun } from '@/types';
@@ -25,6 +27,7 @@ export function ProofCtrl({ run, onRestartFast }: ProofCtrlProps) {
   const setIsPausingRequested = useSessionStore((s) => s.setIsPausingRequested);
   const pauseRequestedAt = useSessionStore((s) => s.pauseRequestedAt);
   const setPauseRequestedAt = useSessionStore((s) => s.setPauseRequestedAt);
+  const setActiveWsTab = useUiStore((s) => s.setActiveWsTab);
   const feedbackRef = useRef('');
 
   const status = run.status;
@@ -57,6 +60,7 @@ export function ProofCtrl({ run, onRestartFast }: ProofCtrlProps) {
   const handleResume = async () => {
     const feedback = feedbackRef.current.trim();
     feedbackRef.current = '';
+    setActiveWsTab('live');
     onRestartFast();
     try {
       await apiPost(`/api/runs/${run.run_id}/resume`, { feedback });
@@ -74,7 +78,7 @@ export function ProofCtrl({ run, onRestartFast }: ProofCtrlProps) {
   };
 
   const pausedStageText = run.paused_stage
-    ? `Paused while ${friendlyInnerStage(run.paused_stage) ?? run.paused_stage}`
+    ? `Paused while ${friendlyInnerStage(run.paused_stage) ?? humanize(run.paused_stage)}`
     : 'Ready to continue whenever you are';
 
   return (

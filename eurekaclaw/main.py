@@ -131,7 +131,10 @@ def save_artifacts(result: ResearchOutput, out_dir: str | Path) -> Path:
             _stub_missing_sections(tex_path)
             # Fix any cite keys that don't have a matching \bibitem in the tex file
             _fix_missing_citations(tex_path)
-            _compile_pdf(tex_path, settings.latex_bin)
+            try:
+                _compile_pdf(tex_path, settings.latex_bin)
+            except Exception as exc:
+                logger.warning("PDF generation skipped: %s", exc)
 
     if result.theory_state_json:
         (out / "theory_state.json").write_text(result.theory_state_json, encoding="utf-8")
@@ -324,6 +327,45 @@ def _generate_bibtex(papers: list[dict]) -> str:
     return "\n\n".join(entries)
 
 
+def _resolve_latex_bin(latex_bin: str = "pdflatex") -> str:
+    """Find pdflatex binary, searching common TeX installation paths on macOS/Linux."""
+    import shutil
+
+    # If the configured value is an absolute path that exists, use it directly
+    if Path(latex_bin).is_absolute() and Path(latex_bin).is_file():
+        return latex_bin
+
+    # Check if it's on PATH
+    found = shutil.which(latex_bin)
+    if found:
+        return found
+
+    # Search common TeX installation directories (macOS)
+    _common_paths = [
+        "/Library/TeX/texbin",
+        "/usr/local/texlive/2025/bin/universal-darwin",
+        "/usr/local/texlive/2024/bin/universal-darwin",
+        "/usr/local/texlive/2023/bin/universal-darwin",
+        "/opt/homebrew/bin",
+        "/usr/local/bin",
+        # Linux
+        "/usr/bin",
+        "/usr/local/texlive/2025/bin/x86_64-linux",
+        "/usr/local/texlive/2024/bin/x86_64-linux",
+    ]
+    bin_name = Path(latex_bin).name
+    for d in _common_paths:
+        candidate = Path(d) / bin_name
+        if candidate.is_file():
+            logger.info("Found %s at %s", bin_name, candidate)
+            return str(candidate)
+
+    raise FileNotFoundError(
+        f"'{bin_name}' not found on PATH or in common TeX directories. "
+        f"Install TeX: brew install --cask basictex (macOS) or apt install texlive (Linux)"
+    )
+
+
 def _compile_pdf(tex_path: Path, latex_bin: str = "pdflatex") -> None:
     """Compile LaTeX to PDF using the eureka template.
 
@@ -333,32 +375,31 @@ def _compile_pdf(tex_path: Path, latex_bin: str = "pdflatex") -> None:
     """
     import subprocess
 
+    resolved_bin = _resolve_latex_bin(latex_bin)
+
     out_dir = tex_path.parent.resolve()
     tex_abs = tex_path.resolve()
     pdf_path = out_dir / tex_path.with_suffix(".pdf").name
 
     latex_cmd = [
-        latex_bin, "-interaction=nonstopmode",
+        resolved_bin, "-interaction=nonstopmode",
         "-output-directory", str(out_dir),
         str(tex_abs),
     ]
 
-    try:
-        # Pass 1 — full compile, generate .aux and .toc
-        result1 = subprocess.run(latex_cmd, capture_output=True, check=False, cwd=out_dir)
-        if result1.returncode != 0:
-            log_tail = result1.stdout.decode(errors="replace")[-800:]
-            logger.warning("pdflatex pass 1 warnings/errors:\n%s", log_tail)
+    # Pass 1 — full compile, generate .aux and .toc
+    result1 = subprocess.run(latex_cmd, capture_output=True, check=False, cwd=out_dir)
+    if result1.returncode != 0:
+        log_tail = result1.stdout.decode(errors="replace")[-800:]
+        logger.warning("pdflatex pass 1 warnings/errors:\n%s", log_tail)
 
-        # Pass 2 — resolve cross-references (cleveref, hyperref, toc page numbers)
-        subprocess.run(latex_cmd, capture_output=True, check=False, cwd=out_dir)
+    # Pass 2 — resolve cross-references (cleveref, hyperref, toc page numbers)
+    subprocess.run(latex_cmd, capture_output=True, check=False, cwd=out_dir)
 
-        if pdf_path.exists():
-            logger.info("PDF compiled: %s", pdf_path)
-        else:
-            logger.warning("pdflatex produced no PDF — check %s/paper.log", out_dir)
-    except FileNotFoundError as e:
-        logger.warning("PDF generation skipped: binary not found (%s)", e)
+    if pdf_path.exists():
+        logger.info("PDF compiled: %s", pdf_path)
+    else:
+        logger.warning("pdflatex produced no PDF — check %s/paper.log", out_dir)
 
 
 def _infer_domain(query: str) -> str:

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { TheoryState, LemmaNode, SessionRun } from '@/types';
 import { apiPost } from '@/api/client';
+import { humanize } from '@/lib/formatters';
 
 interface ProofPanelProps {
   run: SessionRun | null;
@@ -100,7 +101,7 @@ function TheoryReviewGate({ run, ts }: { run: SessionRun; ts: TheoryState }) {
               <option value="">— Select a lemma (optional) —</option>
               {lemmaEntries.map(([id, node]) => (
                 <option key={id} value={id}>
-                  {lemmaLabel(node, id)}
+                  {humanize(lemmaLabel(node, id))}
                 </option>
               ))}
             </select>
@@ -199,7 +200,7 @@ export function ProofPanel({ run, theoryState: theoryStateOverride }: ProofPanel
         )}
         {theoryStatus && theoryStatus !== 'pending' && (
           <p className="drawer-muted" style={{ marginBottom: '4px' }}>
-            Status: <strong>{theoryStatus}</strong>
+            Status: <strong>{humanize(theoryStatus)}</strong>
             {iteration > 0 && ` · iteration ${iteration}`}
             {provenEntries.length > 0 && ` · ${provenEntries.length} proven`}
             {openEntries.length > 0 && ` · ${openEntries.length} open`}
@@ -228,14 +229,14 @@ export function ProofPanel({ run, theoryState: theoryStateOverride }: ProofPanel
               <div key={i} className="proof-lemma-row">
                 <span className="proof-lemma-number">{i + 1}</span>
                 <div className="proof-lemma-content">
-                  <span className="proof-lemma-name">{l.name}</span>
+                  <span className="proof-lemma-name">{humanize(l.name)}</span>
                   {l.proof && (
                     <span className="proof-lemma-formal">
                       {l.proof.slice(0, 160)}{l.proof.length > 160 ? '…' : ''}
                     </span>
                   )}
                 </div>
-                <span className={`proof-lemma-badge badge-${l.conf}`}>{l.conf}</span>
+                <span className={`proof-lemma-badge badge-${l.conf}`}>{humanize(l.conf)}</span>
               </div>
             ))}
           </div>

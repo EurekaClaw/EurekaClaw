@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useSessionStore } from '@/store/sessionStore';
+import { useSkillStore } from '@/store/skillStore';
 import { useUiStore } from '@/store/uiStore';
-import { formatRelativeTime, escapeHtml } from '@/lib/formatters';
+import { formatRelativeTime, escapeHtml, humanize } from '@/lib/formatters';
 import { titleCase } from '@/lib/formatters';
 import { apiPost, apiDelete } from '@/api/client';
 import type { SessionRun } from '@/types';
@@ -13,6 +14,7 @@ export function SessionList() {
   const setSessions = useSessionStore((s) => s.setSessions);
   const setCurrentLogPage = useSessionStore((s) => s.setCurrentLogPage);
   const setActiveView = useUiStore((s) => s.setActiveView);
+  const selectedSkills = useSkillStore((s) => s.selectedSkills);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
 
@@ -43,12 +45,15 @@ export function SessionList() {
     }
   };
 
-  const handleRestart = async (e: React.MouseEvent, runId: string) => {
+  const handleRerun = async (e: React.MouseEvent, run: SessionRun) => {
     e.stopPropagation();
     try {
-      const newRun = await apiPost<SessionRun>(`/api/runs/${runId}/restart`, {});
-      setSessions([newRun, ...sessions.filter((s) => s.run_id !== newRun.run_id)]);
-      setCurrentRunId(newRun.run_id);
+      // Send current selected skills so newly added skills are picked up
+      const updated = await apiPost<SessionRun>(`/api/runs/${run.run_id}/rerun`, {
+        selected_skills: selectedSkills,
+      });
+      setSessions(sessions.map((s) => (s.run_id === updated.run_id ? updated : s)));
+      setCurrentRunId(updated.run_id);
       setCurrentLogPage(1);
       setActiveView('workspace');
     } catch {
@@ -88,6 +93,7 @@ export function SessionList() {
         const status = s.status || 'queued';
         const time = formatRelativeTime(s.created_at);
         const isActive = s.run_id === currentRunId;
+        const isCompleted = status === 'completed';
         const isFailed = status === 'failed';
         const isPaused = status === 'paused';
         const isPausing = status === 'pausing';
@@ -96,7 +102,8 @@ export function SessionList() {
         const isLive = isRunning || isPausing || isResuming;
         const canDelete = !isLive;
         const statusLabel = titleCase(status);
-        const extraClass = isActive ? ' is-active' : isFailed ? ' is-failed' : '';
+        const stateClass = isCompleted ? ' is-completed' : isFailed ? ' is-failed' : '';
+        const extraClass = (isActive ? ' is-active' : '') + stateClass;
 
         return (
           <div
@@ -121,24 +128,26 @@ export function SessionList() {
                   onClick={(e) => e.stopPropagation()}
                 />
               ) : (
-                <div className="session-item-name">{escapeHtml(displayName)}</div>
+                <div className="session-item-name">{escapeHtml(humanize(displayName))}</div>
               )}
               <div className="session-item-meta">
                 <span className={`session-status-dot ${status}`} aria-label={statusLabel} />
                 <span>{time}</span>
-                {isFailed && <span className="session-item-failed-tag">failed</span>}
-                {isPaused && <span className="session-item-failed-tag session-item-paused-tag">paused</span>}
-                {isPausing && <span className="session-item-failed-tag session-item-pausing-tag">pausing…</span>}
-                {isResuming && <span className="session-item-failed-tag session-item-resuming-tag">resuming…</span>}
+                {isCompleted && <span className="session-item-status-tag session-item-completed-tag">finished</span>}
+                {isFailed && <span className="session-item-status-tag session-item-failed-tag">failed</span>}
+                {isPaused && <span className="session-item-status-tag session-item-paused-tag">paused</span>}
+                {isPausing && <span className="session-item-status-tag session-item-pausing-tag">pausing…</span>}
+                {isResuming && <span className="session-item-status-tag session-item-resuming-tag">resuming…</span>}
+                {isRunning && <span className="session-item-status-tag session-item-running-tag">running</span>}
               </div>
             </div>
             <div className="session-item-actions">
-              {isFailed && (
+              {canDelete && s.input_spec && (
                 <button
-                  className="session-action-btn session-restart-sidebar-btn"
-                  title="Restart session"
-                  aria-label="Restart session"
-                  onClick={(e) => void handleRestart(e, s.run_id)}
+                  className="session-action-btn session-rerun-btn"
+                  title="Re-run with same settings"
+                  aria-label="Re-run session"
+                  onClick={(e) => void handleRerun(e, s)}
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.5"/></svg>
                 </button>

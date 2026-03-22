@@ -19,10 +19,13 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
-from eurekaclaw.ccproxy_manager import maybe_start_ccproxy, stop_ccproxy
+import subprocess as _subprocess
+import sys as _sys
+
+from eurekaclaw.ccproxy_manager import maybe_start_ccproxy, stop_ccproxy, is_ccproxy_available, check_ccproxy_auth, _oauth_install_hint
 from eurekaclaw.config import settings
 from eurekaclaw.llm import create_client
-from eurekaclaw.main import EurekaSession, save_artifacts
+from eurekaclaw.main import EurekaSession, save_artifacts, _compile_pdf
 from eurekaclaw.skills.registry import SkillRegistry
 from eurekaclaw.types.tasks import InputSpec, ResearchOutput, TaskStatus
 
@@ -310,6 +313,40 @@ class UIServerState:
         self._persist_run(new_run)
         self.start_run(new_run)
         return self.snapshot_run(new_run)
+
+    def rerun_run(self, run_id: str, *, updated_skills: list[str] | None = None) -> dict[str, Any]:
+        """Reset the same run in-place and re-execute with the original input_spec.
+
+        If *updated_skills* is provided, the input_spec.selected_skills list
+        is replaced so the user can add/remove skills between re-runs.
+        """
+        run = self.get_run(run_id)
+        if run is None:
+            return {"error": "Run not found"}
+        if run.status in ("running", "queued"):
+            return {"error": f"Cannot re-run a {run.status} session"}
+        # Update skills if the frontend sent a new list
+        if updated_skills is not None:
+            run.input_spec.selected_skills = updated_skills
+        # Reset all mutable state, keep run_id, input_spec, name
+        run.status = "queued"
+        run.created_at = datetime.utcnow()
+        run.updated_at = datetime.utcnow()
+        run.started_at = None
+        run.completed_at = None
+        run.paused_at = None
+        run.pause_requested_at = None
+        run.paused_stage = ""
+        run.theory_feedback = ""
+        run.error = ""
+        run.result = None
+        run.eureka_session = None
+        run.eureka_session_id = ""
+        run.output_summary = {}
+        run.output_dir = ""
+        self._persist_run(run)
+        self.start_run(run)
+        return self.snapshot_run(run)
 
     def get_run(self, run_id: str) -> SessionRun | None:
         with self._lock:
@@ -785,6 +822,29 @@ class UIRequestHandler(SimpleHTTPRequestHandler):
             runs = [self.state.snapshot_run(run) for run in self.state.list_runs()]
             self._send_json({"runs": runs})
             return
+        # Serve artifact files: /api/runs/<run_id>/artifacts/<filename>
+        _art_parts = parsed.path.strip("/").split("/")
+        if (len(_art_parts) == 5 and _art_parts[0] == "api" and _art_parts[1] == "runs"
+                and _art_parts[3] == "artifacts"):
+            _art_run_id = _art_parts[2]
+            _art_filename = _art_parts[4]
+            _art_run = self.state.get_run(_art_run_id)
+            if _art_run is None:
+                self._send_json({"error": "Run not found"}, status=HTTPStatus.NOT_FOUND)
+                return
+            if not _art_run.output_dir:
+                self._send_json({"error": "No output directory"}, status=HTTPStatus.NOT_FOUND)
+                return
+            _art_path = Path(_art_run.output_dir) / _art_filename
+            # Security: only allow known artifact filenames
+            _allowed = {"paper.tex", "paper.pdf", "paper.md", "references.bib",
+                        "theory_state.json", "experiment_result.json", "research_brief.json"}
+            if _art_filename not in _allowed or not _art_path.is_file():
+                self._send_json({"error": "File not found"}, status=HTTPStatus.NOT_FOUND)
+                return
+            self._send_file(_art_path)
+            return
+
         if parsed.path.startswith("/api/runs/"):
             run_id = parsed.path.split("/")[-1]
             run = self.state.get_run(run_id)
@@ -792,6 +852,14 @@ class UIRequestHandler(SimpleHTTPRequestHandler):
                 self._send_json({"error": "Run not found"}, status=HTTPStatus.NOT_FOUND)
                 return
             self._send_json(self.state.snapshot_run(run))
+            return
+        if parsed.path == "/api/oauth/status":
+            available = is_ccproxy_available()
+            if not available:
+                self._send_json({"installed": False, "authenticated": False, "message": f"ccproxy not found. Install with: {_oauth_install_hint()}"})
+                return
+            authed, msg = check_ccproxy_auth("claude_api")
+            self._send_json({"installed": True, "authenticated": authed, "message": msg})
             return
         if parsed.path == "/api/health":
             self._send_json({"ok": True, "time": datetime.utcnow().isoformat()})
@@ -886,6 +954,86 @@ class UIRequestHandler(SimpleHTTPRequestHandler):
                 self._send_json(result, status=HTTPStatus.CREATED)
             return
 
+        # Re-run in place: /api/runs/<run_id>/rerun
+        if parsed.path.startswith("/api/runs/") and parsed.path.endswith("/rerun"):
+            run_id = parsed.path.removeprefix("/api/runs/").removesuffix("/rerun")
+            payload = self._read_json()
+            updated_skills = payload.get("selected_skills") if payload else None
+            result = self.state.rerun_run(run_id, updated_skills=updated_skills)
+            if result.get("error"):
+                self._send_json(result, status=HTTPStatus.BAD_REQUEST)
+            else:
+                self._send_json(result)
+            return
+
+        # Compile PDF: /api/runs/<run_id>/compile-pdf
+        if parsed.path.startswith("/api/runs/") and parsed.path.endswith("/compile-pdf"):
+            run_id = parsed.path.removeprefix("/api/runs/").removesuffix("/compile-pdf")
+            run = self.state.get_run(run_id)
+            if run is None:
+                self._send_json({"error": "Run not found"}, status=HTTPStatus.NOT_FOUND)
+                return
+            if not run.output_dir:
+                self._send_json({"error": "No output directory"}, status=HTTPStatus.BAD_REQUEST)
+                return
+            tex_path = Path(run.output_dir) / "paper.tex"
+            if not tex_path.is_file():
+                self._send_json({"error": "No paper.tex found"}, status=HTTPStatus.BAD_REQUEST)
+                return
+            try:
+                _compile_pdf(tex_path, settings.latex_bin)
+                pdf_path = Path(run.output_dir) / "paper.pdf"
+                if pdf_path.is_file():
+                    self._send_json({"ok": True, "pdf_path": str(pdf_path)})
+                else:
+                    self._send_json({"error": "pdflatex ran but produced no PDF — check paper.log"}, status=HTTPStatus.INTERNAL_SERVER_ERROR)
+            except FileNotFoundError:
+                self._send_json({"error": "pdflatex binary not found. Install TeX (e.g. brew install --cask basictex)"}, status=HTTPStatus.BAD_REQUEST)
+            except Exception as exc:
+                self._send_json({"error": f"PDF compilation failed: {exc}"}, status=HTTPStatus.INTERNAL_SERVER_ERROR)
+            return
+
+        if parsed.path == "/api/oauth/install":
+            try:
+                repo_root = str(Path(__file__).resolve().parents[2])
+                # Prefer uv pip (uv-managed venvs don't bundle pip)
+                uv_exe = shutil.which("uv")
+                if uv_exe:
+                    cmd = [uv_exe, "pip", "install", "-e", ".[oauth]"]
+                else:
+                    cmd = [_sys.executable, "-m", "pip", "install", "-e", ".[oauth]"]
+                result = _subprocess.run(
+                    cmd,
+                    capture_output=True, text=True, timeout=120,
+                    cwd=repo_root,
+                )
+                if result.returncode == 0:
+                    self._send_json({"ok": True, "message": "OAuth dependencies installed successfully."})
+                else:
+                    self._send_json({"ok": False, "message": result.stderr.strip() or result.stdout.strip()})
+            except Exception as exc:
+                self._send_json({"ok": False, "message": str(exc)})
+            return
+
+        if parsed.path == "/api/oauth/login":
+            from eurekaclaw.ccproxy_manager import _ccproxy_exe
+            exe = _ccproxy_exe()
+            if not exe:
+                self._send_json({"ok": False, "message": f"ccproxy not found. Install first with: {_oauth_install_hint()}"})
+                return
+            try:
+                # Launch login in background — it opens a browser and waits
+                # for the user to complete auth, so we can't block the HTTP response.
+                _subprocess.Popen(
+                    [exe, "auth", "login", "claude_api"],
+                    stdout=_subprocess.DEVNULL,
+                    stderr=_subprocess.DEVNULL,
+                )
+                self._send_json({"ok": True, "message": "OAuth login opened in your browser. Complete authorization, then click 'Save & test'."})
+            except Exception as exc:
+                self._send_json({"ok": False, "message": str(exc)})
+            return
+
         if parsed.path == "/api/skills/install":
             payload = self._read_json()
             skillname = str(payload.get("skillname", "")).strip()
@@ -977,6 +1125,20 @@ class UIRequestHandler(SimpleHTTPRequestHandler):
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+    def _send_file(self, file_path: Path) -> None:
+        """Serve a file for download with appropriate Content-Type."""
+        import mimetypes
+        content_type, _ = mimetypes.guess_type(str(file_path))
+        if content_type is None:
+            content_type = "application/octet-stream"
+        data = file_path.read_bytes()
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(data)))
+        self.send_header("Content-Disposition", f'attachment; filename="{file_path.name}"')
         self.end_headers()
         self.wfile.write(data)
 

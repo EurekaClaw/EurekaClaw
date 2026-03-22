@@ -9,14 +9,15 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/EurekaClaw/EurekaClaw_dev_zero/stargazers"><img src="https://img.shields.io/github/stars/EurekaClaw/EurekaClaw_dev_zero?style=flat-square&color=007ACC" alt="Stars"/></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-007ACC?style=flat-square" alt="MIT License"/></a>
-  <img src="https://img.shields.io/badge/python-3.11%2B-007ACC?style=flat-square" alt="Python 3.11+"/>
+  <a href="https://github.com/EurekaClaw/EurekaClaw/stargazers"><img src="https://img.shields.io/github/stars/EurekaClaw/EurekaClaw?style=flat-square&color=yellow" alt="Stars"/></a>
+  <img src="https://img.shields.io/badge/License-Apache_2.0-blue.svg?style=flat-square" alt="License: Apache 2.0">
+  <img src="https://img.shields.io/badge/python-3.11%2B-007ACC?style=flat-square&color=yellow" alt="Python 3.11+"/>
   <img src="https://img.shields.io/badge/local--first-private%20by%20default-1F8AD2?style=flat-square" alt="Local-first"/>
 </p>
 
 <p align="center">
   <a href="https://www.eurekaclaw.ai/"><img src="https://img.shields.io/badge/🌐%20Website-eurekaclaw.ai-007ACC?style=flat-square" alt="Website"/></a>
+  <a href="https://eurekaclaw.github.io/"><img src="https://img.shields.io/badge/📚%20Docs-eurekaclaw.github.io-007ACC?style=flat-square&color=green" alt="Docs"/></a>
   <a href="https://www.xiaohongshu.com/user/profile/69bf26c7000000003402ea57"><img src="https://img.shields.io/badge/📕%20RedNote-Follow%20Us-FF2442?style=flat-square" alt="RedNote"/></a>
   <a href="https://discord.gg/SprC5BgmcW"><img src="https://img.shields.io/badge/💬%20Discord-Join%20Us-5865F2?style=flat-square" alt="Discord"/></a>
 </p>
@@ -35,7 +36,7 @@ $ eurekaclaw prove "Find recent papers on sparse attention + prove efficiency bo
 
 **EurekaClaw** is a multi-agent AI research assistant that goes from a question to a publishable result — autonomously. It crawls the literature, generates and stress-tests hypotheses, runs experiments, and writes up findings, all from your terminal or browser UI.
 
-> **Open Source · Local-First · Private by Default · MIT License**
+> **Open Source · Local-First · Privacy by Design · Apache 2.0 License**
 
 ---
 
@@ -47,7 +48,7 @@ $ eurekaclaw prove "Find recent papers on sparse attention + prove efficiency bo
 | 💡 | **Idea Generator** | Brainstorm novel hypotheses by synthesizing patterns across thousands of papers |
 | 🔢 | **Theorem Prover** | Generate, verify, and formalize proofs via a 7-stage bottom-up pipeline |
 | 📄 | **Paper Writer** | Draft camera-ready LaTeX papers with theorem environments and citations |
-| 🖥️ | **Runs Locally** | Use Ollama, vLLM, or any OpenAI-compatible endpoint — data stays private |
+| 🖥️ | **Runs Locally** | Compatible with Every Major Model API — Privacy by Design |
 | 🧠 | **Continual Learning** | Distills proof strategies into skills after every session, improving over time |
 | 🧪 | **Experiment Runner** *(under development)* | Numerically validates theoretical bounds; flags low-confidence lemmas |
 | 🌐 | **Browser UI** | React + TypeScript interface — live agent track, proof sketch, pause/resume, skills manager |
@@ -78,8 +79,8 @@ The macOS/Linux installer clones the repo, creates a virtual environment, instal
 **Requirements:** Python ≥ 3.11, Node.js ≥ 20, Git
 
 ```bash
-git clone https://github.com/EurekaClaw/EurekaClaw_dev_zero
-cd EurekaClaw_dev_zero
+git clone https://github.com/EurekaClaw/EurekaClaw
+cd EurekaClaw
 make install                  # pip install -e "." + npm install (frontend)
 ```
 </details>
@@ -108,7 +109,7 @@ eurekaclaw explore "multi-armed bandit theory"
 eurekaclaw from-papers 1706.03762 2005.14165 --domain "attention mechanisms"
 ```
 
-> No API key? Use a Claude Pro/Max subscription via [OAuth](https://github.com/EurekaClaw/EurekaClaw_dev_zero/blob/main/docs/configuration.md#llm-backend).
+> No API key? Use a Claude Pro/Max subscription via [OAuth](https://github.com/EurekaClaw/EurekaClaw/blob/main/docs/configuration.md#llm-backend).
 
 ---
 
@@ -134,18 +135,18 @@ eurekaclaw from-papers 1706.03762 2005.14165 --domain "attention mechanisms"
 
 | | |
 |---|---|
-| 📖 [**User Guide**](https://github.com/EurekaClaw/EurekaClaw_dev_zero/blob/main/docs/user-guide.md) | Installation, walkthrough, gate modes, tuning, troubleshooting |
-| ⚙️ [**Configuration**](https://github.com/EurekaClaw/EurekaClaw_dev_zero/blob/main/docs/configuration.md) | All `.env` variables with defaults |
-| 🏗️ [**Architecture**](https://github.com/EurekaClaw/EurekaClaw_dev_zero/blob/main/docs/architecture.md) | Pipeline stages, data flow, component design |
-| 🤖 [**Agents**](https://github.com/EurekaClaw/EurekaClaw_dev_zero/blob/main/docs/agents.md) | Each agent's role, inputs, outputs, and tool usage |
-| 🔧 [**Tools**](https://github.com/EurekaClaw/EurekaClaw_dev_zero/blob/main/docs/tools.md) | arXiv, Semantic Scholar, Lean4, WolframAlpha, code execution |
-| 💻 [**CLI Reference**](https://github.com/EurekaClaw/EurekaClaw_dev_zero/blob/main/docs/cli.md) | All commands and options |
-| 🐍 [**Python API**](https://github.com/EurekaClaw/EurekaClaw_dev_zero/blob/main/docs/api.md) | `EurekaSession`, `KnowledgeBus`, data models |
-| 🧠 [**Memory System**](https://github.com/EurekaClaw/EurekaClaw_dev_zero/blob/main/docs/memory.md) | Episodic, persistent, and knowledge graph tiers |
-| ✨ [**Skills**](https://github.com/EurekaClaw/EurekaClaw_dev_zero/blob/main/docs/skills.md) | Skill registry, injection, distillation, writing custom skills |
-| 🔌 [**Domain Plugins**](https://github.com/EurekaClaw/EurekaClaw_dev_zero/blob/main/docs/domains.md) | Plugin architecture, MAB domain, adding new domains |
-| 🌐 [**UI Design**](https://github.com/EurekaClaw/EurekaClaw_dev_zero/blob/main/docs/UI.md) | React/TS architecture, component tree, run commands, full UI changelog |
-| 📋 [**Changelog**](https://github.com/EurekaClaw/EurekaClaw_dev_zero/blob/main/docs/changelog.md) | All updates and bug fixes |
+| 📖 [**User Guide**](https://github.com/EurekaClaw/EurekaClaw/blob/main/docs/user-guide.md) | Installation, walkthrough, gate modes, tuning, troubleshooting |
+| ⚙️ [**Configuration**](https://github.com/EurekaClaw/EurekaClaw/blob/main/docs/configuration.md) | All `.env` variables with defaults |
+| 🏗️ [**Architecture**](https://github.com/EurekaClaw/EurekaClaw/blob/main/docs/architecture.md) | Pipeline stages, data flow, component design |
+| 🤖 [**Agents**](https://github.com/EurekaClaw/EurekaClaw/blob/main/docs/agents.md) | Each agent's role, inputs, outputs, and tool usage |
+| 🔧 [**Tools**](https://github.com/EurekaClaw/EurekaClaw/blob/main/docs/tools.md) | arXiv, Semantic Scholar, Lean4, WolframAlpha, code execution |
+| 💻 [**CLI Reference**](https://github.com/EurekaClaw/EurekaClaw/blob/main/docs/cli.md) | All commands and options |
+| 🐍 [**Python API**](https://github.com/EurekaClaw/EurekaClaw/blob/main/docs/api.md) | `EurekaSession`, `KnowledgeBus`, data models |
+| 🧠 [**Memory System**](https://github.com/EurekaClaw/EurekaClaw/blob/main/docs/memory.md) | Episodic, persistent, and knowledge graph tiers |
+| ✨ [**Skills**](https://github.com/EurekaClaw/EurekaClaw/blob/main/docs/skills.md) | Skill registry, injection, distillation, writing custom skills |
+| 🔌 [**Domain Plugins**](https://github.com/EurekaClaw/EurekaClaw/blob/main/docs/domains.md) | Plugin architecture, MAB domain, adding new domains |
+| 🌐 [**UI Design**](https://github.com/EurekaClaw/EurekaClaw/blob/main/docs/UI.md) | React/TS architecture, component tree, run commands, full UI changelog |
+| 📋 [**Changelog**](https://github.com/EurekaClaw/EurekaClaw/blob/main/docs/changelog.md) | All updates and bug fixes |
 
 ---
 
@@ -157,7 +158,7 @@ cp .env.example .env
 
 | Variable | Default | Description |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | — | API key (or use OAuth, see [User Guide](https://github.com/EurekaClaw/EurekaClaw_dev_zero/blob/main/docs/user-guide.md#authentication)) |
+| `ANTHROPIC_API_KEY` | — | API key (or use OAuth, see [User Guide](https://github.com/EurekaClaw/EurekaClaw/blob/main/docs/user-guide.md#authentication)) |
 | `EUREKACLAW_MODEL` | `claude-sonnet-4-6` | Main reasoning model |
 | `GATE_MODE` | `auto` | `none` · `auto` · `human` |
 | `THEORY_PIPELINE` | `default` | `default` or `memory_guided` |
@@ -165,7 +166,7 @@ cp .env.example .env
 | `EXPERIMENT_MODE` | `auto` | `auto` · `true` · `false` |
 | `THEORY_MAX_ITERATIONS` | `10` | Max proof loop iterations |
 
-Full reference → [configuration.md](https://github.com/EurekaClaw/EurekaClaw_dev_zero/blob/main/docs/configuration.md)
+Full reference → [configuration.md](https://github.com/EurekaClaw/EurekaClaw/blob/main/docs/configuration.md)
 
 ---
 
@@ -203,11 +204,11 @@ make typecheck
 make dev
 ```
 
-To add a **custom skill**, drop a `.md` file into `~/.eurekaclaw/skills/` — see [skills.md](https://github.com/EurekaClaw/EurekaClaw_dev_zero/blob/main/docs/skills.md).
+To add a **custom skill**, drop a `.md` file into `~/.eurekaclaw/skills/` — see [skills.md](https://github.com/EurekaClaw/EurekaClaw/blob/main/docs/skills.md).
 
-To add a **new research domain**, subclass `DomainPlugin` — see [domains.md](https://github.com/EurekaClaw/EurekaClaw_dev_zero/blob/main/docs/domains.md).
+To add a **new research domain**, subclass `DomainPlugin` — see [domains.md](https://github.com/EurekaClaw/EurekaClaw/blob/main/docs/domains.md).
 
-To add a **new tool**, subclass `BaseTool` and register it — see [tools.md](https://github.com/EurekaClaw/EurekaClaw_dev_zero/blob/main/docs/tools.md).
+To add a **new tool**, subclass `BaseTool` and register it — see [tools.md](https://github.com/EurekaClaw/EurekaClaw/blob/main/docs/tools.md).
 
 ---
 
@@ -244,7 +245,7 @@ If you use EurekaClaw in your research, please cite:
 
 ## License
 
-MIT License. See [LICENSE](LICENSE) for details.
+Apache 2.0 License. See [LICENSE](LICENSE) for details.
 
 ---
 
