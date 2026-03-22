@@ -4,6 +4,60 @@ Summary of all updates from `UPDATES.md`.
 
 ---
 
+## 2026-03-21
+
+### 6. Add `CCPROXY_PORT` to `.env` for OAuth Mode
+
+Added `CCPROXY_PORT=8100` to `.env` so `maybe_start_ccproxy()` checks and reuses the correct port instead of defaulting to 8000 and failing.
+
+### 5. Fix Infinite Loop on ConsistencyChecker `uncited` Severity
+
+The `uncited` retry path in `inner_loop_yaml.py` previously set `current_spec` to only `theorem_crystallizer`. After the crystallizer ran, no `ConsistencyChecker` was invoked, so `state.status` never reached `"proved"` and the outer iteration loop re-triggered the same `uncited` branch on every iteration — a deadlock.
+
+**Fix:** The `uncited` branch now runs `TheoremCrystallizer` inline, then immediately sets `state.status = "proved"` and `break`s out of the outer loop. This matches the spec: uncited failures mean proof logic is sound, only citation gaps need fixing, so no second consistency check is required.
+
+**Relevant file:** `eurekaclaw/agents/theory/inner_loop_yaml.py`
+
+### 4. Immediate Pause on Ctrl+C (Cancel Running LLM Call)
+
+Previously, Ctrl+C only wrote a pause flag and the pipeline waited until the next lemma boundary to stop — potentially waiting several minutes for the current LLM call to complete.
+
+**New behavior:** Ctrl+C (or `eurekaclaw pause <session-id>` from another terminal) now immediately cancels the running asyncio task, interrupting any in-flight LLM call. `inner_loop_yaml.run()` catches `asyncio.CancelledError`, saves a checkpoint containing all lemmas proved before the interrupt, then raises `ProofPausedException`. Resume picks up exactly where it left off.
+
+**Implementation:**
+- `cli.py`: replaced `_install_pause_handler` + `asyncio.run()` with `_run_with_pause_support(coro, cp)`, which uses `loop.add_signal_handler` to cancel the task on SIGINT, and a 1-second background poller to detect pause flags written by an external `eurekaclaw pause` process.
+- `inner_loop_yaml.py`: each stage execution is wrapped in `try/except asyncio.CancelledError` — on cancellation, checkpoint is saved and `ProofPausedException` is raised.
+
+**Relevant files:** `eurekaclaw/cli.py`, `eurekaclaw/agents/theory/inner_loop_yaml.py`
+
+### 3. Force Human Intervention When Ideation Returns 0 Directions
+
+Previously, in `prove` (detailed) mode, `_handle_direction_gate` silently auto-created a research direction from the user's conjecture when ideation returned 0 directions. The user was never notified and the pipeline continued without any human confirmation.
+
+**Fix:** The silent "detailed mode" auto-creation block has been removed. `_handle_manual_direction` is now called whenever `brief.directions` is empty, regardless of `input_mode`. In `prove` mode the user's conjecture is shown as a default — pressing Enter accepts it, or the user can type a different direction.
+
+**Relevant files:** `eurekaclaw/orchestrator/meta_orchestrator.py`, `tests/unit/test_direction_fallback.py`
+
+### 2. Pause Immediately Before Next Lemma
+
+The pause-flag check in `inner_loop_yaml.py` (`LemmaDeveloper` loop) has been moved to the **start** of each lemma iteration. Previously the check happened after a lemma completed, meaning a pause request could wait up to several minutes for the current lemma's LLM calls to finish. Now the pipeline halts before the next lemma's first LLM call.
+
+**Relevant file:** `eurekaclaw/agents/theory/inner_loop_yaml.py`
+
+### 1. ConsistencyChecker Severity-Based Retry Routing
+
+`ConsistencyChecker` now classifies every failure with a `severity` field and the outer iteration loop in `inner_loop_yaml.py` routes retries accordingly:
+
+| Severity | Retry path |
+|---|---|
+| `uncited` | `TheoremCrystallizer` only — no second check — proceed to theory review gate |
+| `major` | `LemmaDeveloper → Assembler → TheoremCrystallizer → ConsistencyChecker` (one attempt; second failure escalates to `all_wrong`) |
+| `all_wrong` | `ProofArchitect → LemmaDeveloper → Assembler → TheoremCrystallizer → ConsistencyChecker` |
+
+The LLM prompt in `ConsistencyChecker` now includes severity classification instructions. If the LLM omits the field, a heuristic infers it from `uncited_lemmas` vs `issues`.
+
+---
+
 ## 2026-03-20 (continued — PRs #23, #28, #29, #30, #31, #33)
 
 ### 8. Principled Prover Confidence Scoring

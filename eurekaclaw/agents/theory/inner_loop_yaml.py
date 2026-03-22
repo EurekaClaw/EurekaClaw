@@ -24,6 +24,7 @@ Selecting this loop vs. the original:
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import datetime
 from pathlib import Path
@@ -156,6 +157,11 @@ class LemmaDeveloper:
 
             goal_proved = True
             for lemma_id in list(state.open_goals):
+                # --- Pause check BEFORE starting this lemma ---
+                # Stop immediately so checkpoint preserves all lemmas proved so far.
+                if checkpoint and checkpoint.is_pause_requested():
+                    return state
+
                 logger.info("Attempting proof of lemma: %s", lemma_id)
 
                 # --- Tier 1: collect in-session past failures for this lemma ---
@@ -304,10 +310,10 @@ class LemmaDeveloper:
                     state.open_goals.remove(lemma_id)
                     self.bus.put_theory_state(state)
 
-                # --- Lemma-level pause check ---
-                # Check after every lemma (proved or accepted) so the user
-                # can pause between lemma attempts without losing progress.
-                # The caller's run() will save the checkpoint and raise.
+                # --- Lemma-level pause check (fallback) ---
+                # Primary check is at the TOP of this loop (before prover.attempt).
+                # This fallback catches the case where pause was requested during
+                # the very last LLM call of this lemma.
                 if checkpoint and checkpoint.is_pause_requested():
                     return state
 
@@ -540,19 +546,36 @@ class TheoryInnerLoopYaml:
                 logger.info("[%s] %s", name, description)
                 instance = self._instantiate(class_name)
 
-                if mode == "iterative":
-                    max_iter = int(stage_spec.get("max_iterations", settings.theory_max_iterations))
-                    stagnation = int(stage_spec.get("stagnation_window", settings.stagnation_window))
-                    state = await instance.run_iterative(
+                try:
+                    if mode == "iterative":
+                        max_iter = int(stage_spec.get("max_iterations", settings.theory_max_iterations))
+                        stagnation = int(stage_spec.get("stagnation_window", settings.stagnation_window))
+                        state = await instance.run_iterative(
+                            state,
+                            max_iterations=max_iter,
+                            stagnation_window=stagnation,
+                            domain=domain,
+                            checkpoint=cp,
+                        )
+                    else:
+                        max_retries = int(stage_spec.get("max_retries", 1))
+                        state = await self._run_once(instance, state, domain, max_retries)
+                except asyncio.CancelledError:
+                    # Ctrl+C fired mid-stage — save checkpoint at this stage boundary.
+                    # proven_lemmas contains all lemmas completed before the interrupt.
+                    save_stage = name if mode == "iterative" else name
+                    save_spec = current_spec[idx:] if mode == "iterative" else current_spec[idx:]
+                    cp.save(
                         state,
-                        max_iterations=max_iter,
-                        stagnation_window=stagnation,
+                        next_stage=save_stage,
+                        outer_iter=outer_iter,
+                        current_spec=save_spec,
+                        original_spec=original_spec,
                         domain=domain,
-                        checkpoint=cp,
+                        research_brief_json=brief_json,
                     )
-                else:
-                    max_retries = int(stage_spec.get("max_retries", 1))
-                    state = await self._run_once(instance, state, domain, max_retries)
+                    self.bus.put_theory_state(state)
+                    raise ProofPausedException(session_id, name)
 
                 self.bus.put_theory_state(state)
 
@@ -605,23 +628,65 @@ class TheoryInnerLoopYaml:
                 logger.info("Pipeline complete: theorem proved and consistent.")
                 break
 
-            # On retry: decide which stages to re-run based on the failure type.
+            # On retry: route based on severity tag written by ConsistencyChecker.
             last_failure = state.failed_attempts[-1] if state.failed_attempts else None
-            uncited_issue = last_failure and any(
-                kw in last_failure.failure_reason.lower()
-                for kw in ("never cited", "uncited", "missing citation", "not cited")
-            )
-            if uncited_issue:
-                retry_stage_names = ("assembler", "theorem_crystallizer", "consistency_checker")
+            reason = (last_failure.failure_reason if last_failure else "").lower()
+
+            if "[severity:uncited]" in reason or any(
+                kw in reason for kw in ("never cited", "uncited", "missing citation", "not cited")
+            ):
+                # Minor: citation gaps only — re-crystallize, then mark proved
+                # without a second ConsistencyChecker pass (proof logic is sound).
+                # Run the crystallizer inline here so we can force status afterwards.
                 logger.info(
-                    "Consistency check failed (uncited lemmas) — re-running assembler + crystallizer (outer iter %d)",
-                    outer_iter + 1,
+                    "Consistency check failed (uncited) — re-running crystallizer only, "
+                    "skipping second check (outer iter %d)", outer_iter + 1,
+                )
+                retry_spec = [s for s in original_spec if s["name"] == "theorem_crystallizer"]
+                for s in retry_spec:
+                    inst = self._instantiate(s["class"])
+                    state = await self._run_once(inst, state, domain, int(s.get("max_retries", 1)))
+                    self.bus.put_theory_state(state)
+                state.status = "proved"
+                self.bus.put_theory_state(state)
+                cp.clear()
+                logger.info("Uncited retry complete — marking as proved.")
+                break
+            elif "[severity:all_wrong]" in reason or (
+                # Escalate to all_wrong when a previous major retry also failed.
+                "[severity:major]" in reason
+                and outer_iter > 0
+                and any("[severity:major]" in (f.failure_reason or "").lower()
+                        for f in state.failed_attempts[:-1])
+            ):
+                # All wrong: restart from ProofArchitect.
+                retry_stage_names = (
+                    "proof_architect", "lemma_developer",
+                    "assembler", "theorem_crystallizer", "consistency_checker",
+                )
+                logger.info(
+                    "Consistency check failed (all_wrong) — restarting from ProofArchitect "
+                    "(outer iter %d)", outer_iter + 1,
+                )
+            elif "[severity:major]" in reason:
+                # Major: specific lemma(s) broken — re-prove from LemmaDeveloper.
+                retry_stage_names = (
+                    "lemma_developer", "assembler",
+                    "theorem_crystallizer", "consistency_checker",
+                )
+                logger.info(
+                    "Consistency check failed (major) — re-running from LemmaDeveloper "
+                    "(outer iter %d)", outer_iter + 1,
                 )
             else:
-                retry_stage_names = ("theorem_crystallizer", "consistency_checker")
+                # Default (no severity tag): treat as major.
+                retry_stage_names = (
+                    "lemma_developer", "assembler",
+                    "theorem_crystallizer", "consistency_checker",
+                )
                 logger.info(
-                    "Consistency check failed — re-running crystallizer (outer iter %d)",
-                    outer_iter + 1,
+                    "Consistency check failed (unknown severity) — re-running from LemmaDeveloper "
+                    "(outer iter %d)", outer_iter + 1,
                 )
             current_spec = [s for s in original_spec if s["name"] in retry_stage_names]
         else:

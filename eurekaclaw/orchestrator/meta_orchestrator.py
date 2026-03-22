@@ -129,6 +129,14 @@ class MetaOrchestrator:
             if task.name == "theory_review_gate":
                 await self._handle_theory_review_gate(pipeline, brief)
 
+            # Ensure a research direction exists before theory runs.
+            # direction_selection_gate may have been skipped (e.g. survey failed),
+            # so we check here as a safety net and prompt the user if needed.
+            if task.name == "theory":
+                brief = self.bus.get_research_brief() or brief
+                if not brief.directions:
+                    await self._handle_manual_direction(brief)
+
             # Gate check (human / auto approval)
             if task.gate_required:
                 task.status = TaskStatus.AWAITING_GATE
@@ -238,26 +246,12 @@ class MetaOrchestrator:
             return
 
         # --- Detailed mode: user gave a specific conjecture to prove ---
-        if brief.input_mode == "detailed" and brief.conjecture:
-            console.print("[blue]Detailed mode: using conjecture directly as research direction[/blue]")
-            domain_label = brief.domain or "the Conjecture"
-            direction = ResearchDirection(
-                direction_id=str(uuid.uuid4()),
-                title=f"Proof of {domain_label}",
-                hypothesis=brief.conjecture,
-                approach_sketch=(
-                    "Formalize the conjecture, decompose into lemmas, "
-                    "attempt proof via mathematical induction / known bounds."
-                ),
-                novelty_score=0.8,
-                soundness_score=0.8,
-                transformative_score=0.7,
-            )
-            direction.compute_composite()
-            brief.directions = [direction]
-            brief.selected_direction = direction
-            self.bus.put_research_brief(brief)
-            console.print(f"[green]Direction set to: {direction.title}[/green]")
+        # Ideation ran but returned 0 directions — require user to confirm or
+        # provide a direction even though a conjecture was supplied.  We do NOT
+        # silently auto-create from the conjecture; instead _handle_manual_direction
+        # will show the conjecture as a default and require explicit confirmation.
+        if brief.input_mode == "detailed":
+            await self._handle_manual_direction(brief)
             return
 
         # --- Exploration / reference mode: run full divergent-convergent ---
@@ -280,33 +274,45 @@ class MetaOrchestrator:
             await self._handle_manual_direction(brief)
 
     async def _handle_manual_direction(self, brief: "ResearchBrief") -> None:
-        """Fallback: planner produced no directions — ask the user to supply one."""
+        """Fallback: ideation produced no directions — ask the user to supply one.
+
+        If ``brief.conjecture`` is set (prove mode), it is shown as the default;
+        pressing Enter without typing anything accepts it.
+        """
         import uuid
         from eurekaclaw.types.artifacts import ResearchDirection
 
         console.print(
-            "\n[yellow]⚠  The planner could not generate research directions automatically.[/yellow]"
+            "\n[yellow]⚠  Ideation returned 0 research directions — human input required.[/yellow]"
         )
         if brief.open_problems:
             console.print("\n[bold]Open problems found by survey:[/bold]")
             for p in brief.open_problems[:5]:
                 console.print(f"  • {str(p)[:120]}")
 
-        console.print(
-            "\n[bold]Please enter a research direction / hypothesis to pursue.[/bold]\n"
-            "[dim](e.g. \"UCB1 achieves O(√(KT log T)) regret in the stochastic MAB setting\")[/dim]\n"
-        )
-        while True:
-            try:
-                hypothesis = console.input("→ ").strip()
-            except (KeyboardInterrupt, EOFError):
-                console.print("\n[red]No direction provided — cannot continue.[/red]")
-                raise RuntimeError("No research direction available and user did not provide one.")
+        if brief.conjecture:
+            console.print(
+                f"\n[bold]Your conjecture:[/bold] {brief.conjecture[:200]}\n"
+                "[dim]Press Enter to use it as the research direction, or type a different one.[/dim]\n"
+            )
+        else:
+            console.print(
+                "\n[bold]Please enter a research direction / hypothesis to pursue.[/bold]\n"
+                "[dim](e.g. \"UCB1 achieves O(√(KT log T)) regret in the stochastic MAB setting\")[/dim]\n"
+            )
+        try:
+            hypothesis = console.input("→ ").strip()
+        except (KeyboardInterrupt, EOFError):
+            console.print("\n[red]No direction provided — cannot continue.[/red]")
+            raise RuntimeError("No research direction available and user did not provide one.")
 
-            if not hypothesis:
-                console.print("[red]Empty input — please enter a direction to continue, or press Ctrl+C to abort.[/red]")
-                continue
-            break
+        # Allow empty input only when a conjecture default is available
+        if not hypothesis:
+            if brief.conjecture:
+                hypothesis = brief.conjecture
+            else:
+                console.print("[red]Empty input — cannot continue.[/red]")
+                raise RuntimeError("No research direction available and user did not provide one.")
 
         direction = ResearchDirection(
             direction_id=str(uuid.uuid4()),
