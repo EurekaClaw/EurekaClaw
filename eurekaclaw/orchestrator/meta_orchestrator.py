@@ -263,11 +263,15 @@ class MetaOrchestrator:
         try:
             directions = await self.planner.diverge(brief)
             if directions:
+                console.print("\n[bold]Generated research directions:[/bold]")
+                for i, d in enumerate(directions, 1):
+                    console.print(f"  [cyan]{i}.[/cyan] {d.title}")
+                    console.print(f"     {d.hypothesis[:160]}")
                 best = await self.planner.converge(directions, brief)
                 brief.directions = directions
                 brief.selected_direction = best
                 self.bus.put_research_brief(brief)
-                console.print(f"[green]Best direction selected: {best.title}[/green]")
+                console.print(f"\n[green]▶ Best direction selected: {best.title}[/green]")
                 console.print(f"  Composite score: {best.composite_score:.2f}")
                 console.print(f"  Hypothesis: {best.hypothesis[:200]}")
         except Exception as e:

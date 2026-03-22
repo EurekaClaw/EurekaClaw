@@ -933,16 +933,44 @@ class UIRequestHandler(SimpleHTTPRequestHandler):
         self.wfile.write(data)
 
 
-def serve_ui(host: str = "127.0.0.1", port: int = 8080) -> None:
-    """Start the EurekaClaw UI server."""
+def bind_ui_server(host: str = "127.0.0.1", port: int = 8080) -> "ThreadingHTTPServer":
+    """Create and bind the UI server, trying alternative ports if needed.
+
+    Tries up to 10 ports (port, port+1, ...) to work around Windows
+    WinError 10013 (port blocked by Hyper-V / WSL exclusion ranges or firewall).
+
+    Returns the bound server; caller is responsible for calling serve_forever()
+    and server_close().
+    """
     frontend_dir = _FRONTEND_DIR if _FRONTEND_DIR.exists() else _DEV_FRONTEND_DIR
     if not frontend_dir.exists():
         raise FileNotFoundError(f"Frontend directory not found: {frontend_dir}")
 
     state = UIServerState()
     handler = partial(UIRequestHandler, state=state, directory=str(frontend_dir))
-    server = ThreadingHTTPServer((host, port), handler)
-    logger.info("Serving EurekaClaw UI at http://%s:%d", host, port)
+
+    last_error: Exception | None = None
+    for candidate in range(port, port + 10):
+        try:
+            server = ThreadingHTTPServer((host, candidate), handler)
+            return server
+        except OSError as exc:
+            last_error = exc
+            logger.debug("Could not bind port %d: %s", candidate, exc)
+
+    raise OSError(
+        f"Could not bind to any port in range {port}–{port + 9}. "
+        f"Last error: {last_error}\n"
+        f"On Windows, check excluded ports with: "
+        f"netsh int ipv4 show excludedportrange protocol=tcp"
+    ) from last_error
+
+
+def serve_ui(host: str = "127.0.0.1", port: int = 8080) -> None:
+    """Bind and serve the EurekaClaw UI, blocking until KeyboardInterrupt."""
+    server = bind_ui_server(host, port)
+    actual_port = server.server_address[1]
+    logger.info("Serving EurekaClaw UI at http://%s:%d", host, actual_port)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

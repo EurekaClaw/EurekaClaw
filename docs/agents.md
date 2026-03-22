@@ -132,7 +132,9 @@ If the LLM does not return a severity field, it is inferred heuristically: failu
 
 ---
 
-## ExperimentAgent
+## ExperimentAgent *(under development)*
+
+> **Note:** The ExperimentAgent and the `execute_python` tool are **future work**. Automated code execution against LLM-generated Python is not yet safely sandboxed for general use. The agent exists in the codebase but its output is not yet integrated into the final paper. Set `EXPERIMENT_MODE=false` (or leave it at `auto`, which skips structural theorems) until proper sandboxing lands.
 
 **Role:** `EXPERIMENT`
 **File:** `eurekaclaw/agents/experiment/agent.py`
@@ -141,7 +143,7 @@ If the LLM does not return a severity field, it is inferred heuristically: failu
 **Purpose:** Empirically validate theoretical bounds via numerical experiments, particularly for low-confidence lemmas.
 
 **Tools:**
-- `execute_python` — Run numerical simulations
+- `execute_python` — Run numerical simulations *(future work — see note above)*
 - `wolfram_alpha` — Symbolic bound checking
 - Domain-specific tools (e.g., `run_bandit_experiment` for MAB domain)
 

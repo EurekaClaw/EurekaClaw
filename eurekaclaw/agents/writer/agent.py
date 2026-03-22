@@ -84,7 +84,7 @@ LATEX_PREAMBLE = r"""\nonstopmode
 \title{%s}
 \setfrontauthors{%%
   \authorrow{%%
-    \authorentry{EurekaClaw Autonomous Research System}{}}%%
+    \authorentry{EurekaClaw}{}}%%
 }
 \usecustomauthorlayout
 
