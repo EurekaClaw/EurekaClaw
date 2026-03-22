@@ -913,7 +913,7 @@ img {
 }
 
 .main-shell {
-  padding: 26px;
+  padding: 20px 24px;
   display: flex;
   flex-direction: column;
   min-height: 100vh;
@@ -1159,10 +1159,10 @@ textarea {
 .log-line,
 .capability-row {
   display: flex;
-  gap: 14px;
+  gap: 12px;
   align-items: start;
-  padding: 14px;
-  border-radius: var(--radius-md);
+  padding: 10px 12px;
+  border-radius: 10px;
   background: rgba(255, 255, 255, 0.62);
   border: 1px solid rgba(35, 54, 73, 0.09);
 }
@@ -1271,17 +1271,18 @@ textarea {
 }
 
 .paper-preview {
-  min-height: 240px;
-  display: grid;
-  place-items: center;
+  min-height: 200px;
+  display: flex;
+  flex-direction: column;
 }
 
 .paper-sheet {
-  max-width: 560px;
+  width: 100%;
   padding: 24px;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 245, 239, 0.92));
   border: 1px solid rgba(27, 63, 104, 0.09);
+  border-radius: var(--radius-md);
   position: relative;
 }
 
@@ -2247,13 +2248,14 @@ textarea {
 /* ══ Proof pipeline controls — Pause / Resume ══════════════════════════════ */
 
 .proof-ctrl {
-  margin-top: 14px;
+  margin-top: 0;
   border-radius: 14px;
   border: 1px solid var(--line);
   background: rgba(255, 255, 255, 0.7);
   backdrop-filter: blur(8px);
   box-shadow: 0 2px 12px rgba(18, 37, 66, 0.06);
   overflow: hidden;
+  flex-shrink: 0;
 }
 
 .proof-ctrl-state {
@@ -2926,7 +2928,8 @@ textarea {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 14px;
+  min-height: 0;
 }
 
 /* ── Session top bar: name + rename + status ── */
@@ -3172,33 +3175,36 @@ textarea {
 
 .workspace-split {
   display: grid;
-  grid-template-columns: 270px 1fr;
+  grid-template-columns: 250px 1fr;
   gap: 0;
-  height: 100%;
+  flex: 1;
   min-height: 0;
+  min-height: 520px;
 }
 
 /* ── Agent track column ──────────────────────────────────────────────────── */
 
 .agent-track-col {
   position: sticky;
-  top: 0;
+  top: 26px;
   height: fit-content;
-  max-height: calc(100vh - 120px);
+  max-height: calc(100vh - 160px);
   overflow-y: auto;
-  padding: 12px 10px;
+  padding: 12px 8px 16px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 5px;
   border-right: 1px solid var(--line);
-  background: var(--surface);
+  background: rgba(247, 245, 239, 0.65);
+  scrollbar-width: thin;
+  scrollbar-color: var(--line) transparent;
 }
 
 .agent-step-card {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 10px;
-  padding: 10px 12px;
+  padding: 11px 12px;
   border-radius: var(--radius-md);
   background: var(--surface-strong);
   border: 1.5px solid var(--line);
@@ -3206,6 +3212,7 @@ textarea {
   width: 100%;
   cursor: pointer;
   transition: border-color 0.18s, box-shadow 0.18s, background 0.18s;
+  min-height: 58px;
 }
 
 .agent-step-card:hover {
@@ -3239,7 +3246,8 @@ textarea {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
+  padding-top: 1px;
 }
 
 .agent-step-name {
@@ -3254,9 +3262,12 @@ textarea {
 .agent-step-summary {
   font-size: 0.72rem;
   color: var(--muted);
-  white-space: nowrap;
+  white-space: normal;
   overflow: hidden;
-  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  line-height: 1.35;
 }
 
 .agent-step-badge {
@@ -3267,6 +3278,8 @@ textarea {
   padding: 2px 7px;
   border-radius: 20px;
   flex-shrink: 0;
+  margin-top: 2px;
+  align-self: flex-start;
 }
 
 .badge-active { background: rgba(15, 106, 184, 0.13); color: var(--primary); }
@@ -3281,6 +3294,7 @@ textarea {
   flex-direction: column;
   min-height: 0;
   overflow: hidden;
+  flex: 1;
 }
 
 /* ── Tab bar ─────────────────────────────────────────────────────────────── */
@@ -3289,8 +3303,8 @@ textarea {
   display: flex;
   gap: 0;
   border-bottom: 1.5px solid var(--line);
-  background: var(--surface);
-  padding: 0 16px;
+  background: rgba(247, 245, 239, 0.70);
+  padding: 0 14px;
   flex-shrink: 0;
 }
 
@@ -3325,13 +3339,15 @@ textarea {
 }
 
 .ws-panel.is-visible {
-  display: block;
+  display: flex;
+  flex-direction: column;
 }
 
 /* ── Live activity area ──────────────────────────────────────────────────── */
 
 .live-activity-area {
-  min-height: 200px;
+  min-height: 160px;
+  flex: 1;
 }
 
 .live-idle-state {
@@ -3353,8 +3369,8 @@ textarea {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
-  padding: 40px 20px;
+  gap: 12px;
+  padding: 32px 20px;
   text-align: center;
 }
 
@@ -3419,6 +3435,7 @@ textarea {
 
 .proof-sketch-panel {
   min-height: 160px;
+  flex: 1;
 }
 
 .proof-sketch-empty {
@@ -3524,9 +3541,13 @@ textarea {
   border-radius: 20px;
 }
 
-.badge-verified { background: rgba(84, 119, 101, 0.14); color: var(--ok); }
-.badge-medium   { background: rgba(155, 107, 48, 0.14); color: var(--warn); }
-.badge-low      { background: rgba(110, 119, 132, 0.12); color: var(--muted); }
+.badge-verified   { background: rgba(84, 119, 101, 0.14); color: var(--ok); }
+.badge-unverified { background: rgba(110, 119, 132, 0.10); color: var(--muted); }
+.badge-high       { background: rgba(84, 119, 101, 0.14); color: var(--ok); }
+.badge-medium     { background: rgba(155, 107, 48, 0.14); color: var(--warn); }
+.badge-low        { background: rgba(110, 119, 132, 0.12); color: var(--muted); }
+.badge-open       { background: rgba(15, 106, 184, 0.10); color: var(--primary); }
+.badge-failed     { background: rgba(192, 57, 43, 0.12); color: #c0392b; }
 
 .proof-counterexample-warning {
   background: rgba(192, 57, 43, 0.08);
@@ -3861,7 +3882,7 @@ textarea {
 
 /* ── Workspace responsive ─────────────────────────────────────────────────── */
 
-@media (max-width: 900px) {
+@media (max-width: 860px) {
   .workspace-split {
     grid-template-columns: 1fr;
   }
