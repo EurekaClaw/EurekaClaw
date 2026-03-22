@@ -66,7 +66,7 @@ class ToolPatternExtractor:
 
     def __init__(self, client: LLMClient | None = None) -> None:
         self.client: LLMClient = client or create_client()
-        self._skills_dir = settings.skills_dir / "tool_patterns"
+        self._skills_dir = settings.skills_dir
         self._skills_dir.mkdir(parents=True, exist_ok=True)
 
     async def extract_and_save(
