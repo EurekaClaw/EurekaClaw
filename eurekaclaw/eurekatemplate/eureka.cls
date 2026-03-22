@@ -103,7 +103,6 @@
 
 \RequirePackage[numbers, sort&compress]{natbib}
 \def\bibfont{\small}
-\special{pdf:minorversion 7}
 \emergencystretch=1.5em
 \hbadness=2000
 
