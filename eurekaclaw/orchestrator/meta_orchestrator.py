@@ -314,7 +314,11 @@ class MetaOrchestrator:
 
             hypothesis = raw.strip()
             if not hypothesis:
-                console.print("[yellow]Please enter a direction to continue (or Ctrl+C to abort).[/yellow]")
+                if brief.conjecture and raw == "":
+                    # Pure Enter accepts the conjecture default
+                    hypothesis = brief.conjecture
+                else:
+                    console.print("[yellow]Please enter a direction to continue (or Ctrl+C to abort).[/yellow]")
 
         direction = ResearchDirection(
             direction_id=str(uuid.uuid4()),
