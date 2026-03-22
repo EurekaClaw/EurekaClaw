@@ -80,6 +80,7 @@ eurekaclaw from-papers <paper_id> [<paper_id> ...] [OPTIONS]
 | Option | Default | Description |
 |---|---|---|
 | `--domain`, `-d` | *(required)* | Research domain |
+| `--query`, `-q` | `""` | Specific research question or focus within the papers |
 | `--mode` | `skills_only` | Post-run learning mode |
 | `--gate` | `none` | Gate control |
 | `--output`, `-o` | `./results` | Output directory |
@@ -131,6 +132,80 @@ eurekaclaw resume abc12345
 
 ---
 
+### `replay-theory-tail` — Replay theory tail stages
+
+```bash
+eurekaclaw replay-theory-tail <session_id> [OPTIONS]
+```
+
+**Arguments:**
+- `session_id` — Session ID of a completed run
+
+**Options:**
+
+| Option | Default | Description |
+|---|---|---|
+| `--from` | `consistency_checker` | Stage to restart from: `assembler`, `theorem_crystallizer`, `consistency_checker` |
+
+Re-runs the final stages of the theory pipeline (Assembler → TheoremCrystallizer → ConsistencyChecker) from a saved `theory_state.json` without repeating the survey, planning, or lemma proving phases. Useful for quickly iterating on crystallization or consistency-check failures.
+
+**Example:**
+```bash
+eurekaclaw replay-theory-tail abc12345 --from assembler
+```
+
+---
+
+### `test-paper-reader` — Test PaperReader on a single paper
+
+```bash
+eurekaclaw test-paper-reader <session_id> <paper_ref> [OPTIONS]
+```
+
+**Arguments:**
+- `session_id` — Session ID of a completed run whose bibliography to use
+- `paper_ref` — Paper ID, arXiv ID, or case-insensitive substring of the title
+
+**Options:**
+
+| Option | Default | Description |
+|---|---|---|
+| `--mode` | `both` | Extraction mode: `abstract`, `pdf`, `both` |
+| `--direction` | `""` | Research direction override for extraction prompts |
+
+Exercises PaperReader's abstract and/or PDF extraction on a single bibliography entry without running the full pipeline.
+
+**Example:**
+```bash
+eurekaclaw test-paper-reader abc12345 "UCB1" --mode both
+```
+
+---
+
+### `onboard` — Interactive configuration wizard
+
+```bash
+eurekaclaw onboard [OPTIONS]
+```
+
+**Options:**
+
+| Option | Description |
+|---|---|
+| `--non-interactive` | Write defaults without prompting |
+| `--reset` | Overwrite existing `.env` without merging |
+| `--env-file` | Path to the `.env` file to write (default: `.env`) |
+
+Walks you through LLM backend selection, API key setup, search tools, and system behaviour, then writes (or updates) `.env`.
+
+**Example:**
+```bash
+eurekaclaw onboard
+eurekaclaw onboard --env-file ~/.eurekaclaw/.env
+```
+
+---
+
 ### `skills` — List available skills
 
 ```bash
@@ -161,8 +236,11 @@ Prints an evaluation report with proof quality metrics.
 ### `install-skills` — Install seed skills
 
 ```bash
-eurekaclaw install-skills [--force]
+eurekaclaw install-skills [SKILLNAME] [--force]
 ```
+
+**Arguments:**
+- `skillname` *(optional)* — Install a specific skill from clawhub by name
 
 **Options:**
 
@@ -170,7 +248,7 @@ eurekaclaw install-skills [--force]
 |---|---|
 | `--force`, `-f` | Overwrite existing skills in `~/.eurekaclaw/skills/` |
 
-Copies bundled seed skills from the package to `~/.eurekaclaw/skills/`.
+Without arguments, copies all bundled seed skills from the package to `~/.eurekaclaw/skills/`. When a skill name is provided, downloads that skill from clawhub instead.
 
 ---
 

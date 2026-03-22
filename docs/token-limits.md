@@ -23,41 +23,20 @@ The UI form lives in:
 
 ## Quick Reference
 
-`MAX_TOKENS_AGENT`
-: Default budget for generic agent calls. Used by stages that do not pass a more specific token limit.
-
-`MAX_TOKENS_PROVER`
-: Budget for generating lemma proofs in the theory prover.
-
-`MAX_TOKENS_PLANNER`
-: General planning budget. Kept for planner-style calls and compatibility, but it is not the main limit for the current theorem architecture.
-
-`MAX_TOKENS_ARCHITECT`
-: Budget for `ProofArchitect` in the `default` theory pipeline.
-
-`MAX_TOKENS_DECOMPOSER`
-: Budget for decomposition-style stages such as legacy decomposer logic and `KeyLemmaExtractor`.
-
-`MAX_TOKENS_ASSEMBLER`
-: Budget for `Assembler`, which writes the full assembled proof narrative from lemmas, citations, and skeleton information.
-
-`MAX_TOKENS_FORMALIZER`
-: Shared budget for formalizer/refiner-style calls. Also used by several theory helper stages such as `PaperReader`, `Refiner`, `CounterexampleSearcher`, and `ResourceAnalyst`.
-
-`MAX_TOKENS_CRYSTALLIZER`
-: Budget for `TheoremCrystallizer`, which extracts the final theorem statement from the assembled proof.
-
-`MAX_TOKENS_ANALYST`
-: Budget for analysis stages in the `memory_guided` pipeline, including `MemoryGuidedAnalyzer`, `TemplateSelector`, and `ProofSkeletonBuilder`.
-
-`MAX_TOKENS_SKETCH`
-: Budget for `SketchGenerator`.
-
-`MAX_TOKENS_VERIFIER`
-: Budget for verification and consistency-checking calls.
-
-`MAX_TOKENS_COMPRESS`
-: Budget for context compression summaries inside the generic agent loop.
+| Variable | Default | Used by |
+|---|---|---|
+| `MAX_TOKENS_AGENT` | `8192` | Generic agent loops (SurveyAgent, WriterAgent, fallback paths) |
+| `MAX_TOKENS_PROVER` | `4096` | `Prover` — lemma proof generation |
+| `MAX_TOKENS_PLANNER` | `4096` | `DivergentConvergentPlanner` (diverge phase); converge uses half |
+| `MAX_TOKENS_ARCHITECT` | `3072` | `ProofArchitect` in the `default` pipeline |
+| `MAX_TOKENS_DECOMPOSER` | `4096` | `KeyLemmaExtractor` and legacy decomposer stages |
+| `MAX_TOKENS_ASSEMBLER` | `6144` | `Assembler` — full proof narrative |
+| `MAX_TOKENS_FORMALIZER` | `4096` | `Formalizer`, `Refiner`, `CounterexampleSearcher`, `ResourceAnalyst`, `PaperReader` |
+| `MAX_TOKENS_CRYSTALLIZER` | `4096` | `TheoremCrystallizer` — final theorem statement |
+| `MAX_TOKENS_ANALYST` | `1536` | `MemoryGuidedAnalyzer`, `TemplateSelector`, `ProofSkeletonBuilder` (`memory_guided` pipeline) |
+| `MAX_TOKENS_SKETCH` | `1024` | `SketchGenerator` — Lean4/Coq sketch |
+| `MAX_TOKENS_VERIFIER` | `2048` | `Verifier` and peer-review calls |
+| `MAX_TOKENS_COMPRESS` | `512` | Context compression summaries (fast model) |
 
 ## Which Pipeline Uses What
 

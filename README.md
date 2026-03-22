@@ -54,7 +54,8 @@ $ eurekaclaw prove "Find recent papers on sparse attention + prove efficiency bo
 git clone https://github.com/EurekaClaw/EurekaClaw_dev_zero
 cd EurekaClaw_dev_zero
 pip install -e "."
-cp .env.example .env          # add ANTHROPIC_API_KEY (or configure OAuth)
+eurekaclaw onboard            # interactive setup wizard (creates .env)
+# — or — cp .env.example .env and add ANTHROPIC_API_KEY manually
 
 eurekaclaw install-skills     # install built-in proof skills (do once)
 
@@ -123,6 +124,7 @@ cp .env.example .env
 | `ANTHROPIC_API_KEY` | — | API key (or use OAuth, see [User Guide](https://github.com/EurekaClaw/EurekaClaw_dev_zero/blob/main/docs/user-guide.md#authentication)) |
 | `EUREKACLAW_MODEL` | `claude-sonnet-4-6` | Main reasoning model |
 | `GATE_MODE` | `auto` | `none` · `auto` · `human` |
+| `THEORY_PIPELINE` | `default` | `default` or `memory_guided` |
 | `OUTPUT_FORMAT` | `latex` | `latex` or `markdown` |
 | `EXPERIMENT_MODE` | `auto` | `auto` · `true` · `false` |
 | `THEORY_MAX_ITERATIONS` | `10` | Max proof loop iterations |
