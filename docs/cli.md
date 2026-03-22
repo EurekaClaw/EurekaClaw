@@ -27,6 +27,7 @@ eurekaclaw prove "<conjecture>" [OPTIONS]
 |---|---|---|
 | `--domain`, `-d` | `""` | Research domain. Auto-inferred from conjecture if omitted |
 | `--mode` | `skills_only` | Post-run learning mode: `skills_only`, `rl`, `madmax` |
+| `--skills` | *(all)* | Pin specific skills by name (repeatable). Pinned skills always appear first in the injection regardless of usage score |
 | `--gate` | `none` | Gate control: `human`, `auto`, `none` |
 | `--output`, `-o` | `./results` | Output directory for artifacts |
 
@@ -34,6 +35,7 @@ eurekaclaw prove "<conjecture>" [OPTIONS]
 ```bash
 eurekaclaw prove "UCB1 achieves O(sqrt(KT log T)) expected cumulative regret in the stochastic multi-armed bandit setting" \
   --domain "multi-armed bandit theory" \
+  --skills ucb_regret_analysis --skills concentration_inequalities \
   --gate human \
   --output ./results
 ```
@@ -82,6 +84,7 @@ eurekaclaw from-papers <paper_id> [<paper_id> ...] [OPTIONS]
 | `--domain`, `-d` | *(required)* | Research domain |
 | `--query`, `-q` | `""` | Specific research question or focus within the papers |
 | `--mode` | `skills_only` | Post-run learning mode |
+| `--skills` | *(all)* | Pin specific skills by name (repeatable). Pinned skills always appear first in the injection regardless of usage score |
 | `--gate` | `none` | Gate control |
 | `--output`, `-o` | `./results` | Output directory |
 

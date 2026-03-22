@@ -211,6 +211,7 @@ eurekaclaw from-papers <id> [<id> ...] --domain "<domain>" [OPTIONS]
 | `--output`, `-o` | `./results` | Where to save artifacts |
 | `--gate` | `none` | `none` — fully automatic; `auto` — cards + auto-escalate on low confidence; `human` — pause and ask you at each stage |
 | `--mode` | `skills_only` | Post-run learning: `skills_only`, `rl`, `madmax` |
+| `--skills` | *(all)* | Pin specific skill names so they are always injected first. Repeatable. (`prove` and `from-papers` only) |
 
 ### Verbose logging
 
@@ -508,6 +509,23 @@ Set `EUREKACLAW_MODE` in `.env`:
 | `skills_only` (default) | Distill failures into new skill files |
 | `rl` | Skill distillation + Process Reward Model scoring of proof trajectories |
 | `madmax` | Skill distillation + PRM scoring + cloud LoRA fine-tuning (GRPO) |
+
+### Pinning specific skills for a run
+
+If you know which skills are most relevant for a particular conjecture, you can pin them with `--skills`:
+
+```bash
+eurekaclaw prove "UCB1 achieves O(sqrt(KT log T)) regret" \
+    --domain "multi-armed bandits" \
+    --skills ucb_regret_analysis \
+    --skills concentration_inequalities
+```
+
+Pinned skills are always placed at the front of the top-k injection, before any automatically-selected optional skills. This is useful when:
+- A distilled skill is highly relevant but has low `usage_count` and would otherwise be ranked lower
+- You want to force injection of a manually-written custom skill for a specific proof
+
+Use `eurekaclaw skills` to see the names of available skills.
 
 ### Writing skills manually
 

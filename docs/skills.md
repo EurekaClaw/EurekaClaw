@@ -111,8 +111,13 @@ Retrieves the most relevant skills for a task and formats them for injection int
 
 ```python
 class SkillInjector:
-    def __init__(registry: SkillRegistry) -> None
+    def __init__(
+        registry: SkillRegistry,
+        selected_skills: list[str] | None = None,
+    ) -> None
 ```
+
+`selected_skills` — optional list of skill names to **pin**. Pinned skills are always included at the front of the top-k result, before any usage-sorted optional skills. If a pinned skill name is not found in the registry, a warning is logged and it is silently skipped.
 
 ### Retrieval
 
@@ -129,9 +134,15 @@ def top_k(
 
 | Strategy | Description |
 |---|---|
-| `tag` | Filter by matching `agent_roles` and `pipeline_stages`, sort by `usage_count` |
+| `tag` | Filter by matching `agent_roles` and `pipeline_stages`; pinned skills first, then optional sorted by `usage_count` |
 | `semantic` | Embedding-based similarity using `sentence-transformers` (if installed) |
-| `hybrid` | Tag filter first, then text similarity ranking |
+| `hybrid` | Tag filter (3×k candidates), then text similarity ranking |
+
+**Pinned-skill priority:** When `selected_skills` is non-empty, the `tag` (and by extension `hybrid`) retrieval splits candidates into:
+1. **Must-have** — skills in both `selected_skills` and the role/stage set → always placed first
+2. **Optional** — remaining candidates → sorted by `usage_count` descending
+
+The combined list is then truncated to `k`.
 
 ### Formatting
 
