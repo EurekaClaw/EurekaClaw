@@ -19,7 +19,10 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
-from eurekaclaw.ccproxy_manager import maybe_start_ccproxy, stop_ccproxy
+import subprocess as _subprocess
+import sys as _sys
+
+from eurekaclaw.ccproxy_manager import maybe_start_ccproxy, stop_ccproxy, is_ccproxy_available, check_ccproxy_auth, _oauth_install_hint
 from eurekaclaw.config import settings
 from eurekaclaw.llm import create_client
 from eurekaclaw.main import EurekaSession, save_artifacts, _compile_pdf
@@ -310,6 +313,40 @@ class UIServerState:
         self._persist_run(new_run)
         self.start_run(new_run)
         return self.snapshot_run(new_run)
+
+    def rerun_run(self, run_id: str, *, updated_skills: list[str] | None = None) -> dict[str, Any]:
+        """Reset the same run in-place and re-execute with the original input_spec.
+
+        If *updated_skills* is provided, the input_spec.selected_skills list
+        is replaced so the user can add/remove skills between re-runs.
+        """
+        run = self.get_run(run_id)
+        if run is None:
+            return {"error": "Run not found"}
+        if run.status in ("running", "queued"):
+            return {"error": f"Cannot re-run a {run.status} session"}
+        # Update skills if the frontend sent a new list
+        if updated_skills is not None:
+            run.input_spec.selected_skills = updated_skills
+        # Reset all mutable state, keep run_id, input_spec, name
+        run.status = "queued"
+        run.created_at = datetime.utcnow()
+        run.updated_at = datetime.utcnow()
+        run.started_at = None
+        run.completed_at = None
+        run.paused_at = None
+        run.pause_requested_at = None
+        run.paused_stage = ""
+        run.theory_feedback = ""
+        run.error = ""
+        run.result = None
+        run.eureka_session = None
+        run.eureka_session_id = ""
+        run.output_summary = {}
+        run.output_dir = ""
+        self._persist_run(run)
+        self.start_run(run)
+        return self.snapshot_run(run)
 
     def get_run(self, run_id: str) -> SessionRun | None:
         with self._lock:
@@ -816,6 +853,14 @@ class UIRequestHandler(SimpleHTTPRequestHandler):
                 return
             self._send_json(self.state.snapshot_run(run))
             return
+        if parsed.path == "/api/oauth/status":
+            available = is_ccproxy_available()
+            if not available:
+                self._send_json({"installed": False, "authenticated": False, "message": f"ccproxy not found. Install with: {_oauth_install_hint()}"})
+                return
+            authed, msg = check_ccproxy_auth("claude_api")
+            self._send_json({"installed": True, "authenticated": authed, "message": msg})
+            return
         if parsed.path == "/api/health":
             self._send_json({"ok": True, "time": datetime.utcnow().isoformat()})
             return
@@ -909,6 +954,18 @@ class UIRequestHandler(SimpleHTTPRequestHandler):
                 self._send_json(result, status=HTTPStatus.CREATED)
             return
 
+        # Re-run in place: /api/runs/<run_id>/rerun
+        if parsed.path.startswith("/api/runs/") and parsed.path.endswith("/rerun"):
+            run_id = parsed.path.removeprefix("/api/runs/").removesuffix("/rerun")
+            payload = self._read_json()
+            updated_skills = payload.get("selected_skills") if payload else None
+            result = self.state.rerun_run(run_id, updated_skills=updated_skills)
+            if result.get("error"):
+                self._send_json(result, status=HTTPStatus.BAD_REQUEST)
+            else:
+                self._send_json(result)
+            return
+
         # Compile PDF: /api/runs/<run_id>/compile-pdf
         if parsed.path.startswith("/api/runs/") and parsed.path.endswith("/compile-pdf"):
             run_id = parsed.path.removeprefix("/api/runs/").removesuffix("/compile-pdf")
@@ -934,6 +991,47 @@ class UIRequestHandler(SimpleHTTPRequestHandler):
                 self._send_json({"error": "pdflatex binary not found. Install TeX (e.g. brew install --cask basictex)"}, status=HTTPStatus.BAD_REQUEST)
             except Exception as exc:
                 self._send_json({"error": f"PDF compilation failed: {exc}"}, status=HTTPStatus.INTERNAL_SERVER_ERROR)
+            return
+
+        if parsed.path == "/api/oauth/install":
+            try:
+                repo_root = str(Path(__file__).resolve().parents[2])
+                # Prefer uv pip (uv-managed venvs don't bundle pip)
+                uv_exe = shutil.which("uv")
+                if uv_exe:
+                    cmd = [uv_exe, "pip", "install", "-e", ".[oauth]"]
+                else:
+                    cmd = [_sys.executable, "-m", "pip", "install", "-e", ".[oauth]"]
+                result = _subprocess.run(
+                    cmd,
+                    capture_output=True, text=True, timeout=120,
+                    cwd=repo_root,
+                )
+                if result.returncode == 0:
+                    self._send_json({"ok": True, "message": "OAuth dependencies installed successfully."})
+                else:
+                    self._send_json({"ok": False, "message": result.stderr.strip() or result.stdout.strip()})
+            except Exception as exc:
+                self._send_json({"ok": False, "message": str(exc)})
+            return
+
+        if parsed.path == "/api/oauth/login":
+            from eurekaclaw.ccproxy_manager import _ccproxy_exe
+            exe = _ccproxy_exe()
+            if not exe:
+                self._send_json({"ok": False, "message": f"ccproxy not found. Install first with: {_oauth_install_hint()}"})
+                return
+            try:
+                # Launch login in background — it opens a browser and waits
+                # for the user to complete auth, so we can't block the HTTP response.
+                _subprocess.Popen(
+                    [exe, "auth", "login", "claude_api"],
+                    stdout=_subprocess.DEVNULL,
+                    stderr=_subprocess.DEVNULL,
+                )
+                self._send_json({"ok": True, "message": "OAuth login opened in your browser. Complete authorization, then click 'Save & test'."})
+            except Exception as exc:
+                self._send_json({"ok": False, "message": str(exc)})
             return
 
         if parsed.path == "/api/skills/install":

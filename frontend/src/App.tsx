@@ -27,12 +27,15 @@ export function App() {
 
   const { restartFast } = usePolling();
 
-  // Check tutorial skip on mount
+  // On first visit (no persisted view), show onboarding unless tutorial was skipped
   useEffect(() => {
-    if (localStorage.getItem('eurekaclaw_tutorial_skipped') === '1') {
-      setActiveView('workspace');
-    } else {
-      setActiveView('onboarding');
+    const hasPersistedView = localStorage.getItem('eurekaclaw_ui');
+    if (!hasPersistedView) {
+      if (localStorage.getItem('eurekaclaw_tutorial_skipped') === '1') {
+        setActiveView('workspace');
+      } else {
+        setActiveView('onboarding');
+      }
     }
   }, [setActiveView]);
 

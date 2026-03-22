@@ -4,6 +4,7 @@ import { useUiStore } from '@/store/uiStore';
 import { useElapsedTimer } from '@/hooks/useElapsedTimer';
 import { apiPost } from '@/api/client';
 import { getActiveOuterStage, friendlyInnerStage } from '@/lib/statusHelpers';
+import { humanize } from '@/lib/formatters';
 import { StageTrack } from './StageTrack';
 import { TheoryFeedback } from './TheoryFeedback';
 import type { SessionRun } from '@/types';
@@ -77,7 +78,7 @@ export function ProofCtrl({ run, onRestartFast }: ProofCtrlProps) {
   };
 
   const pausedStageText = run.paused_stage
-    ? `Paused while ${friendlyInnerStage(run.paused_stage) ?? run.paused_stage}`
+    ? `Paused while ${friendlyInnerStage(run.paused_stage) ?? humanize(run.paused_stage)}`
     : 'Ready to continue whenever you are';
 
   return (

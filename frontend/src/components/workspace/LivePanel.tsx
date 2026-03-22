@@ -4,7 +4,7 @@ import { getActiveOuterStage } from '@/lib/statusHelpers';
 import { AGENT_MANIFEST } from '@/lib/agentManifest';
 import { agentNarrativeLine } from '@/lib/agentManifest';
 import { friendlyInnerStage } from '@/lib/statusHelpers';
-import { titleCase, escapeHtml } from '@/lib/formatters';
+import { titleCase, escapeHtml, humanize } from '@/lib/formatters';
 import { apiPost } from '@/api/client';
 
 interface LivePanelProps {
@@ -205,7 +205,7 @@ export function LivePanel({ run }: LivePanelProps) {
 
   if (status === 'running' || status === 'queued') {
     const innerStage = run.paused_stage || '';
-    const innerLabel = innerStage ? `while ${friendlyInnerStage(innerStage) ?? innerStage}` : '';
+    const innerLabel = innerStage ? `while ${friendlyInnerStage(innerStage) ?? humanize(innerStage)}` : '';
     const stageName = activeOuter
       ? AGENT_MANIFEST.find((a) => a.role === activeOuter)?.name || titleCase(activeOuter)
       : 'Setting up';

@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import type { SessionRun } from '@/types';
-import { titleCase } from '@/lib/formatters';
+import { titleCase, humanize } from '@/lib/formatters';
 import { apiPost } from '@/api/client';
 
 interface PaperPanelProps {
@@ -17,7 +17,7 @@ export function PaperPanel({ run }: PaperPanelProps) {
   const theoryState = run?.artifacts?.theory_state;
   const result = run?.result;
   const selDir = run?.artifacts?.research_brief?.selected_direction;
-  const title = selDir?.title || selDir?.hypothesis?.slice(0, 80) || 'EurekaClaw Autonomous Research System';
+  const title = humanize(selDir?.title || selDir?.hypothesis?.slice(0, 80) || 'EurekaClaw Autonomous Research System');
   const paperText = result?.latex_paper || '';
   const pdfPath = result?.pdf_path;
   const outputDir = run?.output_dir;

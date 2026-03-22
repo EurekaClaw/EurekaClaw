@@ -1,4 +1,5 @@
 import type { Artifacts } from '@/types';
+import { humanize } from '@/lib/formatters';
 
 interface ExperimentDrawerBodyProps {
   arts: Artifacts;
@@ -40,7 +41,7 @@ export function ExperimentDrawerBody({ arts }: ExperimentDrawerBodyProps) {
             <tbody>
               {bounds.map((b, i) => (
                 <tr key={i}>
-                  <td>{b.name || '—'}</td>
+                  <td>{humanize(b.name || '—')}</td>
                   <td>{String(b.theoretical ?? '—')}</td>
                   <td>{String(b.empirical ?? '—')}</td>
                   <td className={b.aligned ? 'drawer-bounds-pass' : 'drawer-bounds-fail'}>
@@ -55,7 +56,7 @@ export function ExperimentDrawerBody({ arts }: ExperimentDrawerBodyProps) {
       {er.description && (
         <div className="drawer-section">
           <h4>Description</h4>
-          <p>{er.description}</p>
+          <p>{humanize(er.description)}</p>
         </div>
       )}
     </>

@@ -3,48 +3,72 @@ import { useSessionStore } from '@/store/sessionStore';
 import { useSkillStore } from '@/store/skillStore';
 import { useUiStore } from '@/store/uiStore';
 import { apiPost } from '@/api/client';
+import { humanize } from '@/lib/formatters';
 import type { SessionRun } from '@/types';
 
-const MODE_CONFIG: Record<string, { promptLabel: string; promptPlaceholder: string; requirePrompt: boolean; requireDomain: boolean; showPaperIds: boolean }> = {
-  detailed: {
+const MODES = [
+  {
+    key: 'detailed',
+    icon: '📐',
+    label: 'Prove',
+    desc: 'State a conjecture and get a full proof',
     promptLabel: 'Conjecture / theorem to prove',
     promptPlaceholder: 'e.g. The sample complexity of transformers is O(L·d·log(d)/ε²)',
     requirePrompt: true,
     requireDomain: false,
     showPaperIds: false,
   },
-  reference: {
+  {
+    key: 'reference',
+    icon: '📚',
+    label: 'From Papers',
+    desc: 'Start from arXiv papers and find gaps',
     promptLabel: 'Research focus (optional)',
     promptPlaceholder: 'e.g. Find gaps in sparse attention theory, or leave blank to auto-detect',
     requirePrompt: false,
     requireDomain: true,
     showPaperIds: true,
   },
-  exploration: {
+  {
+    key: 'exploration',
+    icon: '🔭',
+    label: 'Explore',
+    desc: 'Survey a domain for open problems',
     promptLabel: 'Guiding question (optional)',
     promptPlaceholder: 'e.g. What are the tightest known regret lower bounds for stochastic bandits?',
     requirePrompt: false,
     requireDomain: true,
     showPaperIds: false,
   },
-};
+] as const;
 
 export function NewSessionForm() {
-  const [mode, setMode] = useState('detailed');
-  const [domain, setDomain] = useState('Machine learning theory');
-  const [prompt, setPrompt] = useState('');
-  const [paperIds, setPaperIds] = useState('');
+  const allSessions = useSessionStore((s) => s.sessions);
+
+  // Pre-fill from last session's input_spec
+  const lastSpec = allSessions.length > 0 ? allSessions[0]?.input_spec : undefined;
+
+  const [mode, setModeState] = useState(() => {
+    try { return localStorage.getItem('eurekaclaw_session_mode') || lastSpec?.mode || 'detailed'; } catch { return 'detailed'; }
+  });
+  const setMode = (m: string) => {
+    setModeState(m);
+    try { localStorage.setItem('eurekaclaw_session_mode', m); } catch { /* ignore */ }
+  };
+  const [domain, setDomain] = useState(() => lastSpec?.domain || 'Machine learning theory');
+  const [prompt, setPrompt] = useState(() => lastSpec?.conjecture || lastSpec?.query || '');
+  const [paperIds, setPaperIds] = useState(() => (lastSpec?.paper_ids ?? []).join('\n'));
   const [error, setError] = useState('');
   const [launching, setLaunching] = useState(false);
 
   const selectedSkills = useSkillStore((s) => s.selectedSkills);
-  const sessions = useSessionStore((s) => s.sessions);
+  const sessions = allSessions;
   const setSessions = useSessionStore((s) => s.setSessions);
   const setCurrentRunId = useSessionStore((s) => s.setCurrentRunId);
   const setCurrentLogPage = useSessionStore((s) => s.setCurrentLogPage);
   const setActiveView = useUiStore((s) => s.setActiveView);
 
-  const cfg = MODE_CONFIG[mode] ?? MODE_CONFIG.detailed;
+  const cfg = MODES.find((m) => m.key === mode) ?? MODES[0];
 
   const validate = (): string | null => {
     if (cfg.requireDomain && !domain.trim()) return `Research domain is required for ${mode} mode.`;
@@ -91,7 +115,6 @@ export function NewSessionForm() {
   };
 
   const loadExample = () => {
-    setMode('detailed');
     setDomain('Machine learning theory');
     setPrompt('Prove a generalization bound for sparse transformer attention under low-rank kernel assumptions.');
   };
@@ -104,20 +127,26 @@ export function NewSessionForm() {
           <p className="canvas-sub">EurekaClaw surveys the literature, generates theorems, and writes a complete mathematical proof — autonomously.</p>
         </div>
         <div className="canvas-form-body">
-          <div className="canvas-row-duo">
-            <label>
-              <span className="canvas-label">Mode</span>
-              <select id="input-mode" value={mode} onChange={(e) => setMode(e.target.value)}>
-                <option value="detailed">Detailed proof</option>
-                <option value="reference">Reference-driven</option>
-                <option value="exploration">Open exploration</option>
-              </select>
-            </label>
-            <label>
+          <div className="canvas-mode-row">
+            {MODES.map((m) => (
+              <button
+                key={m.key}
+                className={`canvas-mode-card${mode === m.key ? ' is-active' : ''}`}
+                onClick={() => setMode(m.key)}
+                type="button"
+              >
+                <span className="canvas-mode-icon">{m.icon}</span>
+                <span className="canvas-mode-label">{m.label}</span>
+                <span className="canvas-mode-desc">{m.desc}</span>
+              </button>
+            ))}
+          </div>
+          {(cfg.requireDomain || mode !== 'detailed') && (
+            <label className="canvas-full">
               <span className="canvas-label">Research domain</span>
               <input id="input-domain" type="text" value={domain} onChange={(e) => setDomain(e.target.value)} placeholder="e.g. computational complexity" />
             </label>
-          </div>
+          )}
           {cfg.showPaperIds && (
             <label className="canvas-full" id="paper-ids-label">
               <span className="canvas-label">arXiv / Semantic Scholar IDs <em className="field-note">(one per line)</em></span>
@@ -131,7 +160,7 @@ export function NewSessionForm() {
           {selectedSkills.length > 0 && (
             <div className="canvas-skill-chips">
               {selectedSkills.map((name) => (
-                <span key={name} className="intent-chip">{name}</span>
+                <span key={name} className="intent-chip">{humanize(name)}</span>
               ))}
             </div>
           )}

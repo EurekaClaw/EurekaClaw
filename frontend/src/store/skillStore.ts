@@ -12,7 +12,7 @@ interface SkillState {
   toggleSkill: (name: string) => void;
   setCurrentSkillPage: (page: number) => void;
   setSearchQuery: (q: string) => void;
-  selectAll: () => void;
+  deselectAll: () => void;
 }
 
 export const useSkillStore = create<SkillState>((set, get) => ({
@@ -35,5 +35,5 @@ export const useSkillStore = create<SkillState>((set, get) => ({
 
   setCurrentSkillPage: (page) => set({ currentSkillPage: page }),
   setSearchQuery: (q) => set({ searchQuery: q, currentSkillPage: 1 }),
-  selectAll: () => set({ selectedSkills: get().availableSkills.map((s) => s.name) }),
+  deselectAll: () => set({ selectedSkills: [] }),
 }));
