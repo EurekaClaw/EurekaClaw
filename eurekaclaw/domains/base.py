@@ -24,6 +24,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from pathlib import Path
 
+from eurekaclaw.tools.registry import ToolRegistry
 
 class DomainPlugin(ABC):
     """Abstract base class for all domain plugins."""
@@ -45,7 +46,7 @@ class DomainPlugin(ABC):
     # ── Interface ─────────────────────────────────────────────────────────────
 
     @abstractmethod
-    def register_tools(self, registry: "ToolRegistry") -> None:  # type: ignore[name-defined]
+    def register_tools(self, registry: ToolRegistry) -> None:
         """Register domain-specific tools into the shared ToolRegistry.
 
         Called once by MetaOrchestrator after the default tools are loaded.

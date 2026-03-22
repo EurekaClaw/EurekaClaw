@@ -17,6 +17,7 @@ from pathlib import Path
 from eurekaclaw.config import settings
 from eurekaclaw.llm import LLMClient, create_client
 from eurekaclaw.types.skills import SkillMeta, SkillRecord
+from eurekaclaw.knowledge_bus.bus import KnowledgeBus
 
 logger = logging.getLogger(__name__)
 
@@ -70,7 +71,7 @@ class ToolPatternExtractor:
 
     async def extract_and_save(
         self,
-        bus: "KnowledgeBus",  # type: ignore[name-defined]
+        bus: KnowledgeBus,
         domain: str = "",
     ) -> list[SkillRecord]:
         """Analyze bus artifacts for successful tool sequences and generate skills."""
