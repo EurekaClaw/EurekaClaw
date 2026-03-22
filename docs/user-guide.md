@@ -221,11 +221,14 @@ eurekaclaw --verbose prove "..."   # shows DEBUG-level logs
 ### Useful commands
 
 ```bash
-eurekaclaw skills                       # list all available skills
-eurekaclaw install-skills               # install seed skills
-eurekaclaw install-skills --force       # overwrite existing skills
-eurekaclaw eval-session <session_id>    # evaluate a past session
-eurekaclaw ui --open-browser            # launch browser UI
+eurekaclaw onboard                               # interactive setup wizard
+eurekaclaw skills                                # list all available skills
+eurekaclaw install-skills                        # install seed skills
+eurekaclaw install-skills --force                # overwrite existing skills
+eurekaclaw eval-session <session_id>             # evaluate a past session
+eurekaclaw replay-theory-tail <session_id>       # rerun assembler/crystallizer/checker
+eurekaclaw test-paper-reader <session_id> <ref>  # test paper extraction on one paper
+eurekaclaw ui --open-browser                     # launch browser UI
 ```
 
 ---
@@ -436,7 +439,7 @@ MAX_TOKENS_AGENT=4096
 
 ```env
 CONTEXT_COMPRESS_AFTER_TURNS=6
-AUTO_VERIFY_CONFIDENCE=0.85
+AUTO_VERIFY_CONFIDENCE=0.95
 STAGNATION_WINDOW=3
 EXPERIMENT_MODE=auto
 ```
@@ -456,7 +459,7 @@ MAX_TOKENS_AGENT=8192
 
 **`CONTEXT_COMPRESS_AFTER_TURNS`** — Every N tool-use turns, the agent's conversation history is compressed to a bullet summary using the fast model. Lower = cheaper but agents "forget" more context. Set to `0` to disable compression entirely.
 
-**`AUTO_VERIFY_CONFIDENCE`** — If the prover's self-reported confidence ≥ this value and no `[GAP:]` flags are present, the proof is accepted without a separate verifier call. Lower = fewer verifier calls (cheaper). Default 0.85 is a good balance.
+**`AUTO_VERIFY_CONFIDENCE`** — If the prover's self-reported confidence ≥ this value and no `[GAP:]` flags are present, the proof is accepted without a separate verifier call. Lower = fewer verifier calls (cheaper). Default 0.95 means the prover must be very confident before skipping the LLM Verifier.
 
 **`STAGNATION_WINDOW`** — If the same lemma fails N consecutive times with a similar error, the loop forces a conjecture refinement instead of retrying. Prevents wasted calls on an unresolvable proof path.
 

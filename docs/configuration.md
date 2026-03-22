@@ -9,6 +9,7 @@ All settings are read from environment variables (or a `.env` file in the projec
 | `LLM_BACKEND` | `anthropic` | Backend: `anthropic`, `openrouter`, `local`, `minimax` |
 | `ANTHROPIC_API_KEY` | `""` | Anthropic API key. If empty, falls back to ccproxy OAuth (`~/.claude/.credentials.json`) |
 | `ANTHROPIC_AUTH_MODE` | `api_key` | `api_key` or `oauth` (ccproxy) |
+| `ANTHROPIC_BASE_URL` | `""` | Override base URL for the Anthropic client (e.g. for proxies or test servers) |
 | `CCPROXY_PORT` | `8000` | Port for ccproxy server |
 | `OPENAI_COMPAT_BASE_URL` | `""` | Base URL for OpenAI-compatible endpoint (OpenRouter / local vLLM) |
 | `OPENAI_COMPAT_API_KEY` | `""` | API key for OpenAI-compatible endpoint |
@@ -54,6 +55,7 @@ All settings are read from environment variables (or a `.env` file in the projec
 |---|---|---|---|
 | `EUREKACLAW_MODE` | `skills_only` | `skills_only`, `rl`, `madmax` | Post-run learning mode |
 | `GATE_MODE` | `auto` | `auto`, `human`, `none` | Stage gate behavior |
+| `THEORY_PIPELINE` | `default` | `default`, `memory_guided` | Which theory proof pipeline to use |
 | `OUTPUT_FORMAT` | `latex` | `latex`, `markdown` | Paper output format |
 | `EXPERIMENT_MODE` | `auto` | `auto`, `true`, `false` | Experiment stage: auto-detect / force run / force skip |
 
@@ -67,7 +69,9 @@ All settings are read from environment variables (or a `.env` file in the projec
 | Variable | Default | Description |
 |---|---|---|
 | `THEORY_MAX_ITERATIONS` | `10` | Max proof iterations in LemmaDeveloper loop |
-| `AUTO_VERIFY_CONFIDENCE` | `0.85` | Auto-accept proofs with confidence ≥ this threshold |
+| `THEORY_REVIEW_MAX_RETRIES` | `3` | Max retries when human reviewer flags a proof step |
+| `AUTO_VERIFY_CONFIDENCE` | `0.95` | Auto-accept proofs with confidence ≥ this threshold (skips LLM Verifier call) |
+| `VERIFIER_PASS_CONFIDENCE` | `0.90` | Confidence threshold for the LLM Verifier to mark a lemma as passing |
 | `STAGNATION_WINDOW` | `3` | Force Refiner if same error repeats N times |
 | `ENFORCE_PROOF_STYLE` | `true` | Inject proof readability rules into WriterAgent prompts |
 
@@ -84,17 +88,25 @@ All settings are read from environment variables (or a `.env` file in the projec
 | `MAX_TOKENS_AGENT` | `8192` | Main agent reasoning loop (all agents) |
 | `MAX_TOKENS_PROVER` | `4096` | Proof generation (Prover) |
 | `MAX_TOKENS_PLANNER` | `4096` | Research direction planning (diverge); converge uses half |
-| `MAX_TOKENS_DECOMPOSER` | `2048` | Lemma decomposition (LemmaDecomposer, KeyLemmaExtractor) |
-| `MAX_TOKENS_ASSEMBLER` | `4096` | Proof assembly narrative (Assembler) |
-| `MAX_TOKENS_CRYSTALLIZER` | `2500` | Final theorem statement extraction (TheoremCrystallizer) |
-| `MAX_TOKENS_ARCHITECT` | `3000` | Proof plan generation (ProofArchitect) |
-| `MAX_TOKENS_ANALYST` | `1600` | Analysis stages (AnalysisStages) |
-| `MAX_TOKENS_SKETCH` | `600` | Lean4/Coq sketch generation (SketchGenerator) |
-| `MAX_TOKENS_FORMALIZER` | `2048` | Formalization, Refiner, CounterexampleSearcher, ResourceAnalyst |
-| `MAX_TOKENS_VERIFIER` | `1024` | Proof verification (Verifier) |
+| `MAX_TOKENS_DECOMPOSER` | `4096` | Lemma decomposition (LemmaDecomposer, KeyLemmaExtractor) |
+| `MAX_TOKENS_ASSEMBLER` | `6144` | Proof assembly narrative (Assembler) |
+| `MAX_TOKENS_CRYSTALLIZER` | `4096` | Final theorem statement extraction (TheoremCrystallizer) |
+| `MAX_TOKENS_ARCHITECT` | `3072` | Proof plan generation (ProofArchitect) |
+| `MAX_TOKENS_ANALYST` | `1536` | Analysis stages (MemoryGuidedAnalyzer, TemplateSelector, ProofSkeletonBuilder) |
+| `MAX_TOKENS_SKETCH` | `1024` | Lean4/Coq sketch generation (SketchGenerator) |
+| `MAX_TOKENS_FORMALIZER` | `4096` | Formalization, Refiner, CounterexampleSearcher, ResourceAnalyst, PaperReader |
+| `MAX_TOKENS_VERIFIER` | `2048` | Proof verification (Verifier) and peer review |
 | `MAX_TOKENS_COMPRESS` | `512` | Context compression summaries (fast model) |
 
 All 12 values are adjustable from the Settings tab in the web UI.
+
+## Paper Reader
+
+| Variable | Default | Description |
+|---|---|---|
+| `PAPER_READER_USE_PDF` | `true` | Download and extract from full PDF in addition to abstract |
+| `PAPER_READER_ABSTRACT_PAPERS` | `10` | Max papers to extract from abstract |
+| `PAPER_READER_PDF_PAPERS` | `3` | Max papers to extract from full PDF |
 
 ## Turn Limits
 

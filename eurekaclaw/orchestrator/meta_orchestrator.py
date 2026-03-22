@@ -46,6 +46,7 @@ class MetaOrchestrator:
         skill_registry: SkillRegistry | None = None,
         client: LLMClient | None = None,
         domain_plugin: DomainPlugin | None = None,
+        selected_skills: list[str] | None = None,
     ) -> None:
         self.bus = bus
         self.client: LLMClient = client or create_client()
@@ -60,7 +61,7 @@ class MetaOrchestrator:
                 self.skill_registry.add_skills_dir(skills_dir)
             logger.info("Domain plugin loaded: %s", domain_plugin.display_name)
 
-        self.skill_injector = SkillInjector(self.skill_registry)
+        self.skill_injector = SkillInjector(self.skill_registry, selected_skills=selected_skills)
         self.memory = MemoryManager(session_id=bus.session_id)
 
         # Build agent team
