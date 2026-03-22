@@ -187,6 +187,22 @@ export function LivePanel({ run }: LivePanelProps) {
     );
   }
 
+  // Theory review gate — shown in ProofPanel, prompt user to switch tab
+  const theoryReviewTask = pipeline.find((t) => t.name === 'theory_review_gate');
+  if (theoryReviewTask?.status === 'awaiting_gate') {
+    return (
+      <div className="live-activity-area">
+        <div className="direction-gate-card">
+          <p className="direction-gate-heading">🔍 Proof ready for review</p>
+          <p className="drawer-muted">
+            The theory agent has completed a proof attempt. Switch to the{' '}
+            <strong>Proof</strong> tab to review the proof sketch and approve or flag a concern.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   if (status === 'running' || status === 'queued') {
     const innerStage = run.paused_stage || '';
     const innerLabel = innerStage ? `while ${friendlyInnerStage(innerStage) ?? innerStage}` : '';
