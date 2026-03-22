@@ -50,7 +50,7 @@ export function agentNarrativeLine(
   if (role === 'survey') {
     if (st === 'in_progress') return 'Navigating the academic landscape…';
     if (st === 'completed') {
-      const papers = (arts.bibliography?.papers || arts.research_brief?.papers || []).length;
+      const papers = (arts.bibliography?.papers || []).length;
       const problems = (arts.research_brief?.open_problems || []).length;
       return `${papers} paper${papers !== 1 ? 's' : ''} read · ${problems} open problem${problems !== 1 ? 's' : ''} found`;
     }
@@ -59,7 +59,7 @@ export function agentNarrativeLine(
     if (st === 'in_progress') return 'Exploring the hypothesis space…';
     if (st === 'completed') {
       const dir = arts.research_brief?.selected_direction;
-      const dirStr = typeof dir === 'string' ? dir : dir?.title || dir?.direction || '';
+      const dirStr = dir?.title || dir?.hypothesis || '';
       if (dirStr) return `"${dirStr.length > 55 ? dirStr.slice(0, 52) + '…' : dirStr}"`;
       return 'Direction set — ready for proof';
     }
@@ -69,9 +69,9 @@ export function agentNarrativeLine(
     if (st === 'completed') {
       const ts = arts.theory_state;
       const proved = Object.keys(ts?.proven_lemmas || {}).length;
-      const lowConf = (ts?.low_confidence_lemmas || []).length;
+      const open = (ts?.open_goals || []).length;
       if (proved > 0)
-        return `${proved} lemma${proved !== 1 ? 's' : ''} proven${lowConf > 0 ? ` · ${lowConf} low-confidence` : ' · proof complete'}`;
+        return `${proved} lemma${proved !== 1 ? 's' : ''} proven${open > 0 ? ` · ${open} open` : ' · proof complete'}`;
       return 'Proof pipeline ran';
     }
   }
