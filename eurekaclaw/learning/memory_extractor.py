@@ -30,6 +30,7 @@ from typing import Literal
 from eurekaclaw.config import settings
 from eurekaclaw.memory.embedding_utils import get_embedding # New import
 from eurekaclaw.llm import LLMClient, create_client
+from eurekaclaw.knowledge_bus.bus import KnowledgeBus
 
 logger = logging.getLogger(__name__)
 
@@ -109,7 +110,7 @@ class SessionMemoryExtractor:
 
     async def extract_and_save(
         self,
-        bus: "KnowledgeBus",  # type: ignore[name-defined]
+        bus: KnowledgeBus,  
         domain: str = "",
     ) -> list[dict]:
         """Extract memories from the bus and save non-duplicate ones to disk."""

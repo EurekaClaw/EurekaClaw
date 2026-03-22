@@ -31,7 +31,7 @@ class MABDomainPlugin(DomainPlugin):
         "exploration", "exploitation", "stochastic bandit",
     ]
 
-    def register_tools(self, registry: ToolRegistry) -> None:  # type: ignore[name-defined]
+    def register_tools(self, registry: ToolRegistry) -> None:
         from eurekaclaw.domains.mab.tools.bandit_tool import BanditExperimentTool
         registry.register(BanditExperimentTool())
         logger.debug("MAB domain: registered BanditExperimentTool")
