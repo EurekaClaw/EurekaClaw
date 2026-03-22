@@ -23,7 +23,8 @@ A practical walkthrough for using EurekaClaw — from installation to reading yo
 
 ## Installation
 
-**Requirements:** Python ≥ 3.11
+**Requirements:** Python ≥ 3.11 · **Supported platforms:** macOS, Linux
+*(Windows support is under development — use [WSL 2](https://learn.microsoft.com/en-us/windows/wsl/install) in the meantime)*
 
 ### From source (recommended)
 

@@ -54,13 +54,15 @@ $ eurekaclaw prove "Find recent papers on sparse attention + prove efficiency bo
 curl -fsSL https://eurekaclaw.ai/install.sh | bash
 ```
 
-**Windows** (PowerShell)
+**Windows** *(under development — not fully supported yet)*
 
 ```powershell
 powershell -c "irm https://eurekaclaw.ai/install_win.ps1 | iex"
 ```
 
-Both installers clone the repo, create a virtual environment, install EurekaClaw, and add the `eurekaclaw` command to your PATH. Run `eurekaclaw onboard` afterwards to configure your API key and settings.
+The macOS/Linux installer clones the repo, creates a virtual environment, installs EurekaClaw, and adds the `eurekaclaw` command to your PATH. Run `eurekaclaw onboard` afterwards to configure your API key and settings.
+
+> **Windows users:** native Windows support is under active development. In the meantime, use [WSL 2](https://learn.microsoft.com/en-us/windows/wsl/install) (Ubuntu) and follow the macOS/Linux instructions inside the WSL terminal.
 
 <details>
 <summary>Manual install (all platforms)</summary>
@@ -199,6 +201,7 @@ To add a **new tool**, subclass `BaseTool` and register it — see [tools.md](ht
 EurekaClaw builds on ideas and inspiration from the broader AI-for-science community. We thank the authors of the following projects:
 
 - [MetaClaw](https://github.com/aiming-lab/MetaClaw) — multi-agent research orchestration
+- [AutoResearchClaw](https://github.com/aiming-lab/AutoResearchClaw) — automated research orchestration
 - [EvoScientist](https://github.com/EvoScientist/EvoScientist) — evolutionary hypothesis generation
 - [AI-Researcher](https://github.com/hkuds/ai-researcher) — automated research pipeline
 - [Awesome AI for Science](https://github.com/ai-boost/awesome-ai-for-science) — curated resource list
