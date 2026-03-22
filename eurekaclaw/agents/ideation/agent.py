@@ -88,7 +88,7 @@ Return as JSON: {{"directions": [{{...}}, ...]}}
 """
 
         try:
-            text, tokens = await self.run_agent_loop(task, user_message, max_turns=3)
+            text, tokens = await self.run_agent_loop(task, user_message, max_turns=6)
             directions_data = self._parse_directions(text)
 
             # Convert to ResearchDirection objects and store on brief
@@ -132,20 +132,38 @@ Return as JSON: {{"directions": [{{...}}, ...]}}
             return self._make_result(task, False, {}, error=str(e))
 
     def _parse_directions(self, text: str) -> list[dict]:
-        for delim_start, delim_end in [("```json", "```"), ("{", None)]:
-            try:
-                if delim_start in text:
-                    start = text.index(delim_start) + len(delim_start)
-                    if delim_end:
-                        end = text.index(delim_end, start)
-                        data = json.loads(text[start:end].strip())
-                    else:
-                        end = text.rindex("}") + 1
-                        data = json.loads(text[text.index("{"):end])
+        # 1. Fenced code block: ```json ... ```
+        for fence in ("```json", "```"):
+            if fence in text:
+                try:
+                    start = text.index(fence) + len(fence)
+                    end = text.index("```", start)
+                    data = json.loads(text[start:end].strip())
                     if isinstance(data, dict) and "directions" in data:
                         return data["directions"]
                     if isinstance(data, list):
                         return data
+                except (json.JSONDecodeError, ValueError):
+                    pass
+
+        # 2. Find the JSON object that contains a "directions" key directly,
+        #    rather than grabbing the first "{" which may be inside prose text.
+        search = text
+        while '{"directions"' in search or '"directions"' in search:
+            try:
+                idx = search.index("{")
+                end = search.rindex("}") + 1
+                data = json.loads(search[idx:end])
+                if isinstance(data, dict) and "directions" in data:
+                    return data["directions"]
+                if isinstance(data, list):
+                    return data
             except (json.JSONDecodeError, ValueError):
-                continue
+                pass
+            # Advance past the first "{" and retry
+            next_brace = search.find("{", 1)
+            if next_brace == -1:
+                break
+            search = search[next_brace:]
+
         return []
