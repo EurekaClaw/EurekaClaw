@@ -1,0 +1,23 @@
+# Always use LF in the repo; prevents CRLF breakage on Windows for shell scripts.
+* text=auto
+*.sh text eol=lf
+*.py text eol=lf
+*.md text eol=lf
+*.toml text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+*.json text eol=lf
+*.txt text eol=lf
+*.cls text eol=lf
+*.sty text eol=lf
+*.bib text eol=lf
+
+# Binary files — no line-ending conversion
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.svg binary
+*.pdf binary
+*.zip binary
+*.tar.gz binary
