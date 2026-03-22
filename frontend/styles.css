@@ -421,6 +421,61 @@ img {
   padding-right: 0;
 }
 
+/* Wrapper enables relative positioning for delete btn overlay */
+.intent-skill-wrap {
+  position: relative;
+  border-radius: 14px;
+}
+
+.intent-skill-wrap.is-selected .intent-skill {
+  border-color: rgba(15, 106, 184, 0.28);
+  background: rgba(240, 247, 255, 0.92);
+}
+
+.intent-skill-wrap.is-selected .intent-skill::before {
+  content: "✓";
+  position: absolute;
+  top: 9px;
+  left: 9px;
+  font-size: 0.65rem;
+  color: #0f6ab8;
+  background: rgba(15, 106, 184, 0.14);
+  border-radius: 50%;
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+}
+
+.skill-delete-btn {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  width: 26px;
+  height: 26px;
+  border: none;
+  background: rgba(220, 53, 69, 0.06);
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.82rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 150ms, background 150ms;
+  z-index: 1;
+}
+
+.intent-skill-wrap:hover .skill-delete-btn {
+  opacity: 1;
+}
+
+.skill-delete-btn:hover {
+  background: rgba(220, 53, 69, 0.14);
+}
+
 .intent-skill {
   display: grid;
   gap: 8px;
@@ -429,17 +484,15 @@ img {
   border: 1px solid var(--line);
   background: rgba(255, 255, 255, 0.68);
   transition: border-color 180ms ease, background 180ms ease, transform 180ms ease;
+  text-align: left;
+  width: 100%;
+  position: relative;
 }
 
 .intent-skill:hover {
   transform: translateY(-1px);
   border-color: rgba(15, 106, 184, 0.22);
   background: rgba(248, 252, 255, 0.92);
-}
-
-.intent-skill.is-selected {
-  border-color: rgba(15, 106, 184, 0.28);
-  background: rgba(240, 247, 255, 0.92);
 }
 
 .intent-skill-head {
@@ -454,16 +507,39 @@ img {
   color: var(--text);
 }
 
+/* Source badge — color per source type */
 .intent-skill-source {
   flex-shrink: 0;
-  padding: 4px 8px;
+  padding: 3px 8px;
   border-radius: 999px;
-  background: rgba(185, 120, 59, 0.12);
-  border: 1px solid rgba(185, 120, 59, 0.14);
-  color: var(--accent);
-  font-size: 0.72rem;
+  font-size: 0.70rem;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.07em;
+  font-weight: 600;
+}
+
+.skill-source--seed {
+  background: rgba(15, 106, 184, 0.10);
+  border: 1px solid rgba(15, 106, 184, 0.18);
+  color: #0d5a9e;
+}
+
+.skill-source--distilled {
+  background: rgba(40, 167, 69, 0.10);
+  border: 1px solid rgba(40, 167, 69, 0.2);
+  color: #1a6e34;
+}
+
+.skill-source--manual {
+  background: rgba(120, 120, 120, 0.10);
+  border: 1px solid rgba(120, 120, 120, 0.18);
+  color: #555;
+}
+
+.skill-source--clawhub {
+  background: rgba(185, 120, 59, 0.12);
+  border: 1px solid rgba(185, 120, 59, 0.22);
+  color: #8c5120;
 }
 
 .intent-skill-desc {
@@ -475,6 +551,64 @@ img {
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+/* Pipeline stage tags — slightly different from topic tags */
+.skill-pipeline-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(15, 106, 184, 0.08);
+  color: #0d5a9e;
+  font-size: 0.72rem;
+  font-weight: 500;
+}
+
+/* Usage + success rate stats bar */
+.skill-stats-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.skill-usage-badge {
+  font-size: 0.74rem;
+  color: var(--muted);
+  background: rgba(0, 0, 0, 0.05);
+  padding: 2px 7px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.skill-success-label {
+  font-size: 0.74rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.skill-success-track {
+  flex: 1;
+  max-width: 64px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+}
+
+.skill-success-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #34c98b, #22a86a);
+  transition: width 400ms ease;
+}
+
+/* "Select all" button in selection panel header */
+.skill-select-all-btn {
+  font-size: 0.78rem;
+  padding: 4px 10px;
+  border-radius: 8px;
 }
 
 .intent-tag-row {
@@ -501,12 +635,205 @@ img {
   background: rgba(255, 255, 255, 0.44);
 }
 
+/* ── ClawHub install panel ─────────────────────────────────────────────────── */
+
 .skills-shell {
   display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.85fr);
+  grid-template-columns: minmax(0, 1.15fr) minmax(300px, 0.85fr);
+  grid-template-rows: auto 1fr;
   gap: 18px;
   align-items: start;
 }
+
+.clawhub-panel {
+  grid-column: 1 / -1; /* full-width top row */
+  background: linear-gradient(135deg, rgba(248, 246, 240, 0.9) 0%, rgba(255, 252, 245, 0.95) 100%);
+  border-color: rgba(185, 120, 59, 0.18);
+}
+
+.clawhub-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.clawhub-logo-mark {
+  font-size: 2rem;
+  line-height: 1;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.clawhub-header-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.clawhub-header-text h3 {
+  margin: 2px 0 0;
+}
+
+.clawhub-tagline {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+  max-width: 540px;
+  line-height: 1.5;
+  flex: 1 1 200px;
+  padding-top: 4px;
+}
+
+.clawhub-body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 20px;
+}
+
+.clawhub-input-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1 1 320px;
+  min-width: 0;
+}
+
+.clawhub-input-label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: 0.01em;
+}
+
+.clawhub-input-group {
+  display: flex;
+  gap: 8px;
+}
+
+.clawhub-input-group input {
+  flex: 1;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.8);
+  font-size: 0.9rem;
+  font-family: var(--mono);
+  color: var(--text);
+  transition: border-color 150ms;
+}
+
+.clawhub-input-group input:focus {
+  outline: none;
+  border-color: rgba(185, 120, 59, 0.5);
+  background: #fff;
+}
+
+.clawhub-hub-btn {
+  padding: 8px 18px;
+  border-radius: 10px;
+  border: 1px solid rgba(185, 120, 59, 0.35);
+  background: linear-gradient(135deg, #c87d3e 0%, #b06228 100%);
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 150ms, transform 100ms;
+  white-space: nowrap;
+}
+
+.clawhub-hub-btn:hover { opacity: 0.88; }
+.clawhub-hub-btn:active { transform: scale(0.97); }
+.clawhub-hub-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+.clawhub-input-hint {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.clawhub-input-hint code {
+  font-family: var(--mono);
+  background: rgba(185, 120, 59, 0.08);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 0.78rem;
+}
+
+.clawhub-divider {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+  padding: 0 4px;
+  align-self: center;
+  margin-top: 18px; /* align with input group */
+}
+
+.clawhub-seeds-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  flex: 1 1 220px;
+}
+
+.clawhub-seeds-btn {
+  padding: 8px 16px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.85);
+  color: var(--text);
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color 150ms, background 150ms, transform 100ms;
+  white-space: nowrap;
+}
+
+.clawhub-seeds-btn:hover {
+  border-color: rgba(15, 106, 184, 0.3);
+  background: rgba(240, 248, 255, 0.9);
+}
+
+.clawhub-seeds-btn:active { transform: scale(0.97); }
+.clawhub-seeds-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.clawhub-seeds-hint {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.clawhub-seeds-hint code {
+  font-family: var(--mono);
+  background: rgba(0, 0, 0, 0.06);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 0.78rem;
+}
+
+.clawhub-status {
+  width: 100%;
+  margin-top: 4px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 0.86rem;
+  animation: ctrl-flash-in 200ms ease forwards;
+}
+
+.clawhub-status.is-ok {
+  background: rgba(40, 167, 69, 0.1);
+  border: 1px solid rgba(40, 167, 69, 0.22);
+  color: #1a6e34;
+}
+
+.clawhub-status.is-error {
+  background: rgba(220, 53, 69, 0.08);
+  border: 1px solid rgba(220, 53, 69, 0.22);
+  color: #9b1c2e;
+}
+
+/* ── Skill library / selection panels ──────────────────────────────────────── */
 
 .skill-library-panel,
 .skill-selection-panel {

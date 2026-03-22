@@ -626,9 +626,28 @@ def _skills_payload() -> list[dict[str, Any]]:
             "source": skill.meta.source,
             "usage_count": skill.meta.usage_count,
             "success_rate": skill.meta.success_rate,
+            "file_path": skill.file_path,
         }
         for skill in skills
     ]
+
+
+def _install_skill(skillname: str) -> dict[str, Any]:
+    """Install a skill from ClawHub or copy seed skills.  Runs synchronously."""
+    from eurekaclaw.skills.install import install_from_hub, install_seed_skills
+
+    dest = settings.skills_dir
+    try:
+        if skillname:
+            ok = install_from_hub(skillname, dest)
+            if ok:
+                return {"ok": True, "message": f"Installed '{skillname}' from ClawHub → {dest}"}
+            return {"ok": False, "error": f"Could not install '{skillname}'. Check that the `clawhub` CLI is installed and the skill slug is correct."}
+        else:
+            install_seed_skills(dest)
+            return {"ok": True, "message": f"Seed skills installed → {dest}"}
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
 
 
 def _merged_config(overrides: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -840,10 +859,27 @@ class UIRequestHandler(SimpleHTTPRequestHandler):
                 self._send_json(result, status=HTTPStatus.CREATED)
             return
 
+        if parsed.path == "/api/skills/install":
+            payload = self._read_json()
+            skillname = str(payload.get("skillname", "")).strip()
+            result = _install_skill(skillname)
+            status = HTTPStatus.OK if result.get("ok") else HTTPStatus.BAD_REQUEST
+            self._send_json(result, status=status)
+            return
+
         self._send_json({"error": "Not found"}, status=HTTPStatus.NOT_FOUND)
 
     def do_DELETE(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
+        if parsed.path.startswith("/api/skills/"):
+            skill_name = parsed.path.removeprefix("/api/skills/").strip("/")
+            skill_file = settings.skills_dir / f"{skill_name}.md"
+            if not skill_file.exists():
+                self._send_json({"error": f"Skill '{skill_name}' not found in user skills dir."}, status=HTTPStatus.NOT_FOUND)
+                return
+            skill_file.unlink()
+            self._send_json({"ok": True, "message": f"Deleted '{skill_name}'"})
+            return
         if parsed.path.startswith("/api/runs/"):
             run_id = parsed.path.removeprefix("/api/runs/").strip("/")
             result = self.state.delete_run(run_id)

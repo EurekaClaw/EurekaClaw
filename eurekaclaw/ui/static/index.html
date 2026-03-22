@@ -273,37 +273,76 @@
 
         <section class="view" data-view="skills">
           <div class="skills-shell">
+
+            <!-- ── ClawHub install bar ──────────────────────────────────── -->
+            <article class="panel clawhub-panel">
+              <div class="clawhub-header">
+                <span class="clawhub-logo-mark" aria-hidden="true">🦞</span>
+                <div class="clawhub-header-text">
+                  <p class="eyebrow">ClawHub</p>
+                  <h3>Install Skills</h3>
+                </div>
+                <p class="clawhub-tagline">
+                  Add community proof strategies, domain plugins, or your own —
+                  they become available in every future session automatically.
+                </p>
+              </div>
+              <div class="clawhub-body">
+                <div class="clawhub-input-row">
+                  <label class="clawhub-input-label" for="clawhub-input">Install from ClawHub</label>
+                  <div class="clawhub-input-group">
+                    <input id="clawhub-input" type="text"
+                      placeholder="author/skill-name  (e.g. steipete/github)"
+                      autocomplete="off" spellcheck="false" />
+                    <button class="clawhub-hub-btn" id="clawhub-install-btn">Install</button>
+                  </div>
+                  <span class="clawhub-input-hint">
+                    Needs the <code>clawhub</code> CLI →
+                    <code>pip install clawhub</code>
+                  </span>
+                </div>
+                <div class="clawhub-divider"><span>or</span></div>
+                <div class="clawhub-seeds-row">
+                  <button class="clawhub-seeds-btn" id="install-seeds-btn">📦 Install built-in seed skills</button>
+                  <span class="clawhub-seeds-hint">Copies bundled proof strategies to <code>~/.eurekaclaw/skills/</code></span>
+                </div>
+                <p id="clawhub-status" class="clawhub-status" hidden></p>
+              </div>
+            </article>
+
+            <!-- ── Skill Library ────────────────────────────────────────── -->
             <article class="panel skill-library-panel">
               <div class="panel-header">
                 <div>
                   <p class="eyebrow">Skill Library</p>
-                  <h3>Choose the skills that guide the next run</h3>
+                  <h3>Choose skills for next run</h3>
                 </div>
-                <span class="mono-label" id="skill-meta">Loading skill bank...</span>
+                <span class="mono-label" id="skill-meta">Loading…</span>
               </div>
-
               <label class="intent-search skill-search-bar">
-                <span>Search skills</span>
-                <input id="skill-search" type="text" placeholder="proof, survey, induction..." />
+                <span>Search</span>
+                <input id="skill-search" type="text" placeholder="proof, survey, induction…" />
               </label>
-
               <div class="intent-list skill-library-list" id="skill-list"></div>
               <div class="skill-pagination" id="skill-pagination"></div>
             </article>
 
+            <!-- ── Selected Skills ──────────────────────────────────────── -->
             <article class="panel skill-selection-panel">
               <div class="panel-header">
                 <div>
                   <p class="eyebrow">Research Intent</p>
-                  <h3>Selected skills for this session</h3>
+                  <h3>Active for this session</h3>
                 </div>
+                <button class="ghost-btn skill-select-all-btn" id="select-all-skills-btn">Select all</button>
               </div>
-
               <div class="intent-selected skill-selected-panel" id="skill-selected"></div>
               <p class="inline-note">
-                Selected skills are carried into the next session and prioritized during prompt construction.
+                Skills are injected into agent prompts before each stage —
+                the system also auto-learns new strategies after every successful proof.
               </p>
             </article>
+
           </div>
         </section>
 

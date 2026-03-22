@@ -35,6 +35,11 @@ const skillSelectedEl = document.getElementById("skill-selected");
 const skillListEl = document.getElementById("skill-list");
 const skillMetaEl = document.getElementById("skill-meta");
 const skillPaginationEl = document.getElementById("skill-pagination");
+const clawhubInputEl = document.getElementById("clawhub-input");
+const clawhubInstallBtn = document.getElementById("clawhub-install-btn");
+const clawhubStatusEl = document.getElementById("clawhub-status");
+const installSeedsBtnEl = document.getElementById("install-seeds-btn");
+const selectAllSkillsBtnEl = document.getElementById("select-all-skills-btn");
 const sessionListEl = document.getElementById("session-list");
 const artifactDrawerEl = document.getElementById("artifact-drawer");
 const artifactDrawerBackdropEl = document.getElementById("artifact-drawer-backdrop");
@@ -1140,6 +1145,20 @@ function toggleSkill(name) {
   renderSkillIntent();
 }
 
+// Source badge label + CSS class
+function skillSourceClass(source) {
+  return `skill-source--${(source || "manual").replace(/[^a-z]/g, "")}`;
+}
+
+function skillSourceLabel(source) {
+  return { seed: "seed", distilled: "auto-learned", manual: "manual", clawhub: "ClawHub" }[source] || source || "manual";
+}
+
+// Is the skill deletable (user-installed, not a bundled seed)?
+function skillIsDeletable(skill) {
+  return skill.source !== "seed" && skill.file_path && skill.file_path.includes(".eurekaclaw");
+}
+
 function renderSkillIntent() {
   const query = skillSearchEl.value.trim().toLowerCase();
   const filtered = availableSkills
@@ -1147,9 +1166,7 @@ function renderSkillIntent() {
     .sort((a, b) => {
       const aSelected = selectedSkills.includes(a.name) ? 1 : 0;
       const bSelected = selectedSkills.includes(b.name) ? 1 : 0;
-      if (aSelected !== bSelected) {
-        return bSelected - aSelected;
-      }
+      if (aSelected !== bSelected) return bSelected - aSelected;
       return a.name.localeCompare(b.name);
     });
   const totalPages = Math.max(1, Math.ceil(filtered.length / skillsPerPage));
@@ -1161,10 +1178,10 @@ function renderSkillIntent() {
     ? selectedSkills.map((name) => `
         <span class="intent-chip">
           <span>${escapeHtml(name)}</span>
-          <button type="button" data-remove-skill="${escapeHtml(name)}" aria-label="Remove ${escapeHtml(name)}">x</button>
+          <button type="button" data-remove-skill="${escapeHtml(name)}" aria-label="Remove ${escapeHtml(name)}">×</button>
         </span>
       `).join("")
-    : '<div class="intent-empty">No skills selected yet.</div>';
+    : '<div class="intent-empty">No skills selected — select from the library.</div>';
 
   if (!filtered.length) {
     skillListEl.innerHTML = '<div class="intent-empty">No skills match this search.</div>';
@@ -1173,26 +1190,95 @@ function renderSkillIntent() {
     return;
   }
 
-  skillListEl.innerHTML = visibleSkills.map((skill) => `
-    <button type="button" class="intent-skill ${selectedSkills.includes(skill.name) ? "is-selected" : ""}" data-skill-name="${escapeHtml(skill.name)}">
-      <div class="intent-skill-head">
-        <span class="intent-skill-name">${escapeHtml(skill.name)}</span>
-        <span class="intent-skill-source">${escapeHtml(skill.source || "manual")}</span>
+  skillListEl.innerHTML = visibleSkills.map((skill) => {
+    const isSelected = selectedSkills.includes(skill.name);
+    const deletable = skillIsDeletable(skill);
+    const usageCount = skill.usage_count || 0;
+    const successRate = skill.success_rate;
+
+    const stagesHtml = (skill.pipeline_stages || []).slice(0, 3)
+      .map((s) => `<span class="skill-pipeline-tag">${escapeHtml(s)}</span>`).join("");
+    const tagsHtml = (skill.tags || []).slice(0, 3)
+      .map((t) => `<span class="intent-tag">${escapeHtml(t)}</span>`).join("");
+
+    const statsHtml = (usageCount > 0 || successRate != null) ? `
+      <div class="skill-stats-bar">
+        ${usageCount > 0 ? `<span class="skill-usage-badge">${usageCount} use${usageCount !== 1 ? "s" : ""}</span>` : ""}
+        ${successRate != null ? `
+          <span class="skill-success-label">${Math.round(successRate * 100)}% success</span>
+          <div class="skill-success-track"><div class="skill-success-fill" style="width:${Math.round(successRate * 100)}%"></div></div>
+        ` : ""}
+      </div>` : "";
+
+    return `
+      <div class="intent-skill-wrap ${isSelected ? "is-selected" : ""}">
+        <button type="button" class="intent-skill" data-skill-name="${escapeHtml(skill.name)}">
+          <div class="intent-skill-head">
+            <span class="intent-skill-name">${escapeHtml(skill.name)}</span>
+            <span class="intent-skill-source ${skillSourceClass(skill.source)}">${escapeHtml(skillSourceLabel(skill.source))}</span>
+          </div>
+          <p class="intent-skill-desc">${escapeHtml(skill.description || "No description.")}</p>
+          <div class="intent-tag-row">
+            ${stagesHtml}
+            ${tagsHtml}
+          </div>
+          ${statsHtml}
+        </button>
+        ${deletable ? `<button type="button" class="skill-delete-btn" data-delete-skill="${escapeHtml(skill.name)}" title="Remove '${escapeHtml(skill.name)}' from ~/.eurekaclaw/skills/">🗑</button>` : ""}
       </div>
-      <p class="intent-skill-desc">${escapeHtml(skill.description || "No description available.")}</p>
-      <div class="intent-tag-row">
-        ${(skill.tags || []).slice(0, 4).map((tag) => `<span class="intent-tag">${escapeHtml(tag)}</span>`).join("")}
-      </div>
-    </button>
-  `).join("");
+    `;
+  }).join("");
 
   const matchingText = query ? `${filtered.length} matching` : `${availableSkills.length} available`;
-  skillMetaEl.textContent = `${selectedSkills.length} selected · ${matchingText} · page ${currentSkillPage} of ${totalPages}`;
+  skillMetaEl.textContent = `${selectedSkills.length} selected · ${matchingText} · page ${currentSkillPage}/${totalPages}`;
   skillPaginationEl.innerHTML = totalPages > 1 ? `
-    <button type="button" class="ghost-btn" data-skill-page="prev" ${currentSkillPage === 1 ? "disabled" : ""}>Previous</button>
-    <span class="skill-pagination-meta">Page ${currentSkillPage} / ${totalPages}</span>
-    <button type="button" class="ghost-btn" data-skill-page="next" ${currentSkillPage === totalPages ? "disabled" : ""}>Next</button>
+    <button type="button" class="ghost-btn" data-skill-page="prev" ${currentSkillPage === 1 ? "disabled" : ""}>← Prev</button>
+    <span class="skill-pagination-meta">${currentSkillPage} / ${totalPages}</span>
+    <button type="button" class="ghost-btn" data-skill-page="next" ${currentSkillPage === totalPages ? "disabled" : ""}>Next →</button>
   ` : "";
+}
+
+// ── ClawHub install / seed install ──────────────────────────────────────────
+
+function showClawHubStatus(message, isError = false) {
+  clawhubStatusEl.textContent = message;
+  clawhubStatusEl.className = `clawhub-status ${isError ? "is-error" : "is-ok"}`;
+  clawhubStatusEl.hidden = false;
+}
+
+async function installSkill(skillname) {
+  const label = skillname ? `'${skillname}'` : "seed skills";
+  clawhubInstallBtn.disabled = true;
+  installSeedsBtnEl.disabled = true;
+  showClawHubStatus(`Installing ${label}…`);
+  try {
+    const result = await apiPost("/api/skills/install", { skillname: skillname || "" });
+    if (result.ok) {
+      showClawHubStatus(`✓ ${result.message}`);
+      if (skillname) clawhubInputEl.value = "";
+      await loadSkills(); // refresh library
+    } else {
+      showClawHubStatus(result.error || "Install failed.", true);
+    }
+  } catch (err) {
+    showClawHubStatus(err.message || "Install failed.", true);
+  } finally {
+    clawhubInstallBtn.disabled = false;
+    installSeedsBtnEl.disabled = false;
+  }
+}
+
+async function deleteSkill(name) {
+  if (!confirm(`Remove skill '${name}' from ~/.eurekaclaw/skills/?\n\nThis only deletes your local copy; seed skills remain built-in.`)) return;
+  try {
+    await apiDelete(`/api/skills/${encodeURIComponent(name)}`);
+    availableSkills = availableSkills.filter((s) => s.name !== name);
+    selectedSkills = selectedSkills.filter((n) => n !== name);
+    renderSkillIntent();
+    showClawHubStatus(`Removed '${name}'.`);
+  } catch (err) {
+    showClawHubStatus(`Could not delete: ${err.message}`, true);
+  }
 }
 
 function updateConfigVisibility() {
@@ -1824,25 +1910,46 @@ skillSearchEl.addEventListener("input", () => {
 
 skillSelectedEl.addEventListener("click", (event) => {
   const target = event.target;
-  if (!(target instanceof HTMLElement)) {
-    return;
-  }
+  if (!(target instanceof HTMLElement)) return;
   const skillName = target.getAttribute("data-remove-skill");
-  if (skillName) {
-    toggleSkill(skillName);
-  }
+  if (skillName) toggleSkill(skillName);
 });
 
 skillListEl.addEventListener("click", (event) => {
   const target = event.target;
-  if (!(target instanceof HTMLElement)) {
+  if (!(target instanceof HTMLElement)) return;
+  // Delete button inside card
+  const deleteBtn = target.closest("[data-delete-skill]");
+  if (deleteBtn instanceof HTMLElement) {
+    deleteSkill(deleteBtn.dataset.deleteSkill || "");
     return;
   }
+  // Toggle selection
   const button = target.closest("[data-skill-name]");
-  if (!(button instanceof HTMLElement)) {
+  if (button instanceof HTMLElement) {
+    toggleSkill(button.dataset.skillName || "");
+  }
+});
+
+clawhubInstallBtn.addEventListener("click", () => {
+  const slug = clawhubInputEl.value.trim();
+  if (!slug) {
+    clawhubInputEl.focus();
+    showClawHubStatus("Enter a ClawHub skill slug, e.g. steipete/github", true);
     return;
   }
-  toggleSkill(button.dataset.skillName || "");
+  installSkill(slug);
+});
+
+clawhubInputEl.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") clawhubInstallBtn.click();
+});
+
+installSeedsBtnEl.addEventListener("click", () => installSkill(""));
+
+selectAllSkillsBtnEl.addEventListener("click", () => {
+  selectedSkills = availableSkills.map((s) => s.name);
+  renderSkillIntent();
 });
 
 skillPaginationEl.addEventListener("click", (event) => {
