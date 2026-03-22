@@ -66,7 +66,7 @@ class ToolPatternExtractor:
 
     def __init__(self, client: LLMClient | None = None) -> None:
         self.client: LLMClient = client or create_client()
-        self._skills_dir = settings.skills_dir / "tool_patterns"
+        self._skills_dir = settings.skills_dir
         self._skills_dir.mkdir(parents=True, exist_ok=True)
 
     async def extract_and_save(
@@ -185,7 +185,11 @@ class ToolPatternExtractor:
 
     def _save_skill(self, skill: SkillRecord) -> None:
         safe_name = re.sub(r"[^\w\-]", "_", skill.meta.name)[:60]
-        path = self._skills_dir / f"{safe_name}.md"
+        
+        path = self._skills_dir / f"{safe_name}"
+        path.mkdir(parents=True, exist_ok=True)
+
+        filename = path / "SKILL.md"
         frontmatter = (
             f"---\n"
             f"name: {skill.meta.name}\n"
@@ -197,5 +201,5 @@ class ToolPatternExtractor:
             f"created_at: {skill.meta.created_at}\n"
             f"---\n\n"
         )
-        path.write_text(frontmatter + skill.content, encoding="utf-8")
+        filename.write_text(frontmatter + skill.content, encoding="utf-8")
         logger.info("Saved tool-pattern skill: %s", path)
