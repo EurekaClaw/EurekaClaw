@@ -105,9 +105,6 @@ def save_artifacts(result: ResearchOutput, out_dir: str | Path) -> Path:
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
 
-    # Copy eureka.cls, logo-claw.png, and fonts/ so pdflatex can find them
-    _copy_template_assets(out)
-
     # Write references.bib for user reference (not used for compilation —
     # the paper uses an inline \begin{thebibliography} block instead).
     if result.bibliography_json:
@@ -125,6 +122,8 @@ def save_artifacts(result: ResearchOutput, out_dir: str | Path) -> Path:
             (out / "paper.md").write_text(result.latex_paper, encoding="utf-8")
             logger.info("Markdown paper saved to %s/paper.md", out)
         else:
+            # Copy eureka.cls, logo-claw.png, smile.sty, and fonts/ so pdflatex can find them
+            _copy_template_assets(out)
             tex_path = out / "paper.tex"
             tex_path.write_text(result.latex_paper, encoding="utf-8")
             logger.info("LaTeX paper saved to %s/paper.tex", out)
