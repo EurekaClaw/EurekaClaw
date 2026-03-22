@@ -608,7 +608,12 @@ class UIServerState:
             }
         except Exception as exc:
             from eurekaclaw.agents.theory.checkpoint import ProofPausedException
-            if isinstance(exc, ProofPausedException):
+            from eurekaclaw.orchestrator.meta_orchestrator import AwaitingReviewException
+            if isinstance(exc, AwaitingReviewException):
+                logger.info("Session %s awaiting proof review after direction set", run_id)
+                run.status = "awaiting_review"
+                run.error = ""
+            elif isinstance(exc, ProofPausedException):
                 logger.info("Session %s paused at stage '%s'", run_id, exc.stage_name)
                 run.status = "paused"
                 run.paused_at = datetime.utcnow()
