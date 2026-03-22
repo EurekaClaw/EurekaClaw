@@ -9,6 +9,9 @@ from eurekaclaw.skills.registry import SkillRegistry
 from eurekaclaw.types.skills import SkillRecord
 from eurekaclaw.types.tasks import Task
 
+from sentence_transformers import SentenceTransformer  # type: ignore
+import numpy as np  # type: ignore
+
 logger = logging.getLogger(__name__)
 
 
@@ -66,26 +69,30 @@ class SkillInjector:
 
     def _semantic_retrieval(self, task: Task, role: str, k: int) -> list[SkillRecord]:
         """Embedding-based retrieval using sentence-transformers."""
-        try:
-            from sentence_transformers import SentenceTransformer  # type: ignore
-            import numpy as np  # type: ignore
+        model = SentenceTransformer("all-MiniLM-L6-v2")
+        query = f"{task.name} {task.description} {role}"
+        q_emb = model.encode(query)
 
-            model = SentenceTransformer("all-MiniLM-L6-v2")
-            query = f"{task.name} {task.description} {role}"
-            q_emb = model.encode(query)
+        by_role = self.registry.get_by_role(role)
+        if self.selected_skills:
+            must_have = set(s.meta.name for s in self.selected_skills)
+            must_have = must_have & by_role
+        else:
+            must_have = set()
 
-            skills = self.registry.load_all()
-            scored = []
-            for skill in skills:
-                text = f"{skill.meta.name} {skill.meta.description} {' '.join(skill.meta.tags)}"
-                s_emb = model.encode(text)
-                score = float(np.dot(q_emb, s_emb) / (np.linalg.norm(q_emb) * np.linalg.norm(s_emb) + 1e-9))
-                scored.append((score, skill))
-            scored.sort(key=lambda x: x[0], reverse=True)
-            return [s for _, s in scored[:k]]
-        except ImportError:
-            logger.debug("sentence-transformers not available, falling back to tag retrieval")
-            return self._tag_retrieval(task, role, k)
+
+        skills = self.registry.load_all()
+        scored = []
+        for skill in skills:
+            text = f"{skill.meta.name} {skill.meta.description} {' '.join(skill.meta.tags)}"
+            s_emb = model.encode(text)
+            score = float(np.dot(q_emb, s_emb) / (np.linalg.norm(q_emb) * np.linalg.norm(s_emb) + 1e-9))
+            scored.append((score, skill.meta.name))
+
+        optional_scored = [(s, name) for s, name in scored if name not in must_have]
+        optional_scored.sort(key=lambda x: x[0], reverse=True)
+        final = [self.registry.get(name) for name in must_have] + [self.registry.get(name) for _, name in optional_scored]
+        return final[:k]
 
     def _rank_by_text_similarity(self, candidates: list[SkillRecord], task: Task, k: int) -> list[SkillRecord]:
         """Simple keyword overlap ranking as fallback."""
