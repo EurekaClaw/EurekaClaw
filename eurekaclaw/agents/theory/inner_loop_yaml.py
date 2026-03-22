@@ -417,7 +417,7 @@ class TheoryInnerLoopYaml:
         self._refiner = Refiner()
 
     def _load_spec(self) -> list[dict]:
-        with self.spec_path.open() as fh:
+        with self.spec_path.open(encoding="utf-8") as fh:
             data = yaml.safe_load(fh)
         stages = data.get("stages", [])
         logger.info(
