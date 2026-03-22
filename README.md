@@ -10,7 +10,6 @@
 
 <p align="center">
   <a href="https://github.com/EurekaClaw/EurekaClaw/stargazers"><img src="https://img.shields.io/github/stars/EurekaClaw/EurekaClaw?style=flat-square&color=yellow" alt="Stars"/></a>
-  <!-- <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-007ACC?style=flat-square" alt="Apache 2.0"/></a> -->
   <img src="https://img.shields.io/badge/License-Apache_2.0-blue.svg?style=flat-square" alt="License: Apache 2.0">
   <img src="https://img.shields.io/badge/python-3.11%2B-007ACC?style=flat-square&color=yellow" alt="Python 3.11+"/>
   <img src="https://img.shields.io/badge/local--first-private%20by%20default-1F8AD2?style=flat-square" alt="Local-first"/>
@@ -37,7 +36,7 @@ $ eurekaclaw prove "Find recent papers on sparse attention + prove efficiency bo
 
 **EurekaClaw** is a multi-agent AI research assistant that goes from a question to a publishable result — autonomously. It crawls the literature, generates and stress-tests hypotheses, runs experiments, and writes up findings, all from your terminal or browser UI.
 
-> **Open Source · Local-First · Private by Default · MIT License**
+> **Open Source · Local-First · Private by Default · Apache 2.0 License**
 
 ---
 
@@ -246,7 +245,7 @@ If you use EurekaClaw in your research, please cite:
 
 ## License
 
-MIT License. See [LICENSE](LICENSE) for details.
+Apache 2.0 License. See [LICENSE](LICENSE) for details.
 
 ---
 
