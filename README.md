@@ -41,7 +41,7 @@ $ eurekaclaw prove "Find recent papers on sparse attention + prove efficiency bo
 | 📄 | **Paper Writer** | Draft camera-ready LaTeX papers with theorem environments and citations |
 | 🖥️ | **Runs Locally** | Use Ollama, vLLM, or any OpenAI-compatible endpoint — data stays private |
 | 🧠 | **Continual Learning** | Distills proof strategies into skills after every session, improving over time |
-| 🧪 | **Experiment Runner** | Numerically validates theoretical bounds; flags low-confidence lemmas |
+| 🧪 | **Experiment Runner** *(under development)* | Numerically validates theoretical bounds; flags low-confidence lemmas |
 | 🌐 | **Browser UI** | Visual interface with live progress, settings sliders, and results viewer |
 
 ---
@@ -191,6 +191,21 @@ To add a **custom skill**, drop a `.md` file into `~/.eurekaclaw/skills/` — se
 To add a **new research domain**, subclass `DomainPlugin` — see [domains.md](https://github.com/EurekaClaw/EurekaClaw_dev_zero/blob/main/docs/domains.md).
 
 To add a **new tool**, subclass `BaseTool` and register it — see [tools.md](https://github.com/EurekaClaw/EurekaClaw_dev_zero/blob/main/docs/tools.md).
+
+---
+
+## Acknowledgements
+
+EurekaClaw builds on ideas and inspiration from the broader AI-for-science community. We thank the authors of the following projects:
+
+- [MetaClaw](https://github.com/aiming-lab/MetaClaw) — multi-agent research orchestration
+- [EvoScientist](https://github.com/EvoScientist/EvoScientist) — evolutionary hypothesis generation
+- [AI-Researcher](https://github.com/hkuds/ai-researcher) — automated research pipeline
+- [Awesome AI for Science](https://github.com/ai-boost/awesome-ai-for-science) — curated resource list
+- [Dr. Claw](https://github.com/OpenLAIR/dr-claw) — open research agent framework
+- [OpenClaw](https://github.com/openclaw/openclaw) — open-source research claw
+- [ClawTeam](https://github.com/HKUDS/ClawTeam) — collaborative research agents
+- [ScienceClaw](https://github.com/beita6969/ScienceClaw) — science-focused research agent
 
 ---
 
