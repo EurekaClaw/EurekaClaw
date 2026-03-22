@@ -78,7 +78,7 @@ ResearchBrief
 
 ## Theory Agent Inner Loop (7 Stages)
 
-The `TheoryAgent` runs a **bottom-up proof pipeline** implemented in `inner_loop_yaml.py`:
+The `TheoryAgent` runs a **bottom-up proof pipeline** implemented in `inner_loop_yaml.py`. The full loop structure including all retry paths is shown in the Pipeline Stages diagram above. Stage I/O summary:
 
 | Stage | Class | Input | Output |
 |---|---|---|---|
@@ -95,6 +95,8 @@ The `LemmaDeveloper` runs its own inner loop per lemma:
 <p align="center">
   <img src="images/pipeline-theory.svg" alt="TheoryAgent Inner Loop" width="860"/>
 </p>
+
+**Provenance:** Each lemma in the proof plan is tagged `known` (directly citable), `adapted` (needs modification), or `new` (must be fully proved). Only `adapted` and `new` lemmas enter the LemmaDeveloper loop.
 
 ## LaTeX Compilation Pipeline
 
@@ -149,24 +151,9 @@ After the TheoryAgent completes and before the WriterAgent runs, the `MetaOrches
 2. The user is asked: **y** (proceed) or **n** (flag the most problematic step).
 3. On rejection:
    - User enters the lemma number (`L3`) or ID, and a description of the logical gap.
-   - `MetaOrchestrator._handle_theory_review_gate()` finds the theory task, injects the feedback as `[User feedback]: ...`, resets it to `PENDING`, and re-runs the TheoryAgent once.
-   - After the revision, the updated sketch is shown again for a final look (no further retry).
-4. On second rejection, the pipeline proceeds to the WriterAgent anyway with a warning.
-
-## Pause / Resume
-
-The TheoryAgent supports graceful pausing at stage boundaries via `ProofCheckpoint` (`agents/theory/checkpoint.py`).
-
-**Pause flow:**
-- `eurekaclaw pause <session_id>` or **Ctrl+C** writes `~/.eurekaclaw/sessions/<session_id>/pause.flag`.
-- At each stage boundary in `inner_loop_yaml._run_once()`, `ProofCheckpoint.is_pause_requested()` is checked.
-- When detected: clears the flag, saves `checkpoint.json` (current stage + full `TheoryState`), raises `ProofPausedException`.
-- `ProofPausedException` propagates through both `_run_once` and `agent.py` (explicit re-raise in both `except Exception` handlers).
-
-**Resume flow:**
-- `eurekaclaw resume <session_id>` loads `checkpoint.json`, reconstructs `TheoryState`, and re-runs the TheoryAgent starting at the saved stage.
-
-**Checkpoint file:** `~/.eurekaclaw/sessions/<session_id>/checkpoint.json`
+   - `MetaOrchestrator._handle_theory_review_gate()` finds the theory task, injects the feedback as `[User feedback]: ...`, resets it to `PENDING`, and re-runs the full TheoryAgent.
+   - After the revision, the updated sketch is shown again — the user can reject and re-run repeatedly.
+4. The loop continues until the user approves or the retry count reaches `THEORY_REVIEW_MAX_RETRIES` (default 3), after which the pipeline proceeds to the WriterAgent with a warning.
 
 ## Post-Run Learning
 
