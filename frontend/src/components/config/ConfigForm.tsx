@@ -24,6 +24,7 @@ export function ConfigForm() {
   const showBackendAnthropicOnly = backend === 'anthropic';
   const showOauth = backend === 'anthropic' && authMode === 'oauth';
   const showOpenAiCompat = backend === 'openai_compat';
+  const showMinimax = backend === 'minimax';
   const showApiKey = backend === 'anthropic' && authMode === 'api_key';
 
   useEffect(() => {
@@ -100,6 +101,7 @@ export function ConfigForm() {
         <select name="llm_backend" value={val('llm_backend') || 'anthropic'} onChange={(e) => handleChange('llm_backend', e.target.value)}>
           <option value="anthropic">anthropic</option>
           <option value="openai_compat">openai_compat</option>
+          <option value="minimax">minimax</option>
         </select>
       </label>
 
@@ -138,6 +140,22 @@ export function ConfigForm() {
       <label>
         <span>Theory iterations</span>
         <input type="number" name="theory_max_iterations" min={1} value={val('theory_max_iterations')} onChange={(e) => handleChange('theory_max_iterations', e.target.value)} />
+      </label>
+      <label>
+        <span>Gate mode</span>
+        <select name="gate_mode" value={val('gate_mode') || 'auto'} onChange={(e) => handleChange('gate_mode', e.target.value)}>
+          <option value="auto">auto — pause for human when confidence is low</option>
+          <option value="human">human — always pause for review</option>
+          <option value="none">none — fully autonomous</option>
+        </select>
+      </label>
+      <label>
+        <span>Experiment mode</span>
+        <select name="experiment_mode" value={val('experiment_mode') || 'auto'} onChange={(e) => handleChange('experiment_mode', e.target.value)}>
+          <option value="auto">auto — run only when quantitative bounds are found</option>
+          <option value="true">true — always run validation stage</option>
+          <option value="false">false — always skip validation stage</option>
+        </select>
       </label>
 
       <details className="full-width token-limits-details">
@@ -210,6 +228,18 @@ export function ConfigForm() {
           <label className="full-width">
             <span>OpenAI-compatible model</span>
             <input type="text" name="openai_compat_model" value={val('openai_compat_model')} onChange={(e) => handleChange('openai_compat_model', e.target.value)} />
+          </label>
+        </>
+      )}
+      {showMinimax && (
+        <>
+          <label className="full-width">
+            <span>Minimax API key</span>
+            <input type="password" name="minimax_api_key" value={val('minimax_api_key')} onChange={(e) => handleChange('minimax_api_key', e.target.value)} />
+          </label>
+          <label className="full-width">
+            <span>Minimax model</span>
+            <input type="text" name="minimax_model" placeholder="MiniMax-Text-01" value={val('minimax_model')} onChange={(e) => handleChange('minimax_model', e.target.value)} />
           </label>
         </>
       )}

@@ -21,6 +21,11 @@ export interface AppConfig {
   openai_compat_base_url?: string;
   openai_compat_api_key?: string;
   openai_compat_model?: string;
+  minimax_api_key?: string;
+  minimax_model?: string;
+  eurekaclaw_mode?: string;
+  gate_mode?: string;
+  experiment_mode?: string;
   eurekaclaw_dir?: string;
   max_tokens_agent?: number;
   max_tokens_prover?: number;
