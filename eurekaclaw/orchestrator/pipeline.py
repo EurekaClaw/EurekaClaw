@@ -46,7 +46,7 @@ class PipelineManager:
     # ------------------------------------------------------------------
 
     def _load_spec(self, path: Path) -> dict[str, Any]:
-        with path.open() as fh:
+        with path.open(encoding="utf-8") as fh:
             return yaml.safe_load(fh)
 
     def _build_from_spec(
