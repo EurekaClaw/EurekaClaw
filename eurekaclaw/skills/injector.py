@@ -40,12 +40,10 @@ class SkillInjector:
         if strategy == "tag":
             return self._tag_retrieval(task.agent_role, role, k)
         if strategy == "semantic":
-            return self._semantic_retrieval(task, role, k)
-        # # hybrid: tag filter first, then rank by description similarity
-        candidates = self._tag_retrieval(task.agent_role, role, k * 3)
-        # if len(candidates) <= k:
-        #     return candidates
-        return self._rank_by_text_similarity(candidates, task, k)
+            query = f"{task.name} {task.description} {role}"
+            return self._semantic_retrieval(query, role, k)
+        else:
+            return self._tag_retrieval(task.agent_role, role, k)
 
     def _tag_retrieval(self, task_role: str, role: str, k: int) -> list[SkillRecord]:
         by_role = self.registry.get_by_role(role)
@@ -67,19 +65,18 @@ class SkillInjector:
         combined = must_have_skills + optional_skills
         return combined[:k]
 
-    def _semantic_retrieval(self, task: Task, role: str, k: int) -> list[SkillRecord]:
+    def _semantic_retrieval(self, query: str, role: str, k: int) -> list[SkillRecord]:
         """Embedding-based retrieval using sentence-transformers."""
         model = SentenceTransformer("all-MiniLM-L6-v2")
-        query = f"{task.name} {task.description} {role}"
         q_emb = model.encode(query)
 
         by_role = self.registry.get_by_role(role)
+        by_role = set(s.meta.name for s in by_role)
         if self.selected_skills:
             must_have = set(s.meta.name for s in self.selected_skills)
             must_have = must_have & by_role
         else:
             must_have = set()
-
 
         skills = self.registry.load_all()
         scored = []
@@ -137,4 +134,7 @@ if __name__ == "__main__":    # Quick test
     registry = SkillRegistry(skills_dir=pathlib.Path.home() / ".eurekaclaw/skills")
     injector = SkillInjector(registry, selected_skills=["eluder_dimension", "compactness_argument"])
     top_skills = injector._tag_retrieval(AgentRole.SURVEY, AgentRole.THEORY, 3)
+    print([s.meta.name for s in top_skills])
+
+    top_skills = injector._semantic_retrieval("test query", AgentRole.THEORY, 3)
     print([s.meta.name for s in top_skills])
