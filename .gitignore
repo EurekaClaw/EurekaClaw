@@ -65,5 +65,4 @@ error.log
 # ── Misc ─────────────────────────────────────────────────────────────────────
 resources.txt
 example.sh
-.gitattributes
 sync-from-main.sh
