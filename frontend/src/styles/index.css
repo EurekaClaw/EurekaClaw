@@ -3417,18 +3417,51 @@ textarea {
 
 .direction-gate-card {
   background: var(--surface-strong);
-  border: 1.5px solid var(--accent-soft);
+  border: 1.5px solid var(--amber, #e8a735);
   border-radius: var(--radius-md);
   padding: 20px 22px;
-  max-width: 560px;
+  max-width: 580px;
   margin: 0 auto;
 }
 
 .direction-gate-heading {
   font-weight: 700;
   font-size: 0.95rem;
-  margin: 0 0 8px;
+  margin: 0 0 12px;
+  color: var(--amber, #e8a735);
+}
+
+.direction-gate-section {
+  margin-top: 14px;
+}
+
+.direction-gate-sublabel {
+  font-weight: 600;
+  font-size: 0.85rem;
+  margin: 0 0 6px;
   color: var(--text);
+}
+
+.direction-gate-problems {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 4px;
+}
+
+.direction-gate-problems li {
+  position: relative;
+  padding-left: 16px;
+  font-size: 0.83rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin-bottom: 4px;
+}
+
+.direction-gate-problems li::before {
+  content: '•';
+  position: absolute;
+  left: 4px;
+  color: var(--primary);
 }
 
 /* ── Empty survey gate ───────────────────────────────────────────────────── */
