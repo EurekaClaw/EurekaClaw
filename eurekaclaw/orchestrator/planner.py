@@ -141,8 +141,8 @@ Return JSON: {{
         return directions
 
     def _apply_scores(self, directions: list[ResearchDirection], text: str) -> ResearchDirection:
-        try:
-            for delim_start, delim_end in [("```json", "```"), ("{", None)]:
+        for delim_start, delim_end in [("```json", "```"), ("{", None)]:
+            try:
                 if delim_start in text:
                     start = text.index(delim_start) + len(delim_start)
                     if delim_end:
@@ -165,8 +165,8 @@ Return JSON: {{
                     best_idx = int(data.get("best_index", 0))
                     if 0 <= best_idx < len(directions):
                         return directions[best_idx]
-        except (json.JSONDecodeError, ValueError, KeyError):
-            pass
+            except (json.JSONDecodeError, ValueError, KeyError):
+                continue
 
         # Fallback: pick the one with the highest computed composite
         for d in directions:
