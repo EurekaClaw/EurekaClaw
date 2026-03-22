@@ -105,9 +105,9 @@ eurekaclaw pause <session_id>
 **Arguments:**
 - `session_id` — Session ID of the running proof to pause (found in the console header at startup)
 
-Writes a `pause.flag` file to `~/.eurekaclaw/sessions/<session_id>/`. The theory agent detects this flag at the next stage boundary, saves a checkpoint, and exits cleanly with a `ProofPausedException`. The partial proof state is preserved in `~/.eurekaclaw/sessions/<session_id>/checkpoint.json`.
+Writes a `pause.flag` file to `~/.eurekaclaw/sessions/<session_id>/`. A background poller detects this flag within 1 second and cancels the running asyncio task immediately, interrupting any in-flight LLM call. The theory agent saves a checkpoint of all lemmas proved so far and raises `ProofPausedException`. The partial proof state is preserved in `~/.eurekaclaw/sessions/<session_id>/checkpoint.json`.
 
-You can also pause by pressing **Ctrl+C** during a run. EurekaClaw intercepts `SIGINT` and writes the pause flag instead of raising `KeyboardInterrupt`, giving the agent time to reach a clean checkpoint boundary.
+You can also pause by pressing **Ctrl+C** during a run. EurekaClaw intercepts `SIGINT` and cancels the running task immediately — the pipeline stops at the next `await` rather than waiting for the current LLM call to finish.
 
 **Example:**
 ```bash
