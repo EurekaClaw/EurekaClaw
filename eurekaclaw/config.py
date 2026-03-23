@@ -108,6 +108,13 @@ class Config(BaseSettings):
     # low-confidence lemmas with \textcolor{orange} in the PDF output.
     enforce_proof_style: bool = Field(default=True, alias="ENFORCE_PROOF_STYLE")
 
+    # ---- Tirith security scanning -------------------------------------------
+    tirith_enabled: bool = Field(default=True, alias="TIRITH_ENABLED")
+    tirith_bin: str = Field(default="tirith", alias="TIRITH_BIN")
+    tirith_timeout: int = Field(default=5, alias="TIRITH_TIMEOUT")
+    tirith_fail_open: bool = Field(default=True, alias="TIRITH_FAIL_OPEN")
+    tirith_gate_enabled: bool = Field(default=True, alias="TIRITH_GATE")
+
     # ---- Paths -------------------------------------------------------------
     eurekaclaw_dir: Path = Field(default=Path.home() / ".eurekaclaw", alias="EUREKACLAW_DIR")
     lean4_bin: str = Field(default="lean", alias="LEAN4_BIN")
