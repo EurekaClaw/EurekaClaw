@@ -57,13 +57,14 @@ class SurveyAgent(BaseAgent):
     role = AgentRole.SURVEY
 
     def get_tool_names(self) -> list[str]:
-        return ["arxiv_search", "semantic_scholar_search", "web_search", "citation_manager"]
+        return ["arxiv_search", "semantic_scholar_search", "web_search", "citation_manager", "tirith_scan"]
 
     def _role_system_prompt(self, task: Task) -> str:
         return """\
 You are the Survey Agent of EurekaClaw. Your job: fast, focused literature search.
 
 Do 2-3 targeted arXiv searches, then synthesize. Be concise.
+If a URL looks suspicious or unfamiliar, use tirith_scan to check it before citing.
 
 Output a JSON object with keys:
 - papers: top 5-8 most relevant papers (title, authors, year, arxiv_id, abstract 1 sentence)

@@ -14,7 +14,7 @@ class BaseTool(ABC):
     def to_anthropic_tool_def(self) -> dict: ... # format for API
 ```
 
-Tools are stored in a `ToolRegistry`. The default registry (`build_default_registry()`) includes the 7 built-in tools. Domain plugins can add extra tools via `DomainPlugin.register_tools()`.
+Tools are stored in a `ToolRegistry`. The default registry (`build_default_registry()`) includes the 8 built-in tools. Domain plugins can add extra tools via `DomainPlugin.register_tools()`.
 
 ---
 
@@ -246,8 +246,48 @@ class ToolRegistry:
     def __contains__(name: str) -> bool
     def __len__() -> int
 
-def build_default_registry() -> ToolRegistry   # create with all 7 built-in tools
+def build_default_registry() -> ToolRegistry   # create with all 8 built-in tools
 ```
+
+---
+
+### `tirith_scan`
+
+**File:** `eurekaclaw/tools/tirith_security.py`
+
+**Purpose:** Scan text for security threats using [Tirith](https://github.com/sheeki03/tirith). Detects suspicious URLs, homograph attacks, terminal injection, pipe-to-shell patterns, typosquatted packages, and more.
+
+**Inputs:**
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `text` | string | required | Text to scan (URL, command, pasted content) |
+| `context` | string | `"paste"` | `"exec"` for commands, `"paste"` for untrusted text |
+
+**Output:**
+```json
+{
+  "safe": true,
+  "action": "allow",
+  "findings": [],
+  "summary": ""
+}
+```
+Or when threats are found:
+```json
+{
+  "safe": false,
+  "action": "block",
+  "findings": [
+    {"rule": "pipe_to_interpreter", "severity": "HIGH", "title": "Pipe to shell", "description": "..."}
+  ],
+  "summary": "pipe to shell detected"
+}
+```
+
+**Available to agents:** SurveyAgent, TheoryAgent, ExperimentAgent. Use when a URL or command looks suspicious or unfamiliar — not for routine scanning of every result.
+
+**External dependency:** Tirith binary (auto-installed from GitHub releases if not found).
 
 ---
 

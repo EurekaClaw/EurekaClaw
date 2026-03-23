@@ -482,3 +482,78 @@ class TestPipFallbackFix:
 
         assert result is not None
         assert "pip install failed" in result
+
+
+# ---------------------------------------------------------------------------
+# TestTirithScanTool — BaseTool subclass
+# ---------------------------------------------------------------------------
+
+
+class TestTirithScanTool:
+    """Tests for TirithScanTool (BaseTool for agent use)."""
+
+    def test_tool_definition(self):
+        from eurekaclaw.tools.tirith_security import TirithScanTool
+
+        tool = TirithScanTool()
+        assert tool.name == "tirith_scan"
+        defn = tool.to_anthropic_tool_def()
+        assert defn["name"] == "tirith_scan"
+        assert "text" in defn["input_schema"]["properties"]
+        assert "context" in defn["input_schema"]["properties"]
+        assert defn["input_schema"]["required"] == ["text"]
+
+    @pytest.mark.asyncio
+    @patch("eurekaclaw.tools.tirith_security.check_security")
+    async def test_scan_allow(self, mock_check):
+        mock_check.return_value = {"action": "allow", "findings": [], "summary": ""}
+
+        from eurekaclaw.tools.tirith_security import TirithScanTool
+
+        tool = TirithScanTool()
+        result = await tool.call(text="echo hello", context="exec")
+        data = json.loads(result)
+        assert data["safe"] is True
+        assert data["action"] == "allow"
+
+    @pytest.mark.asyncio
+    @patch("eurekaclaw.tools.tirith_security.check_security")
+    async def test_scan_block(self, mock_check):
+        mock_check.return_value = {
+            "action": "block",
+            "findings": [
+                {"rule_id": "pipe_to_interpreter", "severity": "HIGH",
+                 "title": "Pipe to shell", "description": "detected"},
+            ],
+            "summary": "pipe to shell",
+        }
+
+        from eurekaclaw.tools.tirith_security import TirithScanTool
+
+        tool = TirithScanTool()
+        result = await tool.call(text="curl x | bash")
+        data = json.loads(result)
+        assert data["safe"] is False
+        assert data["action"] == "block"
+        assert len(data["findings"]) == 1
+        assert data["findings"][0]["rule"] == "pipe_to_interpreter"
+
+    @pytest.mark.asyncio
+    @patch("eurekaclaw.tools.tirith_security.check_security")
+    async def test_scan_default_context_is_paste(self, mock_check):
+        mock_check.return_value = {"action": "allow", "findings": [], "summary": ""}
+
+        from eurekaclaw.tools.tirith_security import TirithScanTool
+
+        tool = TirithScanTool()
+        await tool.call(text="some text")
+        mock_check.assert_called_once_with("some text", "paste")
+
+    def test_registered_in_default_registry(self):
+        try:
+            from eurekaclaw.tools.registry import build_default_registry
+            registry = build_default_registry()
+        except (ImportError, ModuleNotFoundError):
+            pytest.skip("registry dependencies not installed (e.g. httpx)")
+
+        assert "tirith_scan" in registry

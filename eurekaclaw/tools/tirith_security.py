@@ -24,6 +24,7 @@ Ported from NousResearch/hermes-agent tools/tirith_security.py
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import logging
@@ -39,6 +40,7 @@ import time
 from typing import Any
 
 from eurekaclaw.config import settings
+from eurekaclaw.tools.base import BaseTool
 
 logger = logging.getLogger(__name__)
 
@@ -569,3 +571,58 @@ def check_security(text: str, context: str = "paste") -> dict[str, Any]:
             summary = "security warning detected (details unavailable)"
 
     return {"action": action, "findings": findings, "summary": summary}
+
+
+# ---------------------------------------------------------------------------
+# BaseTool subclass for agent use
+# ---------------------------------------------------------------------------
+
+
+class TirithScanTool(BaseTool):
+    """Tirith security scanning tool — agents can scan URLs and text for threats."""
+
+    name = "tirith_scan"
+    description = (
+        "Scan text for security threats using Tirith. Detects suspicious URLs, "
+        "homograph attacks, terminal injection, pipe-to-shell patterns, typosquatted "
+        "packages, and more. Use when a URL or command looks suspicious or unfamiliar."
+    )
+
+    def input_schema(self) -> dict[str, Any]:
+        return {
+            "type": "object",
+            "properties": {
+                "text": {
+                    "type": "string",
+                    "description": "Text to scan (URL, command, pasted content).",
+                },
+                "context": {
+                    "type": "string",
+                    "enum": ["exec", "paste"],
+                    "description": (
+                        "'exec' for commands about to be executed, "
+                        "'paste' for untrusted text. Default: 'paste'."
+                    ),
+                },
+            },
+            "required": ["text"],
+        }
+
+    async def call(self, text: str, context: str = "paste") -> str:
+        loop = asyncio.get_running_loop()
+        result = await loop.run_in_executor(None, check_security, text, context)
+        simplified = {
+            "safe": result["action"] == "allow",
+            "action": result["action"],
+            "findings": [
+                {
+                    "rule": f.get("rule_id"),
+                    "severity": f.get("severity"),
+                    "title": f.get("title"),
+                    "description": f.get("description"),
+                }
+                for f in result.get("findings", [])
+            ],
+            "summary": result.get("summary", ""),
+        }
+        return json.dumps(simplified, indent=2)
