@@ -521,6 +521,37 @@ class UIServerState:
                 loop.close()
                 asyncio.set_event_loop(None)
 
+            # Theory completed — run the writer stage to produce the paper.
+            pipeline = session.bus.get_pipeline()
+            if pipeline:
+                from eurekaclaw.types.tasks import TaskStatus as _TS
+                writer_task = next(
+                    (t for t in pipeline.tasks if t.name == "writer" and t.status != _TS.COMPLETED),
+                    None,
+                )
+                if writer_task:
+                    orch = session.orchestrator
+                    config = _config_payload()
+                    wloop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(wloop)
+                    try:
+                        with _temporary_auth_env(config):
+                            async def _run_writer() -> None:
+                                writer_task.mark_started()
+                                agent = orch.router.resolve(writer_task)
+                                result = await agent.execute(writer_task)
+                                if not result.failed:
+                                    task_outputs = dict(result.output)
+                                    if result.text_summary:
+                                        task_outputs["text_summary"] = result.text_summary
+                                    writer_task.mark_completed(task_outputs)
+                                else:
+                                    writer_task.mark_failed(result.error)
+                            wloop.run_until_complete(_run_writer())
+                    finally:
+                        wloop.close()
+                        asyncio.set_event_loop(None)
+
             run.status = "completed"
             run.output_summary = {"resumed": True, "session_id": session_id}
 
