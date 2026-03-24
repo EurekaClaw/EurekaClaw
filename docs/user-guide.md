@@ -406,7 +406,27 @@ and a **Limitations** section at the end of the paper. This means the proof step
 
 ## Gate Mode and Human Review
 
-Control how much the system pauses for your input with `--gate`:
+EurekaClaw includes interactive gates that pause the pipeline and ask for your input at key decision points. Gates work in both the browser UI and the CLI.
+
+### Browser UI gates
+
+When running `eurekaclaw ui`, gates appear as overlay dialogs on top of the workspace — no matter which tab you are on. There are three gates:
+
+**Survey gate** — triggers when the literature survey finds 0 papers.
+
+The overlay asks you to provide paper IDs or arXiv IDs to retry the survey, or to continue without papers.
+
+**Direction gate** — triggers when ideation returns no candidate research directions (detailed/prove mode).
+
+The overlay shows the original conjecture as a default and lets you type a custom direction, or accept the conjecture as-is.
+
+**Theory review gate** — triggers after the theorem-prover completes.
+
+The overlay shows the assembled proof and lets you either approve it (pipeline continues to experiments and writing) or flag a specific lemma with a reason. Flagging causes the theory agent to re-run with your feedback injected. After a configurable number of retries (`THEORY_REVIEW_MAX_RETRIES`, default 3) the proof is auto-approved.
+
+### CLI gates
+
+When running from the terminal, the same gates appear as interactive prompts:
 
 ### `--gate none` (default)
 
