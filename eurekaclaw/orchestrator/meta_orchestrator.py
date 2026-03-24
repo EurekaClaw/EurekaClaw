@@ -116,6 +116,7 @@ class MetaOrchestrator:
             if task.status == TaskStatus.SKIPPED:
                 continue
 
+
             # Check dependencies
             if not self._dependencies_met(task, pipeline):
                 logger.warning("Skipping %s — dependencies not met", task.name)

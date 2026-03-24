@@ -137,6 +137,8 @@ function TheoryReviewGate({ run, ts }: { run: SessionRun; ts: TheoryState }) {
 }
 
 export function ProofPanel({ run, theoryState: theoryStateOverride }: ProofPanelProps) {
+  const [expandedLemmaKey, setExpandedLemmaKey] = useState<string | null>(null);
+  const [isTheoremOpen, setIsTheoremOpen] = useState(false);
   const ts = theoryStateOverride ?? run?.artifacts?.theory_state;
   const pipeline = run?.pipeline ?? [];
 
@@ -192,10 +194,23 @@ export function ProofPanel({ run, theoryState: theoryStateOverride }: ProofPanel
       <div className="drawer-section">
         {theorem && (
           <div className="proof-theorem-block">
-            <p className="proof-theorem-label">Theorem statement</p>
-            <pre className="proof-theorem-text">
-              {theorem.slice(0, 600)}{theorem.length > 600 ? '\n…' : ''}
-            </pre>
+            <button
+              type="button"
+              className="drawer-section-toggle proof-theorem-toggle"
+              onClick={() => setIsTheoremOpen((open) => !open)}
+            >
+              <span className="drawer-section-toggle-title">
+                <span className={`drawer-section-toggle-caret${isTheoremOpen ? ' is-open' : ''}`} aria-hidden="true">
+                  ▾
+                </span>
+                <p className="proof-theorem-label">Theorem statement</p>
+              </span>
+            </button>
+            {isTheoremOpen && (
+              <pre className="proof-theorem-text">
+                {theorem}
+              </pre>
+            )}
           </div>
         )}
         {theoryStatus && theoryStatus !== 'pending' && (
@@ -226,18 +241,30 @@ export function ProofPanel({ run, theoryState: theoryStateOverride }: ProofPanel
         {allLemmas.length > 0 ? (
           <div className="proof-lemma-chain">
             {allLemmas.map((l, i) => (
-              <div key={i} className="proof-lemma-row">
+              <button
+                key={i}
+                type="button"
+                className={`proof-lemma-row${expandedLemmaKey === `${i}` ? ' is-expanded' : ''}`}
+                onClick={() => setExpandedLemmaKey(expandedLemmaKey === `${i}` ? null : `${i}`)}
+              >
                 <span className="proof-lemma-number">{i + 1}</span>
                 <div className="proof-lemma-content">
-                  <span className="proof-lemma-name">{humanize(l.name)}</span>
+                  <div className="proof-lemma-head">
+                    <span className="proof-lemma-name">{humanize(l.name)}</span>
+                    <span className="proof-lemma-toggle">{expandedLemmaKey === `${i}` ? 'Hide' : 'View'}</span>
+                  </div>
                   {l.proof && (
-                    <span className="proof-lemma-formal">
-                      {l.proof.slice(0, 160)}{l.proof.length > 160 ? '…' : ''}
-                    </span>
+                    expandedLemmaKey === `${i}` ? (
+                      <pre className="proof-lemma-formal proof-lemma-formal--expanded">{l.proof}</pre>
+                    ) : (
+                      <span className="proof-lemma-formal">
+                        {l.proof.slice(0, 160)}{l.proof.length > 160 ? '…' : ''}
+                      </span>
+                    )
                   )}
                 </div>
                 <span className={`proof-lemma-badge badge-${l.conf}`}>{humanize(l.conf)}</span>
-              </div>
+              </button>
             ))}
           </div>
         ) : (

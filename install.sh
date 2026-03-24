@@ -21,7 +21,7 @@ MUTED='\033[38;2;90;100;128m'
 NC='\033[0m'
 
 # ── defaults (overridable via env) ────────────────────────────────────────────
-EUREKACLAW_REPO_URL="${EUREKACLAW_REPO_URL:-https://github.com/EurekaClaw/EurekaClaw_dev_zero.git}"
+EUREKACLAW_REPO_URL="${EUREKACLAW_REPO_URL:-https://github.com/EurekaClaw/EurekaClaw.git}"
 GIT_DIR_DEFAULT="${HOME}/eurekaclaw"
 
 INSTALL_METHOD="${EUREKACLAW_INSTALL_METHOD:-git}"

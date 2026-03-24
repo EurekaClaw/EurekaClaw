@@ -133,20 +133,21 @@ eurekaclaw from-papers 1706.03762 2005.14165 --domain "attention mechanisms"
 
 ## Documentation
 
+See detailed documentation in https://eurekaclaw.github.io/ .
+
 | | |
 |---|---|
-| 📖 [**User Guide**](https://github.com/EurekaClaw/EurekaClaw/blob/main/docs/user-guide.md) | Installation, walkthrough, gate modes, tuning, troubleshooting |
-| ⚙️ [**Configuration**](https://github.com/EurekaClaw/EurekaClaw/blob/main/docs/configuration.md) | All `.env` variables with defaults |
-| 🏗️ [**Architecture**](https://github.com/EurekaClaw/EurekaClaw/blob/main/docs/architecture.md) | Pipeline stages, data flow, component design |
-| 🤖 [**Agents**](https://github.com/EurekaClaw/EurekaClaw/blob/main/docs/agents.md) | Each agent's role, inputs, outputs, and tool usage |
-| 🔧 [**Tools**](https://github.com/EurekaClaw/EurekaClaw/blob/main/docs/tools.md) | arXiv, Semantic Scholar, Lean4, WolframAlpha, code execution |
-| 💻 [**CLI Reference**](https://github.com/EurekaClaw/EurekaClaw/blob/main/docs/cli.md) | All commands and options |
-| 🐍 [**Python API**](https://github.com/EurekaClaw/EurekaClaw/blob/main/docs/api.md) | `EurekaSession`, `KnowledgeBus`, data models |
-| 🧠 [**Memory System**](https://github.com/EurekaClaw/EurekaClaw/blob/main/docs/memory.md) | Episodic, persistent, and knowledge graph tiers |
-| ✨ [**Skills**](https://github.com/EurekaClaw/EurekaClaw/blob/main/docs/skills.md) | Skill registry, injection, distillation, writing custom skills |
-| 🔌 [**Domain Plugins**](https://github.com/EurekaClaw/EurekaClaw/blob/main/docs/domains.md) | Plugin architecture, MAB domain, adding new domains |
-| 🌐 [**UI Design**](https://github.com/EurekaClaw/EurekaClaw/blob/main/docs/UI.md) | React/TS architecture, component tree, run commands, full UI changelog |
-| 📋 [**Changelog**](https://github.com/EurekaClaw/EurekaClaw/blob/main/docs/changelog.md) | All updates and bug fixes |
+| 📖 [**User Guide**](https://eurekaclaw.github.io/user-guide/index.html) | Installation, walkthrough, gate modes, tuning, troubleshooting |
+| ⚙️ [**Configuration**](https://eurekaclaw.github.io/reference/configuration.html) | All `.env` variables with defaults |
+| 🏗️ [**Architecture**](https://eurekaclaw.github.io/reference/architecture.html) | Pipeline stages, data flow, component design |
+| 🤖 [**Agents**](https://eurekaclaw.github.io/reference/agents.html) | Each agent's role, inputs, outputs, and tool usage |
+| 🔧 [**Tools**](https://eurekaclaw.github.io/reference/tools.html) | arXiv, Semantic Scholar, Lean4, WolframAlpha, code execution |
+| 💻 [**CLI Reference**](https://eurekaclaw.github.io/reference/cli.html) | All commands and options |
+| 🐍 [**Python API**](https://eurekaclaw.github.io/reference/api.html) | `EurekaSession`, `KnowledgeBus`, data models |
+| 🧠 [**Memory System**](https://eurekaclaw.github.io/reference/memory.html) | Episodic, persistent, and knowledge graph tiers |
+| ✨ [**Skills**](https://eurekaclaw.github.io/reference/skills.html) | Skill registry, injection, distillation, writing custom skills |
+| 🔌 [**Domain Plugins**](https://eurekaclaw.github.io/reference/domains.html) | Plugin architecture, MAB domain, adding new domains |
+| 🌐 [**UI Design**](https://eurekaclaw.github.io/user-guide/browser-ui.html) | React/TS architecture, component tree, run commands |
 
 ---
 

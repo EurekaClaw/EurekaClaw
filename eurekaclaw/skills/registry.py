@@ -73,9 +73,6 @@ class SkillRegistry:
         skill_names = [s for s in self._skills_dir.iterdir() if s.is_dir()]
         for skill_name_path in skill_names:
             file = skill_name_path / "SKILL.md"
-            if not file.exists():
-                logger.warning("Skipping skill dir with no SKILL.md: %s", skill_name_path)
-                continue
             record = self._load_file(file, is_seed=False)
             skill_name = skill_name_path.name
             record.meta.name = skill_name  # Override name from frontmatter with folder name

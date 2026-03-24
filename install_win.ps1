@@ -146,7 +146,7 @@ if ($gitCmd) {
 Write-Section "[2/3] Installing EurekaClaw"
 
 $RepoUrl = if ($env:EUREKACLAW_REPO_URL) { $env:EUREKACLAW_REPO_URL } `
-           else { "https://github.com/EurekaClaw/EurekaClaw_dev_zero.git" }
+           else { "https://github.com/EurekaClaw/EurekaClaw.git" }
 
 # Clone or update
 if (Test-Path (Join-Path $GitDir ".git")) {

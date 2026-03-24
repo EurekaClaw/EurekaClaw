@@ -174,7 +174,7 @@ const wizardSteps = [
     title: "Install EurekaClaw",
     subtitle: "You need Python 3.11 or newer. Open your Terminal and run these commands in order.",
     items: [
-      { label: "Clone the source code", code: "git clone https://github.com/EurekaClaw/EurekaClaw_dev_zero\ncd EurekaClaw_dev_zero" },
+      { label: "Clone the source code", code: "git clone https://github.com/EurekaClaw/EurekaClaw\ncd EurekaClaw" },
       { label: "Install the package and CLI", code: "pip install -e \".\"", note: "The eurekaclaw command will now be available in your terminal" },
       { label: "Create your settings file", code: "cp .env.example .env", note: "Open .env in any text editor to add your API key in the next step" },
       { label: "Start the web interface", code: "eurekaclaw ui", note: "Then open http://localhost:7860 in your browser — you're already there!" },

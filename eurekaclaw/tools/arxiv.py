@@ -67,10 +67,15 @@ class ArxivSearchTool(BaseTool):
                 "lastUpdatedDate": arxiv.SortCriterion.LastUpdatedDate,
                 "submittedDate": arxiv.SortCriterion.SubmittedDate,
             }
-            client = arxiv.Client()
+            capped = min(max_results, settings.arxiv_max_results)
+            client = arxiv.Client(
+                page_size=capped,
+                delay_seconds=3.0,
+                num_retries=3,
+            )
             search = arxiv.Search(
                 query=query,
-                max_results=min(max_results, settings.arxiv_max_results),
+                max_results=capped,
                 sort_by=sort_map.get(sort_by, arxiv.SortCriterion.Relevance),
             )
             results = []
