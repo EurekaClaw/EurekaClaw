@@ -675,10 +675,12 @@ The **ExperimentAgent** and the `execute_python` tool — which numerically vali
 
 **Current behavior with Docker (`USE_DOCKER_SANDBOX=true`):** Code runs inside `python:3.11-slim` with 512 MB RAM and network disabled. However, Docker must be installed and the daemon running; if Docker is unavailable the tool silently falls back to the host subprocess.
 
+**Tirith pre-screening:** Code, pip requirements, and Docker commands are now pre-screened by [Tirith](https://github.com/sheeki03/tirith) for known threat patterns (homograph URLs, pipe-to-shell, terminal injection) before execution. Tirith is auto-installed on first use. This reduces risk but does not make `execute_python` a security boundary — it is a content-level scan, not a sandbox.
+
 Until proper sandboxing lands in a future release:
 
 - Keep `EXPERIMENT_MODE=false` in your `.env`
-- Do **not** rely on `USE_DOCKER_SANDBOX=true` as a security boundary
+- Do **not** rely on `USE_DOCKER_SANDBOX=true` or Tirith scanning as a security boundary
 - The `experiment_result.json` output file will not be produced
 
 ---
