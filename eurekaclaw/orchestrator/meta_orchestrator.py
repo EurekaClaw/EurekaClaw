@@ -32,8 +32,9 @@ from eurekaclaw.types.agents import AgentRole
 from eurekaclaw.types.artifacts import ResearchBrief
 from eurekaclaw.types.tasks import InputSpec, ResearchOutput, Task, TaskPipeline, TaskStatus
 
+from eurekaclaw.console import console
+
 logger = logging.getLogger(__name__)
-console = Console()
 
 
 class MetaOrchestrator:

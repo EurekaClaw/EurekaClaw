@@ -13,11 +13,12 @@ from rich.table import Table
 from eurekaclaw.config import settings
 from eurekaclaw.types.tasks import Task
 
+from eurekaclaw.console import console
+
 if TYPE_CHECKING:
     pass
 
 logger = logging.getLogger(__name__)
-console = Console()
 
 # Stored per-session so later stages can access user feedback from earlier stages.
 _user_feedback: dict[str, str] = {}
