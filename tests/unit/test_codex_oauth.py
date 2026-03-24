@@ -21,54 +21,54 @@ import pytest
 # ============================================================================
 
 
-class TestProviders:
-    def test_get_provider_openai_codex(self):
-        from eurekaclaw.auth.providers import get_provider
+def test_get_provider_openai_codex():
+    from eurekaclaw.auth.providers import get_provider
 
-        p = get_provider("openai-codex")
-        assert p.name == "openai-codex"
-        assert "openai.com" in p.device_code_url
-        assert "openai.com" in p.token_url
-        assert p.client_id == "app_eurekaclaw"
-        assert "openai.api" in p.scopes
+    p = get_provider("openai-codex")
+    assert p.name == "openai-codex"
+    assert "openai.com" in p.device_code_url
+    assert "openai.com" in p.token_url
+    assert p.client_id == "app_eurekaclaw"
+    assert "openai.api" in p.scopes
 
-    def test_get_provider_unknown_raises(self):
-        from eurekaclaw.auth.providers import get_provider
 
-        with pytest.raises(ValueError, match="Unknown provider"):
-            get_provider("nonexistent-provider")
+def test_get_provider_unknown_raises():
+    from eurekaclaw.auth.providers import get_provider
 
-    def test_list_providers_includes_codex(self):
-        from eurekaclaw.auth.providers import list_providers
+    with pytest.raises(ValueError, match="Unknown provider"):
+        get_provider("nonexistent-provider")
 
-        providers = list_providers()
-        assert "openai-codex" in providers
 
+def test_list_providers_includes_codex():
+    from eurekaclaw.auth.providers import list_providers
+
+    providers = list_providers()
+    assert "openai-codex" in providers
 
 # ============================================================================
 # 2. Token store (uses tmp_path to avoid touching real credentials)
 # ============================================================================
 
 
-class TestTokenStore:
-    def test_save_and_load_tokens(self, tmp_path):
-        """Tokens saved to disk can be loaded back."""
-        from eurekaclaw.auth import token_store
+def test_save_and_load_tokens(tmp_path):
+    """Tokens saved to disk can be loaded back."""
+    from eurekaclaw.auth import token_store
 
-        with patch.object(token_store, "_creds_dir", return_value=tmp_path):
-            token_store.save_tokens("openai-codex", {
-                "access_token": "sk-test-123",
-                "refresh_token": "rt-test-456",
-                "expires_in": 3600,
-            })
+    with patch.object(token_store, "_creds_dir", return_value=tmp_path):
+        token_store.save_tokens("openai-codex", {
+            "access_token": "sk-test-123",
+            "refresh_token": "rt-test-456",
+            "expires_in": 3600,
+        })
 
-            loaded = token_store.load_tokens("openai-codex")
-            assert loaded is not None
-            assert loaded["access_token"] == "sk-test-123"
-            assert loaded["refresh_token"] == "rt-test-456"
-            assert "saved_at" in loaded
+        loaded = token_store.load_tokens("openai-codex")
+        assert loaded is not None
+        assert loaded["access_token"] == "sk-test-123"
+        assert loaded["refresh_token"] == "rt-test-456"
+        assert "saved_at" in loaded
 
-    def test_load_tokens_missing_returns_none(self, tmp_path):
+
+def test_load_tokens_missing_returns_none(tmp_path):
         from eurekaclaw.auth import token_store
 
         with patch.object(token_store, "_creds_dir", return_value=tmp_path):
