@@ -63,6 +63,39 @@ export interface Counterexample {
   discovered_at?: string;
 }
 
+export interface FailedAttempt {
+  lemma_id: string;
+  attempt_text: string;
+  failure_reason: string;
+  iteration: number;
+  timestamp?: string;
+}
+
+export interface KnownResult {
+  source_paper_id: string;
+  source_paper_title: string;
+  result_type: 'theorem' | 'lemma' | 'corollary' | 'algorithm' | 'technique';
+  extraction_source?: 'abstract_summary' | 'pdf_result_sections';
+  statement: string;
+  theorem_content?: string;
+  assumptions?: string;
+  proof_idea?: string;
+  reuse_judgment?: 'direct_reusable' | 'adaptable' | 'background_only' | 'unclear';
+  informal?: string;
+  proof_technique?: string;
+  notation?: Record<string, string>;
+}
+
+export interface ProofPlanEntry {
+  lemma_id: string;
+  statement: string;
+  informal?: string;
+  provenance: 'known' | 'adapted' | 'new';
+  source?: string;
+  adaptation_note?: string;
+  dependencies?: string[];
+}
+
 export interface ResearchDirection {
   direction_id: string;
   title: string;
@@ -119,16 +152,23 @@ export interface TheoryState {
   theorem_id?: string;
   informal_statement?: string;
   formal_statement?: string;
+  memory_theorems?: string[];
+  problem_type?: string;
+  analysis_notes?: string;
+  proof_template?: string;
   proof_skeleton?: string;
   assembled_proof?: string;
   research_gap?: string;
   status?: 'pending' | 'in_progress' | 'proved' | 'refuted' | 'abandoned';
+  known_results?: KnownResult[];
+  proof_plan?: ProofPlanEntry[];
   /** lemma_id → LemmaNode — use this to get readable names for open_goals */
   lemma_dag?: Record<string, LemmaNode>;
   /** lemma_id → ProofRecord */
   proven_lemmas?: Record<string, ProofRecord>;
   /** list of lemma_ids not yet proven — look up names via lemma_dag */
   open_goals?: string[];
+  failed_attempts?: FailedAttempt[];
   counterexamples?: Counterexample[];
   iteration?: number;
 }

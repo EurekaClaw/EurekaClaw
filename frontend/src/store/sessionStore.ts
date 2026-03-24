@@ -34,6 +34,7 @@ interface SessionState {
   pauseRequestedAt: Date | null;
 
   setSessions: (sessions: SessionRun[]) => void;
+  removeSession: (runId: string) => void;
   setCurrentRunId: (id: string | null) => void;
   setCurrentLogPage: (page: number) => void;
   setIsPausingRequested: (val: boolean) => void;
@@ -49,12 +50,21 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   pauseRequestedAt: null,
 
   setSessions: (sessions) => {
-    // Merge: server sessions take priority; keep local-only sessions that server doesn't know about
-    const serverIds = new Set(sessions.map((s) => s.run_id));
-    const localOnly = get().sessions.filter((s) => !serverIds.has(s.run_id));
-    const merged = [...sessions, ...localOnly];
-    set({ sessions: merged });
-    persistSessions(merged);
+    set({ sessions });
+    persistSessions(sessions);
+  },
+  removeSession: (runId) => {
+    const remaining = get().sessions.filter((s) => s.run_id !== runId);
+    const nextState: Partial<SessionState> = { sessions: remaining };
+    if (get().currentRunId === runId) {
+      nextState.currentRunId = null;
+      nextState.currentLogPage = 1;
+      nextState.isPausingRequested = false;
+      nextState.pauseRequestedAt = null;
+      persistRunId(null);
+    }
+    set(nextState);
+    persistSessions(remaining);
   },
   setCurrentRunId: (id) => { set({ currentRunId: id }); persistRunId(id); },
   setCurrentLogPage: (page) => set({ currentLogPage: page }),

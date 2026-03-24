@@ -287,6 +287,8 @@ class PaperReader:
         papers = papers[:target_abstract_papers]
 
         all_results: list[KnownResult] = []
+        state.known_results = []
+        self.bus.put_theory_state(state)
         pdf_successes = 0
         target_pdf_papers = max(0, min(settings.paper_reader_pdf_papers, len(papers)))
         for paper in papers:
@@ -319,6 +321,8 @@ class PaperReader:
                     )
 
             all_results.extend(results)
+            state.known_results = list(all_results)
+            self.bus.put_theory_state(state)
             logger.info(
                 "PaperReader: extracted %d results from '%s'",
                 len(results), paper.title,
