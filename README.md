@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/logo-cropped.svg" width="700" alt="EurekaClaw  — The Research Claw">
+  <img src="assets/logo-cropped.svg" width="100%" alt="EurekaClaw  — The Research Claw">
 </p>
 
 <p align="center">
@@ -20,6 +20,10 @@
   <a href="https://eurekaclaw.github.io/"><img src="https://img.shields.io/badge/📚%20Docs-eurekaclaw.github.io-007ACC?style=flat-square&color=green" alt="Docs"/></a>
   <a href="https://www.xiaohongshu.com/user/profile/69bf26c7000000003402ea57"><img src="https://img.shields.io/badge/📕%20RedNote-Follow%20Us-FF2442?style=flat-square" alt="RedNote"/></a>
   <a href="https://discord.gg/SprC5BgmcW"><img src="https://img.shields.io/badge/💬%20Discord-Join%20Us-5865F2?style=flat-square" alt="Discord"/></a>
+</p>
+
+<p align="center">
+  <strong>English</strong> | <a href="README_zh.md">中文</a>
 </p>
 
 ```
@@ -109,7 +113,7 @@ eurekaclaw explore "multi-armed bandit theory"
 eurekaclaw from-papers 1706.03762 2005.14165 --domain "attention mechanisms"
 ```
 
-> No API key? Use a Claude Pro/Max subscription via [OAuth](https://github.com/EurekaClaw/EurekaClaw/blob/main/docs/configuration.md#llm-backend).
+> No API key? Use a Claude Pro/Max subscription via [OAuth](https://eurekaclaw.github.io/getting-started/authentication.html#option-b-claude-pro-max-via-oauth).
 
 ---
 
@@ -159,7 +163,7 @@ cp .env.example .env
 
 | Variable | Default | Description |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | — | API key (or use OAuth, see [User Guide](https://github.com/EurekaClaw/EurekaClaw/blob/main/docs/user-guide.md#authentication)) |
+| `ANTHROPIC_API_KEY` | — | API key (or use OAuth, see [User Guide](https://eurekaclaw.github.io/getting-started/authentication.html)) |
 | `EUREKACLAW_MODEL` | `claude-sonnet-4-6` | Main reasoning model |
 | `GATE_MODE` | `auto` | `none` · `auto` · `human` |
 | `THEORY_PIPELINE` | `default` | `default` or `memory_guided` |
@@ -167,7 +171,7 @@ cp .env.example .env
 | `EXPERIMENT_MODE` | `auto` | `auto` · `true` · `false` |
 | `THEORY_MAX_ITERATIONS` | `10` | Max proof loop iterations |
 
-Full reference → [configuration.md](https://github.com/EurekaClaw/EurekaClaw/blob/main/docs/configuration.md)
+Full reference → [configuration.md](https://eurekaclaw.github.io/reference/configuration.html)
 
 ---
 
@@ -205,11 +209,11 @@ make typecheck
 make dev
 ```
 
-To add a **custom skill**, drop a `.md` file into `~/.eurekaclaw/skills/` — see [skills.md](https://github.com/EurekaClaw/EurekaClaw/blob/main/docs/skills.md).
+To add a **custom skill**, drop a `.md` file into `~/.eurekaclaw/skills/` — see [Skills and Continual Learning](https://eurekaclaw.github.io/user-guide/skills-learning.html).
 
-To add a **new research domain**, subclass `DomainPlugin` — see [domains.md](https://github.com/EurekaClaw/EurekaClaw/blob/main/docs/domains.md).
+To add a **new research domain**, subclass `DomainPlugin` — see [Domain Plugin System](https://eurekaclaw.github.io/reference/domains.html).
 
-To add a **new tool**, subclass `BaseTool` and register it — see [tools.md](https://github.com/EurekaClaw/EurekaClaw/blob/main/docs/tools.md).
+To add a **new tool**, subclass `BaseTool` and register it — see [Research Tools](https://eurekaclaw.github.io/reference/tools.html).
 
 ---
 

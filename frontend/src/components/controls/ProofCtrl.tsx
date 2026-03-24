@@ -124,8 +124,8 @@ export function ProofCtrl({ run, onRestartFast }: ProofCtrlProps) {
           <div className="proof-ctrl-transition-bar proof-ctrl-transition-bar--pausing">
             <span className="pct-spinner pct-spinner--amber" aria-hidden="true" />
             <div className="proof-ctrl-status-text">
-              <span className="proof-ctrl-status-label">Finding a safe stopping point…</span>
-              <span className="proof-ctrl-transition-sub">Finishing the current thinking step before saving your progress</span>
+              <span className="proof-ctrl-status-label">Stopping…</span>
+              <span className="proof-ctrl-transition-sub">Saving progress and halting the session</span>
             </div>
             <span className="proof-ctrl-elapsed" id="pause-elapsed" aria-live="polite">{elapsedText}</span>
           </div>

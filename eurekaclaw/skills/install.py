@@ -9,7 +9,8 @@ import pathlib
 
 CLAWHUB_REGISTRY = "https://clawhub.ai/"  # base registry API URL
 SEED_SKILL_REPO = "https://github.com/EurekaClaw/seed_skills.git"
-SEED_SKILL_FOLDER = "seed_skills"
+SEED_SKILL_REPO_FOLDER = "seed_skills"
+SEED_SKILL_FOLDER = pathlib.Path(SEED_SKILL_REPO_FOLDER) / "seedskills"
 
 def install_from_hub(skillname: str, dest: pathlib.Path) -> None:
     """
@@ -62,6 +63,7 @@ def install_seed_skills(dest: pathlib.Path) -> None:
                 src = os.path.join(repo_path, item)
                 copy_directory(src, dest, overwrite=True)
         
+        repo_path = os.path.join(dest, SEED_SKILL_REPO_FOLDER)
         shutil.rmtree(repo_path)
 
         # print("Successfully installed seed skills.")

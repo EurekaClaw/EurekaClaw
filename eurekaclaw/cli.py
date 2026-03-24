@@ -9,9 +9,9 @@ import signal
 import sys
 from pathlib import Path
 from typing import Any
+import atexit
 
 import click
-from rich.console import Console
 from rich.logging import RichHandler
 from rich.panel import Panel
 
@@ -19,8 +19,25 @@ from eurekaclaw.config import settings
 
 from eurekaclaw.agents.theory.checkpoint import ProofCheckpoint
 from eurekaclaw.types.artifacts import TheoryState
+from eurekaclaw.console import console
 
-console = Console()
+_console_html_path = Path("eurekaclaw_terminal.html")
+_should_save_html = False
+
+
+def _save_console_html() -> None:
+    """Export the terminal session to an HTML file on exit."""
+    if not _should_save_html:
+        return
+    import datetime
+    try:
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        export_path = _console_html_path.with_name(f"eurekaclaw_terminal_{timestamp}.html")
+        console.save_html(str(export_path))
+    except Exception:
+        pass
+
+atexit.register(_save_console_html)
 
 
 def setup_logging(verbose: bool = False) -> None:
@@ -139,7 +156,8 @@ def pause(session_id: str) -> None:
 
 @main.command()
 @click.argument("session_id")
-def resume(session_id: str) -> None:
+@click.option("--output", "-o", default="./results", help="Output directory for artifacts (default: ./results)")
+def resume(session_id: str, output: str) -> None:
     """Resume a paused proof session.
 
     Example: eurekaclaw resume abc12345-...
@@ -150,6 +168,20 @@ def resume(session_id: str) -> None:
     from eurekaclaw.memory.manager import MemoryManager
     from eurekaclaw.skills.injector import SkillInjector
     from eurekaclaw.types.artifacts import ResearchBrief
+
+    global _console_html_path, _should_save_html
+    
+    out_base = Path(output)
+    if out_base.name == session_id:
+        out_dir_path = out_base
+    elif Path.cwd().name == session_id and output == "./results":
+        out_dir_path = Path.cwd()
+    else:
+        out_dir_path = out_base / session_id
+        
+    out_dir_path.mkdir(parents=True, exist_ok=True)
+    _console_html_path = out_dir_path / "eurekaclaw_terminal.html"
+    _should_save_html = True
 
     cp = ProofCheckpoint(session_id)
     if not cp.exists():
@@ -283,6 +315,9 @@ def replay_theory_tail(session_id: str, from_stage: str) -> None:
         console.print(f"[red]Session not found: {session_dir}[/red]")
         sys.exit(1)
 
+    global _console_html_path
+    _console_html_path = session_dir / "eurekaclaw_terminal.html"
+
     theory_path = session_dir / "theory_state.json"
     if not theory_path.exists():
         console.print(f"[red]No theory_state.json found in {session_dir}[/red]")
@@ -374,6 +409,9 @@ def test_paper_reader(session_id: str, paper_ref: str, mode: str, direction: str
     if not session_dir.exists():
         console.print(f"[red]Session not found: {session_dir}[/red]")
         sys.exit(1)
+
+    global _console_html_path
+    _console_html_path = session_dir / "eurekaclaw_terminal.html"
 
     bus = KnowledgeBus.load(session_id, session_dir)
     bib = bus.get_bibliography()
@@ -711,6 +749,14 @@ def _run_session(
     from eurekaclaw.main import EurekaSession, save_artifacts
     from eurekaclaw.types.tasks import InputSpec
 
+    session = EurekaSession()
+
+    global _console_html_path, _should_save_html
+    out_dir_path = Path(output_dir or "./results") / session.session_id
+    out_dir_path.mkdir(parents=True, exist_ok=True)
+    _console_html_path = out_dir_path / "eurekaclaw_terminal.html"
+    _should_save_html = True
+
     # Override the settings singleton in-place so all already-imported modules
     # see the new values (importlib.reload would create a new object that old
     # references wouldn't see).
@@ -733,15 +779,13 @@ def _run_session(
             sys.exit(1)
 
     spec = InputSpec(
-        mode=mode,  # type: ignore[arg-type]
+        mode=mode,
         query=query,
         conjecture=conjecture,
         domain=domain,
         paper_ids=paper_ids or [],
         selected_skills=list(skills or []),
     )
-
-    session = EurekaSession()
 
     from eurekaclaw.agents.theory.checkpoint import ProofCheckpoint, ProofPausedException
     _cp = ProofCheckpoint(session.session_id)
@@ -768,7 +812,7 @@ def _run_session(
         )
         return
 
-    out = save_artifacts(result, output_dir or "./results")
+    out = save_artifacts(result, out_dir_path)
     console.print(f"[green]Artifacts saved to {out}[/green]")
 
 

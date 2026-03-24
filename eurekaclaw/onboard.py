@@ -6,10 +6,9 @@ import sys
 from pathlib import Path
 
 import click
-from rich.console import Console
 from rich.rule import Rule
 
-console = Console()
+from eurekaclaw.console import console
 
 # ── ANSI helpers (used by the arrow-key selector) ─────────────────────────────
 _A_BOLD  = "\x1b[1m"

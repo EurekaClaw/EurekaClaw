@@ -596,6 +596,7 @@ If a section has little content, write at least two sentences rather than omitti
         #    Scan \begin{X}/\end{X} pairs; append missing \end{X} in reverse order.
         #    Also drop any trailing partial tabular row (no closing \\) before closing.
         text = WriterAgent._close_open_environments(text)
+        text = WriterAgent._repair_brace_balance(text)
 
         # 8. Fix [lemma_id] / [lemma\_id] cross-references written by the LLM
         #    (e.g. in theorem proofs and prose) → Lemma~\ref{lem:lemma_id}.
@@ -849,6 +850,19 @@ If a section has little content, write at least two sentences rather than omitti
         return "".join(parts)
 
     @staticmethod
+    @staticmethod
+    def _repair_brace_balance(text: str) -> str:
+        """Append missing closing braces so that LaTeX brace depth never goes negative."""
+        depth = 0
+        for ch in text:
+            if ch == "{":
+                depth += 1
+            elif ch == "}" and depth > 0:
+                depth -= 1
+        if depth > 0:
+            text += "}" * depth
+        return text
+
     def _close_open_environments(text: str) -> str:
         """Detect unclosed LaTeX environments and append the missing \\end{} tags."""
         import re
