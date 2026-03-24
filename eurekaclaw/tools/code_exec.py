@@ -45,9 +45,86 @@ class CodeExecutionTool(BaseTool):
         }
 
     async def call(self, code: str, requirements: list[str] | None = None) -> str:
+        # Tirith security gate — scan code, requirements, and Docker command
+        gate_result = await self._tirith_gate(code, requirements)
+        if gate_result:
+            return gate_result
+
         if settings.use_docker_sandbox:
             return await self._docker_exec(code, requirements or [])
         return await self._subprocess_exec(code, requirements or [])
+
+    async def _tirith_gate(self, code: str, requirements: list[str] | None = None) -> str | None:
+        """Scan code with tirith before execution.
+
+        Scans three surfaces: Python code, pip requirements, and the
+        composed Docker shell command.  Returns error JSON if blocked,
+        None if safe/skipped.  Fails open if tirith is not installed.
+        """
+        if not settings.tirith_gate_enabled:
+            return None
+        try:
+            from eurekaclaw.tools.tirith_security import check_security
+        except ImportError:
+            return None
+
+        loop = asyncio.get_running_loop()
+
+        # 1. Scan the Python code itself
+        result = await loop.run_in_executor(None, check_security, code, "paste")
+        if result["action"] == "block":
+            return self._format_block(result)
+        if result["action"] == "warn":
+            self._log_warnings(result, "code")
+
+        # 2. Scan requirements (pip URL installs, typosquatted packages)
+        if requirements:
+            req_text = " ".join(requirements)
+            req_result = await loop.run_in_executor(
+                None, check_security, req_text, "exec",
+            )
+            if req_result["action"] == "block":
+                return self._format_block(req_result, "Requirements blocked")
+            if req_result["action"] == "warn":
+                self._log_warnings(req_result, "requirements")
+
+        # 3. Scan Docker command (whenever docker mode is enabled)
+        if settings.use_docker_sandbox:
+            install_cmd = (
+                f"pip install -q {' '.join(requirements)}"
+                if requirements
+                else "true"
+            )
+            full_cmd = f"{install_cmd} && python3 -c {json.dumps(code)}"
+            docker_result = await loop.run_in_executor(
+                None, check_security, full_cmd, "exec",
+            )
+            if docker_result["action"] == "block":
+                return self._format_block(docker_result, "Docker command blocked")
+            if docker_result["action"] == "warn":
+                self._log_warnings(docker_result, "docker command")
+
+        return None
+
+    def _log_warnings(self, result: dict, surface: str) -> None:
+        warnings = [f.get("title", "") for f in result.get("findings", [])]
+        msg = "; ".join(filter(None, warnings)) or result.get("summary", "security warning")
+        logger.warning("Tirith %s warnings: %s", surface, msg)
+
+    def _format_block(self, result: dict, prefix: str = "Code blocked") -> str:
+        summary = result.get("summary") or "security issue detected"
+        findings_detail = "; ".join(
+            f"[{f.get('severity', '?')}] {f.get('title', 'unknown')}"
+            for f in result.get("findings", [])
+        ) or summary
+        return json.dumps(
+            {
+                "error": f"{prefix} by Tirith security scan: {findings_detail}",
+                "success": False,
+                "blocked_by": "tirith",
+            },
+            indent=2,
+        )
 
     async def _install_requirements(self, requirements: list[str]) -> str | None:
         """Install packages into the active .venv.
@@ -79,7 +156,9 @@ class CodeExecutionTool(BaseTool):
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
-            await asyncio.wait_for(proc.communicate(), timeout=60)
+            _, stderr = await asyncio.wait_for(proc.communicate(), timeout=60)
+            if proc.returncode != 0:
+                return f"pip install failed (exit {proc.returncode}): {stderr.decode()[:200]}"
         except asyncio.TimeoutError:
             return "pip install timed out"
         return None
