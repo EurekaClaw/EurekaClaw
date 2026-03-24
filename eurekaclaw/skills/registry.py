@@ -142,7 +142,7 @@ class SkillRegistry:
         meta_dict = {k: v for k, v in meta_dict.items() if v is not None}
         frontmatter_block = yaml.dump(meta_dict, default_flow_style=False, allow_unicode=True)
         file_content = f"---\n{frontmatter_block}---\n\n{skill.content}"
-        file_path.write_text(file_content)
+        file_path.write_text(file_content, encoding="utf-8")
         skill.file_path = str(file_path)
         self._skills[skill.meta.name] = skill
         logger.info("Upserted skill: %s", skill.meta.name)
@@ -189,7 +189,7 @@ class SkillRegistry:
             meta_dict = skill.meta.model_dump(mode="json")
             meta_dict = {k: v for k, v in meta_dict.items() if v is not None}
             frontmatter_block = yaml.dump(meta_dict, default_flow_style=False, allow_unicode=True)
-            path.write_text(f"---\n{frontmatter_block}---\n\n{skill.content}")
+            path.write_text(f"---\n{frontmatter_block}---\n\n{skill.content}", encoding="utf-8")
 
         logger.debug(
             "Updated skill stats: %s usage=%d success_rate=%.2f",

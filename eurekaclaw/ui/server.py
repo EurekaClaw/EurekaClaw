@@ -772,13 +772,13 @@ def _preflight_check(config: dict[str, Any]) -> None:
     """
     from eurekaclaw.llm.factory import _BACKEND_ALIASES
 
-    backend = str(config.get("llm_backend", "anthropic"))
+    original_backend = str(config.get("llm_backend", "anthropic"))
     auth_mode = str(config.get("anthropic_auth_mode", "api_key"))
+    codex_auth_mode = str(config.get("codex_auth_mode", "api_key"))
 
-    # Resolve shortcut backends (openrouter, local) → (openai_compat, default_base_url)
-    _canonical, _default_base = _BACKEND_ALIASES.get(backend, (backend, ""))
-    if _canonical != backend:
-        backend = _canonical
+    # Resolve shortcut backends (openrouter, local, codex) → (openai_compat, default_base_url)
+    _canonical, _default_base = _BACKEND_ALIASES.get(original_backend, (original_backend, ""))
+    backend = _canonical if _canonical != original_backend else original_backend
 
     if backend == "openai_compat":
         base_url = str(config.get("openai_compat_base_url", "") or "") or _default_base
@@ -787,6 +787,10 @@ def _preflight_check(config: dict[str, Any]) -> None:
                 "OPENAI_COMPAT_BASE_URL is not set. "
                 "Configure it in the UI settings or .env before starting a session."
             )
+        # Skip API key check for codex OAuth — the key is injected at runtime
+        # by maybe_setup_codex_auth() before the LLM client is created.
+        if original_backend == "codex" and codex_auth_mode == "oauth":
+            return
         api_key = str(config.get("openai_compat_api_key", "") or "")
         if not api_key:
             raise ValueError(
