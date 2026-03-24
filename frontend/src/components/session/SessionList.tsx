@@ -12,6 +12,7 @@ export function SessionList() {
   const currentRunId = useSessionStore((s) => s.currentRunId);
   const setCurrentRunId = useSessionStore((s) => s.setCurrentRunId);
   const setSessions = useSessionStore((s) => s.setSessions);
+  const removeSession = useSessionStore((s) => s.removeSession);
   const setCurrentLogPage = useSessionStore((s) => s.setCurrentLogPage);
   const setActiveView = useUiStore((s) => s.setActiveView);
   const selectedSkills = useSkillStore((s) => s.selectedSkills);
@@ -66,8 +67,7 @@ export function SessionList() {
     if (!confirm('Delete this session? This cannot be undone.')) return;
     try {
       await apiDelete(`/api/runs/${runId}`);
-      const updated = sessions.filter((s) => s.run_id !== runId);
-      setSessions(updated);
+      removeSession(runId);
       if (currentRunId === runId) {
         setCurrentRunId(null);
         setCurrentLogPage(1);

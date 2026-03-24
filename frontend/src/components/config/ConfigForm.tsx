@@ -152,10 +152,12 @@ export function ConfigForm({ onRefreshHealth }: Props) {
         return;
       }
     }
-
+    console.log("dfssdfsfdsdss")
     setStatus(saveAfter ? 'Testing & saving…' : 'Testing connection…', 'info');
     try {
+      console.log("this is xxx")
       const result = await apiPost<TestResponse>('/api/auth/test', config);
+      console.log("this is xxx")
       if (!result.ok) {
         const msg = result.message ?? 'unknown error';
         // If OAuth not installed, show install hint
@@ -173,7 +175,11 @@ export function ConfigForm({ onRefreshHealth }: Props) {
         await loadConfig();
         onRefreshHealth?.();
       }
-      setStatus(`Connected and saved. Preview: ${result.reply_preview || 'OK'}`, 'ok');
+      const preview = result.reply_preview || 'OK';
+      setStatus(
+        saveAfter ? `Connected and saved. Preview: ${preview}` : `Connection verified. Preview: ${preview}`,
+        'ok'
+      );
     } catch (err) {
       setStatus(`Connection error: ${(err as Error).message}`, 'error');
     }
@@ -341,6 +347,9 @@ export function ConfigForm({ onRefreshHealth }: Props) {
             Save &amp; test
           </button>
         </div>
+        {saveStatus && (
+          <p className={`settings-status-msg settings-status-msg--${statusType}`}>{saveStatus}</p>
+        )}
       </section>
 
       {/* ── Section 2: Pipeline ──────────────────────────────────── */}
@@ -483,9 +492,6 @@ export function ConfigForm({ onRefreshHealth }: Props) {
         <div className="settings-bottom-actions">
           <button className="primary-btn" type="submit">Save all settings</button>
         </div>
-        {saveStatus && (
-          <p className={`settings-status-msg settings-status-msg--${statusType}`}>{saveStatus}</p>
-        )}
       </div>
     </form>
   );

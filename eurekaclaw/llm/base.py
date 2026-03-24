@@ -106,6 +106,10 @@ class LLMClient(ABC):
     def __init__(self) -> None:
         self.messages = _MessagesNamespace(self)
 
+    async def close(self) -> None:
+        """Optional async cleanup hook for clients with network transports."""
+        return None
+
     @abstractmethod
     async def _create(
         self,

@@ -53,6 +53,9 @@ class OpenAICompatAdapter(LLMClient):
         self._client = AsyncOpenAI(base_url=base_url, api_key=api_key)
         self._default_model = default_model
 
+    async def close(self) -> None:
+        await self._client.close()
+
     async def _create(
         self,
         *,

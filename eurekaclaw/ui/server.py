@@ -191,6 +191,59 @@ def _write_env_updates(env_path: Path, updates: dict[str, str]) -> None:
     env_path.write_text("\n".join(lines) + ("\n" if lines else ""))
 
 
+def _install_lean4() -> dict[str, Any]:
+    """Install Lean4 via elan and wire LEAN4_BIN to the installed binary."""
+    if _sys.platform.startswith("win"):
+        return {
+            "ok": False,
+            "message": "Lean4 one-click install is not supported on Windows yet. Install elan manually and set LEAN4_BIN.",
+        }
+
+    curl_exe = shutil.which("curl")
+    wget_exe = shutil.which("wget")
+    bash_exe = shutil.which("bash") or "/bin/bash"
+
+    if not curl_exe and not wget_exe:
+        return {
+            "ok": False,
+            "message": "Neither curl nor wget was found. Install one of them, then try again.",
+        }
+
+    if curl_exe:
+        install_cmd = (
+            f'{curl_exe} https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh -sSf '
+            f'| {bash_exe} -s -- -y'
+        )
+    else:
+        install_cmd = (
+            f'{wget_exe} -qO- https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh '
+            f'| {bash_exe} -s -- -y'
+        )
+
+    try:
+        result = _subprocess.run(
+            [bash_exe, "-lc", install_cmd],
+            capture_output=True,
+            text=True,
+            timeout=180,
+        )
+        if result.returncode != 0:
+            return {"ok": False, "message": result.stderr.strip() or result.stdout.strip() or "Lean4 install failed."}
+
+        lean_path = (Path.home() / ".elan" / "bin" / "lean").expanduser()
+        if not lean_path.is_file():
+            return {
+                "ok": False,
+                "message": "elan finished, but the Lean binary was not found at ~/.elan/bin/lean.",
+            }
+
+        settings.lean4_bin = str(lean_path)
+        _write_env_updates(_ENV_PATH, {"LEAN4_BIN": str(lean_path)})
+        return {"ok": True, "message": f"Lean4 installed successfully at {lean_path}."}
+    except Exception as exc:
+        return {"ok": False, "message": str(exc)}
+
+
 class UIServerState:
     """In-memory state for UI sessions and configuration."""
 
@@ -758,12 +811,21 @@ async def _test_llm_auth(config: dict[str, Any]) -> dict[str, Any]:
     """Initialize the configured client and perform a minimal text-generation check."""
     backend = str(config.get("llm_backend", "anthropic"))
     auth_mode = str(config.get("anthropic_auth_mode", "api_key"))
-    model = str(
-        config.get("eurekaclaw_fast_model")
-        or config.get("openai_compat_model")
-        or config.get("eurekaclaw_model")
-        or ""
-    )
+    openai_like_backends = {"openai_compat", "openrouter", "local", "minimax"}
+    if backend in openai_like_backends:
+        model = str(
+            config.get("openai_compat_model")
+            or config.get("eurekaclaw_fast_model")
+            or config.get("eurekaclaw_model")
+            or ""
+        )
+    else:
+        model = str(
+            config.get("eurekaclaw_fast_model")
+            or config.get("eurekaclaw_model")
+            or config.get("openai_compat_model")
+            or ""
+        )
 
     try:
         with _temporary_auth_env(config):
@@ -774,12 +836,19 @@ async def _test_llm_auth(config: dict[str, Any]) -> dict[str, Any]:
                 openai_api_key=str(config.get("openai_compat_api_key", "") or ""),
                 openai_model=str(config.get("openai_compat_model", "") or ""),
             )
-            response = await client.messages.create(
-                model=model,
-                max_tokens=16,
-                system="Reply with exactly OK.",
-                messages=[{"role": "user", "content": "Return OK."}],
-            )
+            try:
+                # Use the backend's normalized low-level call here instead of the
+                # shared retry wrapper. Some OpenAI-compatible providers can return
+                # a successful response with no text blocks for tiny probe prompts,
+                # which is still enough to verify auth/connectivity.
+                response = await client._create(
+                    model=model,
+                    max_tokens=16,
+                    system="Reply with exactly OK.",
+                    messages=[{"role": "user", "content": "Return OK."}],
+                )
+            finally:
+                await client.close()
     except Exception as exc:
         return {
             "ok": False,
@@ -790,11 +859,18 @@ async def _test_llm_auth(config: dict[str, Any]) -> dict[str, Any]:
 
     text_parts = [block.text for block in response.content if getattr(block, "type", "") == "text"]
     reply = " ".join(text_parts).strip()
+    message = "Connection verified with a live model response."
+    if not response.content:
+        message = (
+            "Connection verified, but the provider returned no preview text for the probe request. "
+            f"stop_reason={response.stop_reason}, input_tokens={response.usage.input_tokens}, "
+            f"output_tokens={response.usage.output_tokens}"
+        )
     return {
         "ok": True,
         "provider": backend,
         "auth_mode": auth_mode,
-        "message": "Connection verified with a live model response.",
+        "message": message,
         "reply_preview": reply[:120],
         "model": model,
     }
@@ -1013,6 +1089,12 @@ class UIRequestHandler(SimpleHTTPRequestHandler):
                     self._send_json({"ok": False, "message": result.stderr.strip() or result.stdout.strip()})
             except Exception as exc:
                 self._send_json({"ok": False, "message": str(exc)})
+            return
+
+        if parsed.path == "/api/lean4/install":
+            result = _install_lean4()
+            status = HTTPStatus.OK if result.get("ok") else HTTPStatus.BAD_REQUEST
+            self._send_json(result, status=status)
             return
 
         if parsed.path == "/api/oauth/login":

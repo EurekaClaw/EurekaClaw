@@ -2207,6 +2207,23 @@ textarea {
   padding: 3px 8px;
 }
 
+.settings-health-cta {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(15, 106, 184, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.settings-health-cta-copy {
+  margin: 0;
+  font-size: 0.84rem;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
 /* Settings form */
 .settings-form {
   display: flex;
@@ -2470,6 +2487,69 @@ textarea {
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+.settings-tool-panel {
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1px solid rgba(15, 106, 184, 0.15);
+  background: rgba(243, 249, 255, 0.7);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.settings-tool-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.88rem;
+  color: var(--muted);
+}
+
+.settings-tool-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(159, 47, 47, 0.6);
+  flex-shrink: 0;
+}
+
+.settings-tool-dot.is-ok {
+  background: var(--ok);
+}
+
+.settings-tool-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.settings-tool-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.settings-tool-btn {
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  border: 1px solid rgba(15, 106, 184, 0.2);
+  background: rgba(255, 255, 255, 0.8);
+  color: var(--primary-strong);
+  cursor: pointer;
+  transition: background 160ms ease, transform 160ms ease;
+}
+
+.settings-tool-btn:hover:not(:disabled) {
+  background: rgba(220, 234, 251, 0.6);
+  transform: translateY(-1px);
+}
+
+.settings-tool-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .settings-oauth-status {
@@ -4644,6 +4724,11 @@ textarea {
   margin: 0 0 6px;
 }
 
+.proof-theorem-toggle {
+  margin-bottom: 0;
+  border-bottom: none;
+}
+
 .proof-theorem-text {
   margin: 0;
   font-family: "Fira Code", "JetBrains Mono", monospace;
@@ -4668,6 +4753,13 @@ textarea {
   border-radius: 10px;
   background: var(--surface-strong);
   border: 1px solid var(--line);
+  width: 100%;
+  text-align: left;
+}
+
+.proof-lemma-row.is-expanded {
+  border-color: rgba(15, 106, 184, 0.2);
+  background: rgba(244, 249, 255, 0.94);
 }
 
 .proof-lemma-number {
@@ -4693,10 +4785,26 @@ textarea {
   gap: 2px;
 }
 
+.proof-lemma-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
 .proof-lemma-name {
   font-weight: 600;
   font-size: 0.82rem;
   color: var(--text);
+}
+
+.proof-lemma-toggle {
+  flex-shrink: 0;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--primary);
 }
 
 .proof-lemma-formal {
@@ -4705,6 +4813,16 @@ textarea {
   font-family: "Fira Code", monospace;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+.proof-lemma-formal--expanded {
+  margin: 6px 0 0;
+  max-height: 240px;
+  overflow-y: auto;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--surface-cool);
+  overscroll-behavior: contain;
 }
 
 .proof-lemma-badge {
@@ -4802,7 +4920,9 @@ textarea {
 .agent-drawer-body {
   flex: 1;
   overflow-y: auto;
-  padding: 18px 20px 24px;
+  min-height: 0;
+  padding: 18px 20px calc(40px + env(safe-area-inset-bottom, 0px));
+  scroll-padding-bottom: 48px;
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -4812,6 +4932,60 @@ textarea {
 
 .drawer-section {
   margin-bottom: 18px;
+}
+
+.drawer-section-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+  padding: 0 0 2px;
+  margin: 0 0 8px;
+  color: inherit;
+  border-bottom: 1px solid rgba(27, 63, 104, 0.08);
+}
+
+.drawer-section-toggle-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.drawer-section-toggle h4 {
+  margin-bottom: 0;
+}
+
+.drawer-section-toggle-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: rgba(15, 106, 184, 0.08);
+  color: var(--primary);
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.drawer-section-toggle-caret {
+  flex-shrink: 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--muted);
+  transition: transform 0.16s ease, color 0.16s ease;
+}
+
+.drawer-section-toggle:hover .drawer-section-toggle-caret {
+  color: var(--primary);
+}
+
+.drawer-section-toggle-caret.is-open {
+  transform: rotate(180deg);
+  color: var(--primary);
 }
 
 .drawer-section h4 {
@@ -4829,6 +5003,12 @@ textarea {
   gap: 4px;
 }
 
+.drawer-paper-list--scroll {
+  max-height: none;
+  overflow: visible;
+  padding-right: 0;
+}
+
 .drawer-paper-row {
   display: flex;
   gap: 8px;
@@ -4842,8 +5022,75 @@ textarea {
   flex-shrink: 0;
   font-size: 0.72rem;
   color: var(--muted);
-  font-weight: 600;
+  font-weight: 700;
   min-width: 34px;
+  text-transform: lowercase;
+}
+
+.drawer-result-card {
+  width: 100%;
+  border: 1px solid rgba(27, 63, 104, 0.1);
+  border-radius: 12px;
+  background: rgba(255, 253, 248, 0.78);
+  padding: 10px 12px 11px;
+  text-align: left;
+  transition: border-color 0.14s ease, background 0.14s ease;
+}
+
+.drawer-result-card:hover {
+  border-color: rgba(15, 106, 184, 0.16);
+  background: rgba(248, 250, 253, 0.95);
+}
+
+.drawer-result-card.is-expanded {
+  border-color: rgba(15, 106, 184, 0.22);
+  background: rgba(244, 249, 255, 0.96);
+}
+
+.drawer-result-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.drawer-result-toggle {
+  flex-shrink: 0;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--primary);
+}
+
+.drawer-result-title {
+  flex: 1;
+  min-width: 0;
+  font-weight: 400;
+  line-height: 1.35;
+}
+
+.drawer-result-source {
+  margin: 5px 0 0;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+
+.drawer-result-detail {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(27, 63, 104, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.drawer-result-meta {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--text);
+  line-height: 1.5;
 }
 
 .drawer-problems-list {
@@ -4936,6 +5183,7 @@ textarea {
   margin: 0;
   max-height: 260px;
   overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .drawer-empty-state {
