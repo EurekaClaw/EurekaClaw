@@ -47,6 +47,8 @@ _CONFIG_FIELDS: dict[str, str] = {
     "openai_compat_model": "OPENAI_COMPAT_MODEL",
     "minimax_api_key": "MINIMAX_API_KEY",
     "minimax_model": "MINIMAX_MODEL",
+    "codex_auth_mode": "CODEX_AUTH_MODE",
+    "codex_model": "CODEX_MODEL",
     "eurekaclaw_mode": "EUREKACLAW_MODE",
     "gate_mode": "GATE_MODE",
     "experiment_mode": "EXPERIMENT_MODE",
