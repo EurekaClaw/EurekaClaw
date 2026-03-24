@@ -19,6 +19,10 @@ def install_from_hub(skillname: str, dest: pathlib.Path) -> None:
     Args:
         skillname: The skill slug to look up and install (e.g. "steipete/github")
         dest: The destination directory for the installed skill
+
+    Returns:
+        True if installation succeeded, False if skill not found or installation failed.
+        The skill will live at dest/../skills/skillname after installation.
     """
     # 1. Check if the skill exists on ClawHub
     try:
@@ -73,5 +77,7 @@ def install_seed_skills(dest: pathlib.Path) -> None:
 
 if __name__ == "__main__":
     eurekaclaw_dir = pathlib.Path.home() / ".eurekaclaw" / "skills"
-    install_from_hub("self-improving-agent", eurekaclaw_dir)
-    install_seed_skills(eurekaclaw_dir)
+    # install_from_hub("self-improving-agent", eurekaclaw_dir)
+    # install_seed_skills(eurekaclaw_dir)
+    result = install_from_hub("not exist skill", eurekaclaw_dir)
+    print(f"Installation result: {result}")
