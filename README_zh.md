@@ -61,13 +61,15 @@ $ eurekaclaw prove "Find recent papers on sparse attention + prove efficiency bo
 
 ## 安装
 
+(详细教程参见 [安装](https://eurekaclaw.github.io/zh/getting-started/installation.html))
+
 **macOS / Linux**
 
 ```bash
 curl -fsSL https://eurekaclaw.ai/install.sh | bash
 ```
 
-**Windows** *（开发中 — 尚未完全支持）*
+**Windows** 
 
 ```powershell
 powershell -c "irm https://eurekaclaw.ai/install_win.ps1 | iex"
@@ -75,17 +77,22 @@ powershell -c "irm https://eurekaclaw.ai/install_win.ps1 | iex"
 
 macOS/Linux 安装程序会克隆仓库、创建虚拟环境、安装 EurekaClaw，并将 `eurekaclaw` 命令添加到 PATH。之后运行 `eurekaclaw onboard` 以配置 API 密钥和设置。
 
-> **Windows 用户：** 原生 Windows 支持正在积极开发中。在此期间，请使用 [WSL 2](https://learn.microsoft.com/en-us/windows/wsl/install)（Ubuntu）并在 WSL 终端中按照 macOS/Linux 说明操作。
-
 <details>
 <summary>手动安装（所有平台）</summary>
 
 **要求：** Python ≥ 3.11，Node.js ≥ 20，Git
 
+- Linux/MacOS
 ```bash
 git clone https://github.com/EurekaClaw/EurekaClaw
 cd EurekaClaw
-make install                  # pip install -e "." + npm install（前端）
+make install                  # pip install -e "." + npm install (frontend)
+```
+- Windows
+```bash
+git clone https://github.com/EurekaClaw/EurekaClaw
+cd EurekaClaw
+make install                  # pip install -e "." + npm install (frontend)
 ```
 </details>
 

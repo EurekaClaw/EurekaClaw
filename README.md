@@ -61,13 +61,15 @@ $ eurekaclaw prove "Find recent papers on sparse attention + prove efficiency bo
 
 ## Installation
 
+(See [Installation](https://eurekaclaw.github.io/getting-started/installation.html) for detailed instruction)
+
 **macOS / Linux**
 
 ```bash
 curl -fsSL https://eurekaclaw.ai/install.sh | bash
 ```
 
-**Windows** *(under development — not fully supported yet)*
+**Windows**
 
 ```powershell
 powershell -c "irm https://eurekaclaw.ai/install_win.ps1 | iex"
@@ -75,13 +77,18 @@ powershell -c "irm https://eurekaclaw.ai/install_win.ps1 | iex"
 
 The macOS/Linux installer clones the repo, creates a virtual environment, installs EurekaClaw, and adds the `eurekaclaw` command to your PATH. Run `eurekaclaw onboard` afterwards to configure your API key and settings.
 
-> **Windows users:** native Windows support is under active development. In the meantime, use [WSL 2](https://learn.microsoft.com/en-us/windows/wsl/install) (Ubuntu) and follow the macOS/Linux instructions inside the WSL terminal.
-
 <details>
 <summary>Manual install (all platforms)</summary>
 
 **Requirements:** Python ≥ 3.11, Node.js ≥ 20, Git
 
+- Linux/MacOS
+```bash
+git clone https://github.com/EurekaClaw/EurekaClaw
+cd EurekaClaw
+make install                  # pip install -e "." + npm install (frontend)
+```
+- Windows
 ```bash
 git clone https://github.com/EurekaClaw/EurekaClaw
 cd EurekaClaw
