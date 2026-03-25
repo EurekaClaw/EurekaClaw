@@ -548,6 +548,9 @@ def install_skills(force: bool, skillname: str = "") -> None:
 @click.option("--open-browser/--no-open-browser", default=False, help="Open the UI in the default browser.")
 def ui(host: str, port: int, open_browser: bool) -> None:
     """Launch the EurekaClaw browser UI."""
+    global _should_save_html
+    _should_save_html = True
+
     import threading
     import time
     import webbrowser
