@@ -554,8 +554,24 @@ class UIServerState:
                         wloop.close()
                         asyncio.set_event_loop(None)
 
+            # Collect outputs and save artifacts so PDF compilation works.
+            brief = session.bus.get_research_brief()
+            if brief:
+                orch = session.orchestrator
+                result = orch._collect_outputs(brief)
+                run.result = result
+                out_dir = save_artifacts(result, _ROOT_DIR / "results" / run.run_id)
+                run.output_dir = str(out_dir)
+                run.output_summary = {
+                    "latex_paper_length": len(result.latex_paper),
+                    "has_theory_state": bool(result.theory_state_json),
+                    "output_dir": str(out_dir),
+                    "resumed": True,
+                }
+            else:
+                run.output_summary = {"resumed": True, "session_id": session_id}
+
             run.status = "completed"
-            run.output_summary = {"resumed": True, "session_id": session_id}
 
         except Exception as exc:
             from eurekaclaw.agents.theory.checkpoint import ProofPausedException  # noqa: F811
