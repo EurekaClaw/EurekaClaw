@@ -225,11 +225,9 @@ def run_onboard(non_interactive: bool, reset: bool, env_file: str) -> None:
         )
         cfg["ANTHROPIC_AUTH_MODE"] = "oauth"
         cfg["ANTHROPIC_API_KEY"] = get("ANTHROPIC_API_KEY", "")
-        cfg["CCPROXY_PORT"] = ask("  CCPROXY_PORT", get("CCPROXY_PORT", "8765"))
-        cfg["ANTHROPIC_BASE_URL"] = ask(
-            "  ANTHROPIC_BASE_URL (leave blank for default)",
-            get("ANTHROPIC_BASE_URL", ""),
-        )
+        ccproxy_port = ask("  CCPROXY_PORT", get("CCPROXY_PORT", "8765"))
+        cfg["CCPROXY_PORT"] = ccproxy_port
+        cfg["ANTHROPIC_BASE_URL"] = f"http://localhost:{ccproxy_port}"
 
     elif backend == "openrouter":
         cfg["OPENAI_COMPAT_API_KEY"] = ask(
