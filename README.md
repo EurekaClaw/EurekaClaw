@@ -92,7 +92,7 @@ make install                  # pip install -e "." + npm install (frontend)
 ```bash
 git clone https://github.com/EurekaClaw/EurekaClaw
 cd EurekaClaw
-make install                  # pip install -e "." + npm install (frontend)
+powershell -ExecutionPolicy Bypass -File install_win.ps1    # pip install -e "." + npm install (frontend)
 ```
 </details>
 
