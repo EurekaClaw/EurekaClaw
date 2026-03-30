@@ -35,7 +35,9 @@ source: seed
 # Test Induction Skill
 Apply induction to prove properties.
 """
-    (tmp_skills_dir / "test_induction.md").write_text(skill_content)
+    skill_dir = tmp_skills_dir / "test_induction"
+    skill_dir.mkdir()
+    (skill_dir / "SKILL.md").write_text(skill_content)
     registry.reload()
     return registry
 

@@ -171,7 +171,10 @@ class OpenAIResponsesAdapter(LLMClient):
                 f"{error.get('message', 'unknown error') if isinstance(error, dict) else error}"
             )
 
-        return self._normalize(full_response)
+        normalized = self._normalize(full_response)
+        if not normalized.content:
+            raise RuntimeError("ChatGPT Codex API returned no content blocks")
+        return normalized
 
     # ------------------------------------------------------------------
     # Anthropic → Responses API input translation

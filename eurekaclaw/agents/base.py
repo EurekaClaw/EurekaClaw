@@ -202,10 +202,14 @@ class BaseAgent(ABC):
                 break
 
             # Execute tools and continue
+            # Cap each tool result to ~7.5k tokens to prevent context window overflow.
+            _MAX_TOOL_RESULT_CHARS = 30_000
             tool_results = []
             for tool_call in tool_calls:
                 logger.debug("Tool call: %s(%s)", tool_call.name, tool_call.input)
                 result = await self.tool_registry.call(tool_call.name, tool_call.input)
+                if len(result) > _MAX_TOOL_RESULT_CHARS:
+                    result = result[:_MAX_TOOL_RESULT_CHARS] + "\n\n[... truncated — result too large for context window]"
                 tool_results.append({
                     "type": "tool_result",
                     "tool_use_id": tool_call.id,
@@ -269,6 +273,8 @@ class BaseAgent(ABC):
                 for m in msgs
                 if m["role"] == "assistant" and isinstance(m["content"], str)
             ]
+            if not summaries:
+                return "No intermediate findings recorded yet. Continue working on the task."
             return "Previous findings: " + " | ".join(summaries[-3:])
 
     async def _call_model(

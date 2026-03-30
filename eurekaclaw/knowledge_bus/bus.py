@@ -121,7 +121,9 @@ class KnowledgeBus:
         self._subscribers[artifact_type].append(callback)
 
     def _notify(self, artifact_type: str, value: Any) -> None:
-        for cb in self._subscribers.get(artifact_type, []):
+        # Copy the list to avoid RuntimeError if subscribers are modified concurrently.
+        callbacks = list(self._subscribers.get(artifact_type, []))
+        for cb in callbacks:
             try:
                 cb(value)
             except Exception as e:

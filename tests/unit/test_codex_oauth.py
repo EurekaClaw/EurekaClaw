@@ -69,62 +69,67 @@ def test_save_and_load_tokens(tmp_path):
 
 
 def test_load_tokens_missing_returns_none(tmp_path):
-        from eurekaclaw.auth import token_store
+    from eurekaclaw.auth import token_store
 
-        with patch.object(token_store, "_creds_dir", return_value=tmp_path):
-            assert token_store.load_tokens("nonexistent") is None
+    with patch.object(token_store, "_creds_dir", return_value=tmp_path):
+        assert token_store.load_tokens("nonexistent") is None
 
-    def test_delete_tokens(self, tmp_path):
-        from eurekaclaw.auth import token_store
 
-        with patch.object(token_store, "_creds_dir", return_value=tmp_path):
-            token_store.save_tokens("openai-codex", {"access_token": "x"})
-            assert token_store.load_tokens("openai-codex") is not None
+def test_delete_tokens(tmp_path):
+    from eurekaclaw.auth import token_store
 
-            token_store.delete_tokens("openai-codex")
-            assert token_store.load_tokens("openai-codex") is None
+    with patch.object(token_store, "_creds_dir", return_value=tmp_path):
+        token_store.save_tokens("openai-codex", {"access_token": "x"})
+        assert token_store.load_tokens("openai-codex") is not None
 
-    def test_is_token_expired_not_expired(self):
-        from eurekaclaw.auth.token_store import is_token_expired
+        token_store.delete_tokens("openai-codex")
+        assert token_store.load_tokens("openai-codex") is None
 
-        tokens = {
-            "access_token": "sk-test",
-            "expires_in": 3600,
-            "saved_at": int(time.time()),
-        }
-        assert is_token_expired(tokens) is False
 
-    def test_is_token_expired_already_expired(self):
-        from eurekaclaw.auth.token_store import is_token_expired
+def test_is_token_expired_not_expired():
+    from eurekaclaw.auth.token_store import is_token_expired
 
-        tokens = {
-            "access_token": "sk-test",
-            "expires_in": 3600,
-            "saved_at": int(time.time()) - 7200,  # saved 2 hours ago
-        }
-        assert is_token_expired(tokens) is True
+    tokens = {
+        "access_token": "sk-test",
+        "expires_in": 3600,
+        "saved_at": int(time.time()),
+    }
+    assert is_token_expired(tokens) is False
 
-    def test_is_token_expired_no_expiry_returns_false(self):
-        from eurekaclaw.auth.token_store import is_token_expired
 
-        tokens = {"access_token": "sk-test"}
-        assert is_token_expired(tokens) is False
+def test_is_token_expired_already_expired():
+    from eurekaclaw.auth.token_store import is_token_expired
 
-    def test_saved_file_permissions(self, tmp_path):
-        """Credential files should be readable only by the owner (0o600)."""
-        from eurekaclaw.auth import token_store
+    tokens = {
+        "access_token": "sk-test",
+        "expires_in": 3600,
+        "saved_at": int(time.time()) - 7200,  # saved 2 hours ago
+    }
+    assert is_token_expired(tokens) is True
 
-        with patch.object(token_store, "_creds_dir", return_value=tmp_path):
-            token_store.save_tokens("openai-codex", {"access_token": "secret"})
-            cred_file = tmp_path / "openai-codex.json"
 
-            # On Windows and some non-POSIX filesystems, POSIX mode bits are not
-            # reliably enforced or reported, so this assertion is only valid on
-            # POSIX-like platforms.
-            if os.name == "nt":
-                pytest.skip("POSIX file permission bits are not reliable on Windows")
-            mode = cred_file.stat().st_mode & 0o777
-            assert mode == 0o600
+def test_is_token_expired_no_expiry_returns_false():
+    from eurekaclaw.auth.token_store import is_token_expired
+
+    tokens = {"access_token": "sk-test"}
+    assert is_token_expired(tokens) is False
+
+
+def test_saved_file_permissions(tmp_path):
+    """Credential files should be readable only by the owner (0o600)."""
+    from eurekaclaw.auth import token_store
+
+    with patch.object(token_store, "_creds_dir", return_value=tmp_path):
+        token_store.save_tokens("openai-codex", {"access_token": "secret"})
+        cred_file = tmp_path / "openai-codex.json"
+
+        # On Windows and some non-POSIX filesystems, POSIX mode bits are not
+        # reliably enforced or reported, so this assertion is only valid on
+        # POSIX-like platforms.
+        if os.name == "nt":
+            pytest.skip("POSIX file permission bits are not reliable on Windows")
+        mode = cred_file.stat().st_mode & 0o777
+        assert mode == 0o600
 
 
 # ============================================================================
@@ -335,7 +340,7 @@ class TestFactoryCodexBackend:
         assert base_url == "https://api.openai.com/v1"
 
     def test_create_client_codex_backend(self):
-        """create_client(backend='codex') calls OpenAICompatAdapter with correct args."""
+        """create_client(backend='codex') calls OpenAICompatAdapter with correct args when auth_mode=api_key."""
         from unittest.mock import MagicMock
 
         MockCls = MagicMock()
@@ -348,20 +353,27 @@ class TestFactoryCodexBackend:
             import eurekaclaw.llm.factory as factory_mod
             importlib.reload(factory_mod)
 
-            factory_mod.create_client(
-                backend="codex",
-                openai_api_key="sk-test-key",
-                openai_model="o4-mini",
-            )
+            with patch("eurekaclaw.config.settings") as mock_settings:
+                mock_settings.codex_auth_mode = "api_key"
+                mock_settings.llm_backend = "codex"
+                mock_settings.openai_compat_base_url = ""
+                mock_settings.openai_compat_api_key = ""
+                mock_settings.codex_model = "o4-mini"
 
-            MockCls.assert_called_once_with(
-                base_url="https://api.openai.com/v1",
-                api_key="sk-test-key",
-                default_model="o4-mini",
-            )
+                factory_mod.create_client(
+                    backend="codex",
+                    openai_api_key="sk-test-key",
+                    openai_model="o4-mini",
+                )
+
+                MockCls.assert_called_once_with(
+                    base_url="https://api.openai.com/v1",
+                    api_key="sk-test-key",
+                    default_model="o4-mini",
+                )
 
     def test_create_client_codex_reads_env_api_key(self):
-        """When backend=codex, factory reads OPENAI_COMPAT_API_KEY from env."""
+        """When backend=codex (api_key mode), factory reads OPENAI_COMPAT_API_KEY from env."""
         from unittest.mock import MagicMock
 
         MockCls = MagicMock()
@@ -377,14 +389,21 @@ class TestFactoryCodexBackend:
                 import eurekaclaw.llm.factory as factory_mod
                 importlib.reload(factory_mod)
 
-                factory_mod.create_client(
-                    backend="codex",
-                    openai_model="o4-mini",
-                )
+                with patch("eurekaclaw.config.settings") as mock_settings:
+                    mock_settings.codex_auth_mode = "api_key"
+                    mock_settings.llm_backend = "codex"
+                    mock_settings.openai_compat_base_url = ""
+                    mock_settings.openai_compat_api_key = ""
+                    mock_settings.codex_model = "o4-mini"
 
-                MockCls.assert_called_once()
-                _, kwargs = MockCls.call_args
-                assert kwargs["api_key"] == "sk-from-env"
+                    factory_mod.create_client(
+                        backend="codex",
+                        openai_model="o4-mini",
+                    )
+
+                    MockCls.assert_called_once()
+                    _, kwargs = MockCls.call_args
+                    assert kwargs["api_key"] == "sk-from-env"
         finally:
             if old is not None:
                 os.environ["OPENAI_COMPAT_API_KEY"] = old

@@ -191,8 +191,8 @@ class OpenAICompatAdapter(LLMClient):
         message = choice.message
         content: list[NormalizedTextBlock | NormalizedToolUseBlock] = []
 
-        if message.content:
-            content.append(NormalizedTextBlock(text=message.content))
+        if message.content is not None:
+            content.append(NormalizedTextBlock(text=message.content or ""))
 
         for tc in message.tool_calls or []:
             try:

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import threading
 from abc import ABC, abstractmethod
 from typing import Any
 
@@ -16,17 +17,20 @@ logger = logging.getLogger(__name__)
 # regardless of which agent or sub-component initiated it.
 # ---------------------------------------------------------------------------
 _GLOBAL_TOKENS: dict[str, int] = {"input": 0, "output": 0}
+_GLOBAL_TOKENS_LOCK = threading.Lock()
 
 
 def get_global_tokens() -> dict[str, int]:
     """Return a snapshot copy of cumulative token usage across all LLM calls."""
-    return dict(_GLOBAL_TOKENS)
+    with _GLOBAL_TOKENS_LOCK:
+        return dict(_GLOBAL_TOKENS)
 
 
 def reset_global_tokens() -> None:
     """Reset the global counter. Call at the start of each top-level session."""
-    _GLOBAL_TOKENS["input"] = 0
-    _GLOBAL_TOKENS["output"] = 0
+    with _GLOBAL_TOKENS_LOCK:
+        _GLOBAL_TOKENS["input"] = 0
+        _GLOBAL_TOKENS["output"] = 0
 
 # Substrings in the exception message that indicate a transient error worth retrying.
 _RETRYABLE_FRAGMENTS = (
@@ -34,7 +38,8 @@ _RETRYABLE_FRAGMENTS = (
     "overloaded", "529",
     "timeout", "timed out",
     "empty content",
-    "service unavailable", "502", "503",
+    "service unavailable", "500", "502", "503",
+    "internal server error",
 )
 
 
@@ -74,8 +79,9 @@ class _MessagesNamespace:
                 if not response.content:
                     raise ValueError("LLM returned empty content list")
                 # Accumulate into the global counter regardless of caller.
-                _GLOBAL_TOKENS["input"] += response.usage.input_tokens
-                _GLOBAL_TOKENS["output"] += response.usage.output_tokens
+                with _GLOBAL_TOKENS_LOCK:
+                    _GLOBAL_TOKENS["input"] += response.usage.input_tokens
+                    _GLOBAL_TOKENS["output"] += response.usage.output_tokens
                 return response
             except Exception as exc:
                 last_exc = exc

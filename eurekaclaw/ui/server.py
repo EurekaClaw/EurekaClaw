@@ -77,11 +77,6 @@ _CONFIG_FIELDS: dict[str, str] = {
     "max_tokens_sketch": "MAX_TOKENS_SKETCH",
     "max_tokens_verifier": "MAX_TOKENS_VERIFIER",
     "max_tokens_compress": "MAX_TOKENS_COMPRESS",
-    "max_tokens_crystallizer": "MAX_TOKENS_CRYSTALLIZER",
-    "max_tokens_assembler": "MAX_TOKENS_ASSEMBLER",
-    "max_tokens_architect": "MAX_TOKENS_ARCHITECT",
-    "max_tokens_analyst": "MAX_TOKENS_ANALYST",
-    "max_tokens_sketch": "MAX_TOKENS_SKETCH",
 }
 
 
