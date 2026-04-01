@@ -128,21 +128,60 @@ docker run --rm -it -e ANTHROPIC_API_KEY=sk-ant-... chenggongzhang/eurekaclaw ba
 # Inside: eurekaclaw, python3, node, npm, uv are all available
 ```
 
-**Remote access from another machine:**
+**Remote server access (SSH):**
 
-By default, the UI binds to `0.0.0.0` inside the container. To access from another machine on your network:
+By default, the UI binds to `0.0.0.0` inside the container. To access from your laptop via SSH:
 
 ```bash
-# On the server (replace sk-ant-... with your key)
+# Step 1: SSH into server with port forwarding
+ssh -L 8080:localhost:8080 user@server-ip
+
+# Step 2: On the server, run the container
 docker run --rm -it -p 8080:8080 -e ANTHROPIC_API_KEY=sk-ant-... chenggongzhang/eurekaclaw
 
-# From your laptop — open http://<server-ip>:8080 in a browser
-# Or use SSH port forwarding if the server is behind a firewall:
-ssh -L 8080:localhost:8080 user@server-ip
-# Then open http://localhost:8080 locally
+# Step 3: Open http://localhost:8080 in your laptop's browser
 ```
 
 > **Note:** No root/sudo required on the server — just Docker access. The container runs as root internally, so there are no permission issues for installing packages or writing files inside the container.
+
+**Authentication: API Key vs OAuth (Claude Pro/Max)**
+
+*Option A — API Key (simplest):*
+```bash
+docker run --rm -it -p 8080:8080 \
+  -e ANTHROPIC_API_KEY=sk-ant-... \
+  chenggongzhang/eurekaclaw
+```
+
+*Option B — OAuth for Claude Pro/Max (no API key needed):*
+
+OAuth requires a browser for login. On a remote server, use SSH port forwarding for both the UI port (8080) and the OAuth callback port (54545):
+
+```bash
+# Step 1: SSH with TWO port forwards (from your laptop)
+ssh -L 8080:localhost:8080 -L 54545:localhost:54545 user@server-ip
+
+# Step 2: On the server, start a container with callback port exposed
+docker run --rm -it -p 8080:8080 -p 54545:54545 \
+  -v ~/.config/ccproxy:/root/.config/ccproxy \
+  -v ~/.eurekaclaw:/root/.eurekaclaw \
+  chenggongzhang/eurekaclaw bash
+
+# Step 3: Inside the container, run OAuth login
+ccproxy auth login claude_api
+# Copy the URL it prints → paste into your laptop's browser → authorize
+
+# Step 4: After login succeeds, start EurekaClaw with OAuth
+ANTHROPIC_AUTH_MODE=oauth eurekaclaw ui --host 0.0.0.0 --port 8080
+
+# Subsequent runs: credentials are saved in ~/.config/ccproxy (mounted volume)
+# so you only need to login once:
+docker run --rm -it -p 8080:8080 \
+  -e ANTHROPIC_AUTH_MODE=oauth \
+  -v ~/.config/ccproxy:/root/.config/ccproxy \
+  -v ~/.eurekaclaw:/root/.eurekaclaw \
+  chenggongzhang/eurekaclaw
+```
 
 **Build locally (optional):**
 ```bash
