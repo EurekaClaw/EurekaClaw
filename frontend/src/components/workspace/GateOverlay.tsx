@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { SessionRun } from '@/types';
+import type { SessionRun, LemmaNode } from '@/types';
 import { apiPost } from '@/api/client';
 import { humanize } from '@/lib/formatters';
 
@@ -202,7 +202,8 @@ function TheoryReviewGate({ run }: Props) {
               <p className="theory-lemma-picker-label">Select a lemma (optional)</p>
               <div className="theory-lemma-list">
                 {lemmaEntries.map(([id, node], idx) => {
-                  const label = (node as any).informal || (node as any).statement || id;
+                  const lemma = node as LemmaNode;
+                  const label = lemma.informal || lemma.statement || id;
                   const isSelected = selectedLemma === id;
                   return (
                     <button
