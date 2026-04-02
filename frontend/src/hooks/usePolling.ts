@@ -7,12 +7,18 @@ import type { SessionRun } from '@/types';
 const POLL_INTERVAL_FAST_MS = 500;
 const POLL_INTERVAL_ACTIVE_MS = 1200;
 const POLL_INTERVAL_IDLE_MS = 3000;
+/** After this many consecutive poll errors, slow down to avoid hammering a down server. */
+const ERROR_BACKOFF_THRESHOLD = 3;
+const POLL_INTERVAL_BACKOFF_MS = 8000;
 
 interface RunsResponse {
   runs: SessionRun[];
 }
 
-function computeInterval(sessions: SessionRun[], isPausingRequested: boolean): number {
+function computeInterval(sessions: SessionRun[], isPausingRequested: boolean, consecutiveErrors: number): number {
+  // Back off when the server is unresponsive
+  if (consecutiveErrors >= ERROR_BACKOFF_THRESHOLD) return POLL_INTERVAL_BACKOFF_MS;
+
   const hasTransient = sessions.some((s) => s.status === 'pausing' || s.status === 'resuming');
   if (hasTransient || isPausingRequested) return POLL_INTERVAL_FAST_MS;
   const hasLive = sessions.some((s) => s.status === 'running' || s.status === 'queued');
@@ -68,7 +74,7 @@ export function usePolling() {
         prevRunRef.current = current;
       }
 
-      const newInterval = computeInterval(sessions, isPausingRequested);
+      const newInterval = computeInterval(sessions, isPausingRequested, errorsRef.current);
       if (newInterval !== intervalRef.current) {
         intervalRef.current = newInterval;
         if (timerRef.current) {
@@ -78,6 +84,14 @@ export function usePolling() {
       }
     } catch {
       errorsRef.current += 1;
+      // Apply backoff when errors accumulate
+      if (errorsRef.current >= ERROR_BACKOFF_THRESHOLD && intervalRef.current !== POLL_INTERVAL_BACKOFF_MS) {
+        intervalRef.current = POLL_INTERVAL_BACKOFF_MS;
+        if (timerRef.current) {
+          clearInterval(timerRef.current);
+          timerRef.current = setInterval(tick, POLL_INTERVAL_BACKOFF_MS);
+        }
+      }
     }
   }, [setSessions, currentRunId, isPausingRequested, setIsPausingRequested, setPauseRequestedAt, activeWsTab, setActiveWsTab]);
 

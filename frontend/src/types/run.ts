@@ -235,6 +235,8 @@ export interface SessionRun {
   paused_stage?: string;
   theory_feedback?: string;
   error?: string;
+  error_category?: 'retryable' | 'fatal' | '';
+  has_checkpoint?: boolean;
   pipeline?: PipelineTask[];
   artifacts?: Artifacts;
   result?: RunResult;

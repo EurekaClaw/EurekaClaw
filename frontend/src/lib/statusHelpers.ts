@@ -33,7 +33,12 @@ export function liveStatusDetail(run: SessionRun | null): string {
   if (run.status === 'paused') {
     return 'Proof paused at checkpoint — click Resume to continue, or use the Copy command button.';
   }
-  if (run.status === 'failed') return `Failed: ${run.error || 'unknown error'}`;
+  if (run.status === 'failed') {
+    if (run.error_category === 'retryable' && run.has_checkpoint) {
+      return `Temporary failure (checkpoint saved) — ${run.error || 'unknown error'}`;
+    }
+    return `Failed: ${run.error || 'unknown error'}`;
+  }
   return `Run ${run.run_id.slice(0, 8)}`;
 }
 

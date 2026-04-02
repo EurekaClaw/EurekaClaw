@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useUiStore } from '@/store/uiStore';
 import { useSkillStore } from '@/store/skillStore';
 import { usePolling } from '@/hooks/usePolling';
@@ -25,7 +25,16 @@ export function App() {
   const currentRun = useSessionStore((s) => s.currentRun());
   const setAvailableSkills = useSkillStore((s) => s.setAvailableSkills);
 
-  const { restartFast } = usePolling();
+  const { restartFast, pollErrors } = usePolling();
+  const [showConnError, setShowConnError] = useState(false);
+
+  // Show connection banner when poll errors accumulate
+  useEffect(() => {
+    const id = setInterval(() => {
+      setShowConnError(pollErrors.current >= 3);
+    }, 2000);
+    return () => clearInterval(id);
+  }, [pollErrors]);
 
   // On first visit (no persisted view), show onboarding unless tutorial was skipped
   useEffect(() => {
@@ -64,6 +73,12 @@ export function App() {
       <Sidebar />
 
       <main className="main-shell">
+        {showConnError && (
+          <div className="conn-error-banner" role="alert">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            Connection lost &mdash; retrying&hellip;
+          </div>
+        )}
         <section
           className={`view${activeView === 'workspace' ? ' is-visible' : ''}`}
           data-view="workspace"

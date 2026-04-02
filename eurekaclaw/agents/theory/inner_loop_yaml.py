@@ -563,19 +563,35 @@ class TheoryInnerLoopYaml:
                 except asyncio.CancelledError:
                     # Ctrl+C fired mid-stage — save checkpoint at this stage boundary.
                     # proven_lemmas contains all lemmas completed before the interrupt.
-                    save_stage = name if mode == "iterative" else name
-                    save_spec = current_spec[idx:] if mode == "iterative" else current_spec[idx:]
                     cp.save(
                         state,
-                        next_stage=save_stage,
+                        next_stage=name,
                         outer_iter=outer_iter,
-                        current_spec=save_spec,
+                        current_spec=current_spec[idx:],
                         original_spec=original_spec,
                         domain=domain,
                         research_brief_json=brief_json,
                     )
                     self.bus.put_theory_state(state)
                     raise ProofPausedException(session_id, name)
+                except Exception:
+                    # LLM or tool error mid-stage — save checkpoint so the user
+                    # can resume from this stage instead of restarting from scratch.
+                    logger.warning(
+                        "Stage '%s' failed — saving crash checkpoint for session %s",
+                        name, session_id,
+                    )
+                    cp.save(
+                        state,
+                        next_stage=name,
+                        outer_iter=outer_iter,
+                        current_spec=current_spec[idx:],
+                        original_spec=original_spec,
+                        domain=domain,
+                        research_brief_json=brief_json,
+                    )
+                    self.bus.put_theory_state(state)
+                    raise
 
                 self.bus.put_theory_state(state)
 

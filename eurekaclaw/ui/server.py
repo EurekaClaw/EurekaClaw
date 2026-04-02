@@ -100,6 +100,7 @@ class SessionRun:
     paused_stage: str = ""                       # stage name where proof stopped
     theory_feedback: str = ""                    # user guidance injected on next theory resume
     error: str = ""
+    error_category: str = ""  # "retryable" | "fatal" | "" (not failed)
     result: ResearchOutput | None = None
     eureka_session: EurekaSession | None = None
     eureka_session_id: str = ""
@@ -118,6 +119,26 @@ def _serialize_value(value: Any) -> Any:
     if isinstance(value, list):
         return [_serialize_value(item) for item in value]
     return value
+
+
+# Substrings that indicate transient/retryable LLM or network errors.
+_RETRYABLE_ERROR_HINTS = (
+    "429", "rate limit", "rate_limit",
+    "overloaded", "529",
+    "timeout", "timed out",
+    "service unavailable", "500", "502", "503",
+    "internal server error",
+    "connection", "reset by peer", "broken pipe",
+    "empty content",
+)
+
+
+def _classify_error(exc: Exception) -> str:
+    """Return 'retryable' for transient LLM/network errors, 'fatal' otherwise."""
+    err_str = str(exc).lower()
+    if any(hint in err_str for hint in _RETRYABLE_ERROR_HINTS):
+        return "retryable"
+    return "fatal"
 
 
 def _capability_status(available: bool, detail: str, *, optional: bool = False) -> dict[str, str]:
@@ -214,6 +235,7 @@ class UIServerState:
                 "name": run.name,
                 "status": run.status,
                 "error": run.error,
+                "error_category": run.error_category,
                 "eureka_session_id": run.eureka_session_id,
                 "created_at": run.created_at.isoformat(),
                 "updated_at": run.updated_at.isoformat(),
@@ -247,6 +269,7 @@ class UIServerState:
                     name=data.get("name", ""),
                     status=data.get("status", "failed"),
                     error=data.get("error", ""),
+                    error_category=data.get("error_category", ""),
                     eureka_session_id=data.get("eureka_session_id", ""),
                     paused_stage=data.get("paused_stage", ""),
                     theory_feedback=data.get("theory_feedback", ""),
@@ -265,6 +288,7 @@ class UIServerState:
                 if run.status in ("running", "queued", "pausing", "resuming"):
                     run.status = "failed"
                     run.error = "Session interrupted by a server restart."
+                    run.error_category = "retryable"
                 self.runs[run.run_id] = run
             except Exception:
                 logger.warning("Failed to load persisted run from %s", path, exc_info=True)
@@ -382,14 +406,22 @@ class UIServerState:
         run = self.get_run(run_id)
         if run is None:
             return {"error": "Run not found"}
-        if run.status != "paused":
-            return {"error": f"Run is not paused (status: {run.status})"}
+        # Allow resume from "paused" (user-initiated) or "failed" (crash with checkpoint)
+        if run.status not in ("paused", "failed"):
+            return {"error": f"Run is not paused or failed (status: {run.status})"}
         if not run.eureka_session_id:
             return {"error": "No checkpoint session ID found"}
+        # For failed runs, verify a checkpoint actually exists before attempting resume
+        if run.status == "failed":
+            from eurekaclaw.agents.theory.checkpoint import ProofCheckpoint
+            if not ProofCheckpoint(run.eureka_session_id).exists():
+                return {"error": "No checkpoint available — use restart instead"}
         # Store user guidance to be injected into the theory context on resume
         if feedback:
             run.theory_feedback = feedback.strip()[:2000]
-        # Transition to intermediate "resuming" state before the thread starts
+        # Clear previous error state and transition to "resuming"
+        run.error = ""
+        run.error_category = ""
         run.status = "resuming"
         run.updated_at = datetime.utcnow()
         self._persist_run(run)
@@ -425,41 +457,44 @@ class UIServerState:
             cp.clear_pause_flag()
 
             if not cp._checkpoint.exists():
-                # Paused before theory stage — re-run the full pipeline from scratch
+                # Paused/failed before theory stage — re-run the full pipeline
+                # from scratch.  Must inject auth env vars so API calls work.
+                config = _config_payload()
                 run.status = "running"
                 self._persist_run(run)
                 loop2 = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop2)
                 try:
-                    async def _rerun() -> Any:
-                        main_task = asyncio.current_task()
-                        assert main_task is not None
-                        cp3 = ProofCheckpoint(session_id)
+                    with _temporary_auth_env(config):
+                        async def _rerun() -> Any:
+                            main_task = asyncio.current_task()
+                            assert main_task is not None
+                            cp3 = ProofCheckpoint(session_id)
 
-                        async def _poll3() -> None:
-                            while True:
-                                await asyncio.sleep(1)
-                                if cp3.is_pause_requested() and not main_task.cancelled():
-                                    main_task.cancel()
-                                    return
+                            async def _poll3() -> None:
+                                while True:
+                                    await asyncio.sleep(1)
+                                    if cp3.is_pause_requested() and not main_task.cancelled():
+                                        main_task.cancel()
+                                        return
 
-                        poll3 = asyncio.create_task(_poll3())
-                        try:
-                            return await session.run(run.input_spec)
-                        except asyncio.CancelledError:
-                            pipeline = session.bus.get_pipeline() if session.bus else None
-                            stage = "unknown"
-                            if pipeline:
-                                from eurekaclaw.types.tasks import TaskStatus
-                                for t in pipeline.tasks:
-                                    if t.status == TaskStatus.IN_PROGRESS:
-                                        stage = t.name
-                                        break
-                            raise ProofPausedException(session_id, stage)
-                        finally:
-                            poll3.cancel()
+                            poll3 = asyncio.create_task(_poll3())
+                            try:
+                                return await session.run(run.input_spec)
+                            except asyncio.CancelledError:
+                                pipeline = session.bus.get_pipeline() if session.bus else None
+                                stage = "unknown"
+                                if pipeline:
+                                    from eurekaclaw.types.tasks import TaskStatus
+                                    for t in pipeline.tasks:
+                                        if t.status == TaskStatus.IN_PROGRESS:
+                                            stage = t.name
+                                            break
+                                raise ProofPausedException(session_id, stage)
+                            finally:
+                                poll3.cancel()
 
-                    result2 = loop2.run_until_complete(_rerun())
+                        result2 = loop2.run_until_complete(_rerun())
                 finally:
                     loop2.close()
                     asyncio.set_event_loop(None)
@@ -568,6 +603,7 @@ class UIServerState:
                 logger.exception("UI session resume failed")
                 run.status = "failed"
                 run.error = str(exc)
+                run.error_category = _classify_error(exc)
         finally:
             run.completed_at = datetime.utcnow()
             run.updated_at = datetime.utcnow()
@@ -665,6 +701,7 @@ class UIServerState:
                 logger.exception("UI session run failed")
                 run.status = "failed"
                 run.error = str(exc)
+                run.error_category = _classify_error(exc)
         finally:
             if run.eureka_session_id:
                 from eurekaclaw.ui import review_gate as _rg
@@ -699,12 +736,20 @@ class UIServerState:
         experiment_result = bus.get_experiment_result() if bus else None
         resource_analysis = bus.get("resource_analysis") if bus else None
 
+        # Check if a checkpoint exists for this session (enables "resume" in UI)
+        has_checkpoint = False
+        if run.eureka_session_id:
+            from eurekaclaw.agents.theory.checkpoint import ProofCheckpoint
+            has_checkpoint = ProofCheckpoint(run.eureka_session_id).exists()
+
         return {
             "run_id": run.run_id,
             "name": run.name,
             "session_id": run.eureka_session_id,
             "status": run.status,
             "error": run.error,
+            "error_category": run.error_category,
+            "has_checkpoint": has_checkpoint,
             "created_at": run.created_at.isoformat(),
             "started_at": run.started_at.isoformat() if run.started_at else None,
             "completed_at": run.completed_at.isoformat() if run.completed_at else None,

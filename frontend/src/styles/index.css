@@ -1044,6 +1044,26 @@ img {
   overflow-x: hidden;
 }
 
+.conn-error-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  margin-bottom: 10px;
+  border-radius: var(--radius-md);
+  background: rgba(230, 160, 50, 0.10);
+  border: 1px solid rgba(200, 140, 40, 0.30);
+  color: #7a5a10;
+  font-size: 0.78rem;
+  font-weight: 500;
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
 /* Workspace view fills the main shell when visible */
 .view.is-visible[data-view="workspace"] {
   flex: 1;
@@ -4137,6 +4157,43 @@ textarea {
   opacity: 0.5;
   cursor: not-allowed;
   transform: none;
+}
+
+.failed-resume-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 14px;
+  border-radius: var(--radius-md);
+  border: 1.2px solid rgba(39, 120, 80, 0.40);
+  background: rgba(39, 120, 80, 0.04);
+  color: #1a6b42;
+  font-size: 0.77rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, transform 0.1s;
+}
+
+.failed-resume-btn:hover {
+  background: rgba(39, 120, 80, 0.08);
+  border-color: rgba(39, 120, 80, 0.55);
+  transform: translateY(-1px);
+}
+
+.failed-resume-btn:active {
+  transform: translateY(0);
+}
+
+.failed-session-note-badge.retryable {
+  display: inline-block;
+  margin-left: auto;
+  padding: 1px 8px;
+  border-radius: 10px;
+  background: rgba(230, 160, 50, 0.12);
+  color: #996b1a;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
