@@ -120,6 +120,156 @@ def _serialize_value(value: Any) -> Any:
     return value
 
 
+def _load_saved_run_artifacts(run: SessionRun) -> tuple[Any | None, Any | None]:
+    """Best-effort load of persisted survey artifacts for a UI run.
+
+    Order:
+    1. Current in-memory bus (caller should prefer this directly when available)
+    2. UI output_dir (paper artifacts)
+    3. ~/.eurekaclaw/runs/<session_id>/ (KnowledgeBus.persist artifacts)
+    """
+    from eurekaclaw.types.artifacts import Bibliography, ResearchBrief
+
+    search_dirs: list[Path] = []
+    if run.output_dir:
+        search_dirs.append(Path(run.output_dir))
+    if run.eureka_session_id:
+        search_dirs.append(settings.runs_dir / run.eureka_session_id)
+
+    brief = None
+    bibliography = None
+    for base in search_dirs:
+        if not base.exists():
+            continue
+        if brief is None:
+            p = base / "research_brief.json"
+            if p.exists():
+                try:
+                    brief = ResearchBrief.model_validate_json(p.read_text(encoding="utf-8"))
+                except Exception:
+                    logger.warning("Failed to load research_brief from %s", p, exc_info=True)
+        if bibliography is None:
+            p = base / "bibliography.json"
+            if p.exists():
+                try:
+                    bibliography = Bibliography.model_validate_json(p.read_text(encoding="utf-8"))
+                except Exception:
+                    logger.warning("Failed to load bibliography from %s", p, exc_info=True)
+        if brief is not None and bibliography is not None:
+            break
+
+    if brief is not None and bibliography is None:
+        legacy_dir = settings.runs_dir / brief.session_id
+        p = legacy_dir / "bibliography.json"
+        if p.exists():
+            try:
+                from eurekaclaw.types.artifacts import Bibliography
+
+                bibliography = Bibliography.model_validate_json(p.read_text(encoding="utf-8"))
+            except Exception:
+                logger.warning("Failed to load bibliography from %s", p, exc_info=True)
+
+    return brief, bibliography
+
+
+def _load_saved_theory_state(run: SessionRun) -> Any | None:
+    """Best-effort load of persisted TheoryState for a UI run."""
+    from eurekaclaw.types.artifacts import TheoryState
+
+    search_dirs: list[Path] = []
+    if run.output_dir:
+        search_dirs.append(Path(run.output_dir))
+    if run.eureka_session_id:
+        search_dirs.append(settings.runs_dir / run.eureka_session_id)
+
+    for base in search_dirs:
+        if not base.exists():
+            continue
+        p = base / "theory_state.json"
+        if not p.exists():
+            continue
+        try:
+            return TheoryState.model_validate_json(p.read_text(encoding="utf-8"))
+        except Exception:
+            logger.warning("Failed to load theory_state from %s", p, exc_info=True)
+    return None
+
+
+def _seed_output_dir_with_survey_artifacts(
+    output_dir: str | Path,
+    *,
+    brief: Any | None,
+    bibliography: Any | None,
+) -> None:
+    """Persist restartable survey artifacts into the UI run directory early."""
+    out = Path(output_dir)
+    out.mkdir(parents=True, exist_ok=True)
+    if brief is not None:
+        try:
+            out.joinpath("research_brief.json").write_text(
+                brief.model_dump_json(indent=2),
+                encoding="utf-8",
+            )
+        except Exception:
+            logger.warning("Failed to seed research_brief.json into %s", out, exc_info=True)
+    if bibliography is not None:
+        try:
+            out.joinpath("bibliography.json").write_text(
+                bibliography.model_dump_json(indent=2),
+                encoding="utf-8",
+            )
+        except Exception:
+            logger.warning("Failed to seed bibliography.json into %s", out, exc_info=True)
+
+
+def _seed_output_dir_with_theory_state(
+    output_dir: str | Path,
+    *,
+    theory_state: Any | None,
+) -> None:
+    """Persist restartable theory artifacts into the UI run directory early."""
+    if theory_state is None:
+        return
+    out = Path(output_dir)
+    out.mkdir(parents=True, exist_ok=True)
+    try:
+        out.joinpath("theory_state.json").write_text(
+            theory_state.model_dump_json(indent=2),
+            encoding="utf-8",
+        )
+    except Exception:
+        logger.warning("Failed to seed theory_state.json into %s", out, exc_info=True)
+
+
+def _write_json_artifact(path: Path, value: Any) -> None:
+    """Best-effort JSON persistence for a bus artifact."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if hasattr(value, "model_dump_json"):
+        path.write_text(value.model_dump_json(indent=2), encoding="utf-8")
+    else:
+        path.write_text(json.dumps(_serialize_value(value), indent=2), encoding="utf-8")
+
+
+def _attach_run_artifact_persistence(run: SessionRun, session: EurekaSession) -> None:
+    """Persist key bus artifacts incrementally while the UI run is in progress."""
+    out_dir = Path(run.output_dir)
+    bus = session.bus
+
+    def _persist_named(name: str):
+        def _inner(value: Any) -> None:
+            try:
+                _write_json_artifact(out_dir / f"{name}.json", value)
+            except Exception:
+                logger.warning("Failed to persist %s for run %s", name, run.run_id, exc_info=True)
+        return _inner
+
+    bus.subscribe("research_brief", _persist_named("research_brief"))
+    bus.subscribe("bibliography", _persist_named("bibliography"))
+    bus.subscribe("theory_state", _persist_named("theory_state"))
+    bus.subscribe("experiment_result", _persist_named("experiment_result"))
+    bus.subscribe("pipeline", _persist_named("pipeline"))
+
+
 # Substrings that indicate transient/retryable LLM or network errors.
 _RETRYABLE_ERROR_HINTS = (
     "429", "rate limit", "rate_limit",
@@ -129,6 +279,16 @@ _RETRYABLE_ERROR_HINTS = (
     "internal server error",
     "connection", "reset by peer", "broken pipe",
     "empty content",
+)
+
+_THEORY_SUBSTAGES = (
+    "paper_reader",
+    "gap_analyst",
+    "proof_architect",
+    "lemma_developer",
+    "assembler",
+    "theorem_crystallizer",
+    "consistency_checker",
 )
 
 
@@ -375,6 +535,97 @@ class UIServerState:
         self._persist_run(run)
         self.start_run(run)
         return self.snapshot_run(run)
+
+    def _restart_from_stage(
+        self,
+        run_id: str,
+        *,
+        start_stage: str,
+        theory_substage: str | None = None,
+    ) -> dict[str, Any]:
+        """Re-execute a run from a later stage using saved survey artifacts."""
+        run = self.get_run(run_id)
+        if run is None:
+            return {"error": "Run not found"}
+        if run.status in ("running", "queued"):
+            return {"error": f"Cannot restart a {run.status} session from {start_stage}"}
+        if theory_substage is not None and theory_substage not in _THEORY_SUBSTAGES:
+            return {"error": f"Unknown theory substage: {theory_substage}"}
+
+        brief = None
+        bibliography = None
+        theory_state = None
+        if run.eureka_session is not None and run.eureka_session.bus is not None:
+            brief = run.eureka_session.bus.get_research_brief()
+            bibliography = run.eureka_session.bus.get_bibliography()
+            theory_state = run.eureka_session.bus.get_theory_state()
+
+        if brief is None or bibliography is None:
+            saved_brief, saved_bib = _load_saved_run_artifacts(run)
+            brief = brief or saved_brief
+            bibliography = bibliography or saved_bib
+        if theory_state is None:
+            theory_state = _load_saved_theory_state(run)
+
+        if brief is None:
+            return {"error": "No saved survey artifacts found — rerun the full session instead"}
+        if theory_substage and theory_substage != "paper_reader" and theory_state is None:
+            return {"error": f"No saved theory state found — restart from theory or from {theory_substage} is unavailable"}
+
+        run.status = "queued"
+        run.created_at = datetime.utcnow()
+        run.updated_at = datetime.utcnow()
+        run.started_at = None
+        run.completed_at = None
+        run.paused_at = None
+        run.pause_requested_at = None
+        run.paused_stage = ""
+        run.theory_feedback = ""
+        run.error = ""
+        run.error_category = ""
+        run.result = None
+        run.eureka_session = None
+        run.eureka_session_id = ""
+        run.output_summary = {"restart_from_stage": start_stage}
+        if theory_substage:
+            run.output_summary["restart_from_theory_substage"] = theory_substage
+        out_dir = _ROOT_DIR / "results" / run.run_id
+        out_dir.mkdir(parents=True, exist_ok=True)
+        run.output_dir = str(out_dir)
+        _seed_output_dir_with_survey_artifacts(
+            run.output_dir,
+            brief=brief,
+            bibliography=bibliography,
+        )
+        _seed_output_dir_with_theory_state(
+            run.output_dir,
+            theory_state=theory_state,
+        )
+        self._persist_run(run)
+
+        thread = threading.Thread(
+            target=self._execute_from_stage,
+            args=(run.run_id, brief, bibliography, start_stage, theory_state, theory_substage),
+            daemon=True,
+        )
+        thread.start()
+        return self.snapshot_run(run)
+
+    def restart_from_ideation(self, run_id: str) -> dict[str, Any]:
+        """Re-execute a run starting from ideation, reusing saved survey artifacts."""
+        return self._restart_from_stage(run_id, start_stage="ideation")
+
+    def restart_from_theory(self, run_id: str) -> dict[str, Any]:
+        """Re-execute a run starting from theory, reusing saved ideation artifacts."""
+        return self._restart_from_stage(run_id, start_stage="theory")
+
+    def restart_from_theory_substage(self, run_id: str, theory_substage: str) -> dict[str, Any]:
+        """Re-execute a run starting from a theory substage."""
+        return self._restart_from_stage(
+            run_id,
+            start_stage="theory",
+            theory_substage=theory_substage,
+        )
 
     def get_run(self, run_id: str) -> SessionRun | None:
         with self._lock:
@@ -652,6 +903,8 @@ class UIServerState:
             session = EurekaSession()
             run.eureka_session = session
             run.eureka_session_id = session.session_id
+            self._persist_run(run)
+            _attach_run_artifact_persistence(run, session)
 
             from eurekaclaw.ui import review_gate as _rg
             _rg.register_survey(session.session_id)
@@ -738,6 +991,91 @@ class UIServerState:
             run.updated_at = datetime.utcnow()
             self._persist_run(run)
 
+    def _execute_from_stage(
+        self,
+        run_id: str,
+        brief: Any,
+        bibliography: Any,
+        start_stage: str,
+        theory_state: Any | None = None,
+        theory_substage: str | None = None,
+    ) -> None:
+        run = self.get_run(run_id)
+        if run is None:
+            return
+
+        run.status = "running"
+        run.started_at = datetime.utcnow()
+        run.updated_at = datetime.utcnow()
+        launch_html_path = _UI_LAUNCH_DIR / f"{run.run_id}.html"
+        register_ui_html_sink(launch_html_path)
+
+        try:
+            config = _config_payload()
+            _preflight_check(config)
+
+            session = EurekaSession()
+            run.eureka_session = session
+            run.eureka_session_id = session.session_id
+            self._persist_run(run)
+            _attach_run_artifact_persistence(run, session)
+            session.bus.put_research_brief(brief.model_copy(update={"session_id": session.session_id}))
+            if bibliography is not None:
+                session.bus.put_bibliography(bibliography.model_copy(update={"session_id": session.session_id}))
+            if theory_state is not None:
+                session.bus.put_theory_state(theory_state.model_copy(update={"session_id": session.session_id}))
+
+            from eurekaclaw.ui import review_gate as _rg
+            _rg.register_survey(session.session_id)
+            _rg.register_direction(session.session_id)
+            _rg.register_theory(session.session_id)
+
+            with _temporary_auth_env(config):
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    async def _resume_from_stage() -> Any:
+                        orchestrator = session.orchestrator
+                        return await orchestrator.run_from_stage(
+                            run.input_spec,
+                            brief=brief,
+                            start_stage=start_stage,
+                            bibliography=bibliography,
+                            theory_start_substage=theory_substage,
+                        )
+
+                    result = loop.run_until_complete(_resume_from_stage())
+                finally:
+                    loop.close()
+                    asyncio.set_event_loop(None)
+
+            run.result = result
+            out_dir = save_artifacts(result, _ROOT_DIR / "results" / run.run_id)
+            save_console_html_artifact(out_dir)
+            run.output_dir = str(out_dir)
+            run.status = "completed"
+            run.output_summary = {
+                "latex_paper_length": len(result.latex_paper),
+                "has_experiment_result": bool(result.experiment_result_json),
+                "has_theory_state": bool(result.theory_state_json),
+                "output_dir": str(out_dir),
+                "restarted_from_stage": start_stage,
+                "restarted_from_theory_substage": theory_substage or "",
+            }
+        except Exception as exc:
+            logger.exception("UI session %s restart failed", start_stage)
+            run.status = "failed"
+            run.error = str(exc)
+            run.error_category = _classify_error(exc)
+        finally:
+            close_ui_html_sink()
+            if run.eureka_session_id:
+                from eurekaclaw.ui import review_gate as _rg
+                _rg.unregister_all(run.eureka_session_id)
+            run.completed_at = datetime.utcnow()
+            run.updated_at = datetime.utcnow()
+            self._persist_run(run)
+
     def snapshot_run(self, run: SessionRun) -> dict[str, Any]:
         bus = run.eureka_session.bus if run.eureka_session else None
         pipeline = bus.get_pipeline() if bus else None
@@ -760,7 +1098,13 @@ class UIServerState:
 
         brief = bus.get_research_brief() if bus else None
         bibliography = bus.get_bibliography() if bus else None
+        if brief is None or bibliography is None:
+            saved_brief, saved_bib = _load_saved_run_artifacts(run)
+            brief = brief or saved_brief
+            bibliography = bibliography or saved_bib
         theory_state = bus.get_theory_state() if bus else None
+        if theory_state is None:
+            theory_state = _load_saved_theory_state(run)
         experiment_result = bus.get_experiment_result() if bus else None
         resource_analysis = bus.get("resource_analysis") if bus else None
 
@@ -1275,6 +1619,33 @@ class UIRequestHandler(SimpleHTTPRequestHandler):
             run_id = parsed.path.removeprefix("/api/runs/").removesuffix("/restart")
             result = self.state.restart_run(run_id)
             if result.get("error"):  # snapshot always has "error" key; check truthiness
+                self._send_json(result, status=HTTPStatus.BAD_REQUEST)
+            else:
+                self._send_json(result, status=HTTPStatus.CREATED)
+            return
+
+        if parsed.path.startswith("/api/runs/") and parsed.path.endswith("/restart-from-ideation"):
+            run_id = parsed.path.removeprefix("/api/runs/").removesuffix("/restart-from-ideation")
+            result = self.state.restart_from_ideation(run_id)
+            if result.get("error"):
+                self._send_json(result, status=HTTPStatus.BAD_REQUEST)
+            else:
+                self._send_json(result, status=HTTPStatus.CREATED)
+            return
+        if parsed.path.startswith("/api/runs/") and parsed.path.endswith("/restart-from-theory"):
+            run_id = parsed.path.removeprefix("/api/runs/").removesuffix("/restart-from-theory")
+            result = self.state.restart_from_theory(run_id)
+            if result.get("error"):
+                self._send_json(result, status=HTTPStatus.BAD_REQUEST)
+            else:
+                self._send_json(result, status=HTTPStatus.CREATED)
+            return
+        if parsed.path.startswith("/api/runs/") and parsed.path.endswith("/restart-from-theory-stage"):
+            run_id = parsed.path.removeprefix("/api/runs/").removesuffix("/restart-from-theory-stage")
+            payload = self._read_json()
+            substage = str(payload.get("substage", "")).strip()
+            result = self.state.restart_from_theory_substage(run_id, substage)
+            if result.get("error"):
                 self._send_json(result, status=HTTPStatus.BAD_REQUEST)
             else:
                 self._send_json(result, status=HTTPStatus.CREATED)

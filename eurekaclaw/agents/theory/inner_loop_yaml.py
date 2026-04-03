@@ -458,7 +458,12 @@ class TheoryInnerLoopYaml:
             )
         return cls()
 
-    async def run(self, session_id: str, domain: str = "") -> TheoryState:
+    async def run(
+        self,
+        session_id: str,
+        domain: str = "",
+        start_stage: str | None = None,
+    ) -> TheoryState:
         """Execute the proof pipeline, with checkpoint-based pause/resume.
 
         Pause:
@@ -483,7 +488,7 @@ class TheoryInnerLoopYaml:
         original_spec = list(self._spec)
         current_spec = original_spec
         start_outer = 0
-        start_stage: str | None = None
+        requested_start_stage = start_stage
 
         if cp.exists():
             saved_state, meta = cp.load()
@@ -499,6 +504,17 @@ class TheoryInnerLoopYaml:
                 "proven=%d open=%d",
                 start_stage, start_outer,
                 len(state.proven_lemmas), len(state.open_goals),
+            )
+        elif requested_start_stage is not None:
+            valid_names = {spec["name"] for spec in current_spec}
+            if requested_start_stage not in valid_names:
+                raise ValueError(
+                    f"Unknown theory substage: {requested_start_stage}. Valid stages: {sorted(valid_names)}"
+                )
+            start_stage = requested_start_stage
+            logger.info(
+                "Starting theory pipeline from explicit substage '%s' for session %s",
+                start_stage, session_id,
             )
 
         # Snapshot the ResearchBrief for checkpoint saving (may be None for

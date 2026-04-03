@@ -20,6 +20,15 @@ const CODEX_AUTH_MODES = [
 const CODEX_OAUTH_MODELS = ['gpt-5.1-codex-mini', 'gpt-5.1-codex', 'gpt-5-codex-mini', 'gpt-5-codex'] as const;
 const CODEX_APIKEY_MODELS = ['o4-mini', 'o3', 'gpt-4.1', 'gpt-4.1-mini'] as const;
 
+function normalizeDisplayBackend(rawBackend: string): 'anthropic' | 'codex' | 'openai_compat' {
+  if (rawBackend === 'oauth') return 'anthropic';
+  if (rawBackend === 'openrouter' || rawBackend === 'local' || rawBackend === 'minimax') {
+    return 'openai_compat';
+  }
+  if (rawBackend === 'codex') return 'codex';
+  return rawBackend === 'openai_compat' ? 'openai_compat' : 'anthropic';
+}
+
 interface LLMSectionProps extends ConfigSectionProps {
   oauthStatus: OAuthStatusResponse | null;
   codexStatus: OAuthStatusResponse | null;
@@ -45,7 +54,7 @@ export function LLMSection({
   saveStatus, statusType,
 }: LLMSectionProps) {
   const rawBackend = (config.llm_backend as string) || 'anthropic';
-  const backend = rawBackend === 'oauth' ? 'anthropic' : rawBackend;
+  const backend = normalizeDisplayBackend(rawBackend);
   const authMode = rawBackend === 'oauth' ? 'oauth' : ((config.anthropic_auth_mode as string) || 'api_key');
   const codexAuthMode = (config.codex_auth_mode as string) || 'api_key';
   const ccproxyPort = String(config.ccproxy_port || '8000');
@@ -147,9 +156,14 @@ export function LLMSection({
 
       {showOpenAiCompat && (
         <div className="settings-field-group">
+          {rawBackend !== 'openai_compat' && (
+            <p className="settings-field-hint">
+              Using shortcut backend: <code>{rawBackend}</code>
+            </p>
+          )}
           <label className="settings-field">
             <span className="settings-field-label">Base URL</span>
-            <input type="text" name="openai_compat_base_url" placeholder="https://api.openrouter.ai/v1" value={val('openai_compat_base_url')} onChange={(e) => handleChange('openai_compat_base_url', e.target.value)} />
+            <input type="text" name="openai_compat_base_url" placeholder="https://openrouter.ai/api/v1" value={val('openai_compat_base_url')} onChange={(e) => handleChange('openai_compat_base_url', e.target.value)} />
           </label>
           <label className="settings-field">
             <span className="settings-field-label">API Key</span>

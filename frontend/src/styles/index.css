@@ -4360,6 +4360,64 @@ textarea {
   transform: translateY(0);
 }
 
+.failed-ideation-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 14px;
+  border-radius: var(--radius-md);
+  border: 1.2px solid rgba(55, 95, 170, 0.38);
+  background: rgba(55, 95, 170, 0.05);
+  color: #244f99;
+  font-size: 0.77rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, transform 0.1s;
+}
+
+.failed-ideation-btn:hover {
+  background: rgba(55, 95, 170, 0.09);
+  border-color: rgba(55, 95, 170, 0.52);
+  transform: translateY(-1px);
+}
+
+.failed-ideation-btn:active {
+  transform: translateY(0);
+}
+
+.failed-theory-stage-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.failed-stage-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(86, 102, 125, 0.22);
+  background: rgba(86, 102, 125, 0.05);
+  color: #4a5668;
+  font-size: 0.74rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, transform 0.1s;
+}
+
+.failed-stage-btn:hover:not(:disabled) {
+  background: rgba(86, 102, 125, 0.10);
+  border-color: rgba(86, 102, 125, 0.38);
+  transform: translateY(-1px);
+}
+
+.failed-stage-btn:disabled {
+  opacity: 0.48;
+  cursor: not-allowed;
+}
+
 .failed-session-note-badge.retryable {
   display: inline-block;
   margin-left: auto;
