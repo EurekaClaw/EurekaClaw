@@ -21,6 +21,15 @@ interface Props {
   onRefreshHealth?: () => void;
 }
 
+function normalizeDisplayBackend(rawBackend: string): 'anthropic' | 'codex' | 'openai_compat' {
+  if (rawBackend === 'oauth') return 'anthropic';
+  if (rawBackend === 'openrouter' || rawBackend === 'local' || rawBackend === 'minimax') {
+    return 'openai_compat';
+  }
+  if (rawBackend === 'codex') return 'codex';
+  return rawBackend === 'openai_compat' ? 'openai_compat' : 'anthropic';
+}
+
 export function ConfigForm({ onRefreshHealth }: Props) {
   const [config, setConfig] = useState<AppConfig>({});
   const [saveStatus, setSaveStatus] = useState('');
@@ -34,7 +43,7 @@ export function ConfigForm({ onRefreshHealth }: Props) {
   const [installingOpenai, setInstallingOpenai] = useState(false);
 
   const rawBackend = (config.llm_backend as string) || 'anthropic';
-  const backend = rawBackend === 'oauth' ? 'anthropic' : rawBackend;
+  const backend = normalizeDisplayBackend(rawBackend);
   const authMode = rawBackend === 'oauth' ? 'oauth' : ((config.anthropic_auth_mode as string) || 'api_key');
   const codexAuthMode = (config.codex_auth_mode as string) || 'api_key';
   const showOauth = backend === 'anthropic' && authMode === 'oauth';
@@ -162,8 +171,8 @@ export function ConfigForm({ onRefreshHealth }: Props) {
   };
 
   const testConnection = async (saveAfter: boolean) => {
-    if (showOauth && saveAfter) {
-      setStatus('Saving config and testing OAuth connection…', 'info');
+    if (saveAfter) {
+      setStatus(showOauth ? 'Saving config and testing OAuth connection…' : 'Saving config and testing connection…', 'info');
       try {
         await apiPost('/api/config', config);
         await loadConfig();
@@ -186,11 +195,6 @@ export function ConfigForm({ onRefreshHealth }: Props) {
           setStatus(`Connection failed: ${msg}`, 'error');
         }
         return;
-      }
-      if (saveAfter && !showOauth) {
-        await apiPost('/api/config', config);
-        await loadConfig();
-        onRefreshHealth?.();
       }
       const preview = result.reply_preview || 'OK';
       setStatus(saveAfter ? `Connected and saved. Preview: ${preview}` : `Connection verified. Preview: ${preview}`, 'ok');

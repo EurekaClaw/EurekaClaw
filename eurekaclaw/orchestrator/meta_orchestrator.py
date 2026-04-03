@@ -112,9 +112,72 @@ class MetaOrchestrator:
         pipeline = self.pipeline_manager.build(brief)
         self.bus.put_pipeline(pipeline)
 
+        return await self._run_pipeline_and_collect(input_spec, brief, pipeline)
+
+    async def run_from_stage(
+        self,
+        input_spec: InputSpec,
+        *,
+        brief: ResearchBrief,
+        start_stage: str,
+        bibliography=None,
+        theory_start_substage: str | None = None,
+    ) -> ResearchOutput:
+        """Resume execution from a later pipeline stage using precomputed artifacts.
+
+        Intended for UI/server recovery flows where earlier stages (for example
+        survey) have already produced durable artifacts and should not be rerun.
+        """
+        from eurekaclaw.llm.base import reset_global_tokens
+
+        reset_global_tokens()
+        settings.ensure_dirs()
+
+        brief = brief.model_copy(update={"session_id": self.bus.session_id})
+        self.bus.put_research_brief(brief)
+        if bibliography is not None:
+            self.bus.put_bibliography(bibliography.model_copy(update={"session_id": self.bus.session_id}))
+
+        console.print(f"\n[bold green]EurekaClaw[/bold green] session: {brief.session_id}")
+        plugin_name = self.domain_plugin.display_name if self.domain_plugin else "general"
+        console.print(
+            f"Domain: {brief.domain} ({plugin_name}) | Mode: {input_spec.mode} | "
+            f"Learning: {settings.eurekaclaw_mode}\n"
+        )
+        if self.domain_plugin:
+            self.bus.put("domain_workflow_hint", self.domain_plugin.get_workflow_hint())
+
+        pipeline = self.pipeline_manager.build(brief)
+        seen_start = False
+        for task in pipeline.tasks:
+            if task.name == start_stage:
+                seen_start = True
+                break
+            task.mark_completed()
+        if not seen_start:
+            raise ValueError(f"Unknown pipeline stage: {start_stage}")
+        self.bus.put_pipeline(pipeline)
+        console.print(f"[yellow]Resuming pipeline from stage: {start_stage}[/yellow]")
+        if start_stage == "theory" and theory_start_substage:
+            for task in pipeline.tasks:
+                if task.name == "theory":
+                    task.inputs["theory_start_substage"] = theory_start_substage
+                    break
+
+        return await self._run_pipeline_and_collect(input_spec, brief, pipeline)
+
+    async def _run_pipeline_and_collect(
+        self,
+        input_spec: InputSpec,
+        brief: ResearchBrief,
+        pipeline: TaskPipeline,
+    ) -> ResearchOutput:
+
         # --- Phase 3: Execute tasks ---
         for task in pipeline.tasks:
             if task.status == TaskStatus.SKIPPED:
+                continue
+            if task.status == TaskStatus.COMPLETED:
                 continue
 
             # Check dependencies
@@ -202,8 +265,8 @@ class MetaOrchestrator:
                 # Always-on summary card — visible regardless of gate_mode
                 self.gate.print_stage_summary(task.name)
 
-                if task.name == "survey":
-                    await self._handle_empty_survey_fallback(pipeline)
+            if task.name == "survey":
+                await self._handle_empty_survey_fallback(pipeline)
 
             self.bus.put_pipeline(pipeline)
 

@@ -107,9 +107,10 @@ def save_artifacts(result: ResearchOutput, out_dir: str | Path) -> Path:
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
 
-    # Write references.bib for user reference (not used for compilation —
-    # the paper uses an inline \begin{thebibliography} block instead).
     if result.bibliography_json:
+        (out / "bibliography.json").write_text(result.bibliography_json, encoding="utf-8")
+        # Write references.bib for user reference (not used for compilation —
+        # the paper uses an inline \begin{thebibliography} block instead).
         import json as _json
         bib_data = _json.loads(result.bibliography_json)
         bibtex_str = bib_data.get("bibtex", "")

@@ -44,6 +44,7 @@ The proof pipeline is specified by the YAML file loaded by TheoryInnerLoopYaml.
         brief = self.bus.get_research_brief()
         if not brief:
             return self._make_result(task, False, {}, error="No ResearchBrief found on bus")
+        theory_start_substage = str(task.inputs.get("theory_start_substage", "")).strip() or None
 
         direction = brief.selected_direction
         if not direction:
@@ -61,14 +62,23 @@ The proof pipeline is specified by the YAML file loaded by TheoryInnerLoopYaml.
         else:
             informal = direction.hypothesis
 
-        # Initialize TheoryState
-        state = TheoryState(
-            session_id=brief.session_id,
-            theorem_id=str(uuid.uuid4()),
-            informal_statement=informal,
-            formal_statement="",
-            status="pending",
-        )
+        state = self.bus.get_theory_state()
+        if state and theory_start_substage:
+            state = state.model_copy(
+                update={
+                    "session_id": brief.session_id,
+                    "informal_statement": state.informal_statement or informal,
+                    "status": "pending",
+                }
+            )
+        else:
+            state = TheoryState(
+                session_id=brief.session_id,
+                theorem_id=str(uuid.uuid4()),
+                informal_statement=informal,
+                formal_statement="",
+                status="pending",
+            )
         self.bus.put_theory_state(state)
 
         # Run the inner loop
@@ -82,6 +92,7 @@ The proof pipeline is specified by the YAML file loaded by TheoryInnerLoopYaml.
             final_state = await inner_loop.run(
                 session_id=brief.session_id,
                 domain=brief.domain,
+                start_stage=theory_start_substage,
             )
 
             success = final_state.status in ("proved",)

@@ -13,6 +13,29 @@ from eurekaclaw.types.tasks import Task
 
 logger = logging.getLogger(__name__)
 
+_STRUCTURE_SYSTEM_PROMPT = """\
+You convert candidate research directions into strict JSON.
+
+Return exactly one JSON object with this shape and nothing else:
+{"directions": [{...}, ...]}
+
+Rules:
+- Output exactly 5 directions if 5 candidates are available; otherwise output all valid candidates.
+- Preserve the mathematical content of the candidate directions.
+- Every direction should include:
+  - title
+  - hypothesis
+  - proof_sketch
+  - novelty_score
+  - novelty_rationale
+  - feasibility_score
+  - impact_score
+  - key_obstacle
+- novelty_score, feasibility_score, and impact_score must be numbers in [0, 1].
+- Do not call tools.
+- Do not include markdown fences or commentary.
+"""
+
 
 class IdeationAgent(BaseAgent):
     """Generates novel research hypotheses from survey findings.
@@ -46,9 +69,14 @@ For each hypothesis, provide:
 Be creative but grounded. A good hypothesis is surprising yet believable.
 
 You may use at most 2 search tool calls. After that you MUST output the final
-JSON immediately — no further tool calls, no planning text.
-Your final message MUST be a JSON object and nothing else:
-{"directions": [{...}, ...]}
+candidate list immediately — no further tool calls, no planning text.
+The final message in this phase should be concise and easy to structure later.
+Prefer a numbered list with exactly 5 candidate directions. For each candidate:
+- title
+- 1-2 sentence mathematical hypothesis
+- 1 sentence proof idea
+- 1 sentence novelty rationale
+- 1 sentence key obstacle
 """
 
     async def execute(self, task: Task) -> AgentResult:
@@ -88,12 +116,34 @@ Generate exactly 5 research directions, each as a precise mathematical conjectur
 4. Impact score (0-1) and significance
 5. Key obstacle to overcome
 
-Return as JSON: {{"directions": [{{...}}, ...]}}
+In this first pass, do NOT return JSON.
+Return a concise numbered list of exactly 5 candidate directions that can be
+converted to JSON in a second step.
 """
 
         try:
-            text, tokens = await self.run_agent_loop(task, user_message, max_turns=6)
+            brainstorm_text, tokens = await self.run_agent_loop(task, user_message, max_turns=6)
+
+            structure_user_message = f"""\
+Convert the following candidate research directions into strict JSON.
+
+Original research question:
+{brief.query}
+
+Candidate directions:
+{brainstorm_text}
+"""
+            structured = await self._call_model(
+                system=_STRUCTURE_SYSTEM_PROMPT,
+                messages=[{"role": "user", "content": structure_user_message}],
+            )
+            text = structured.content[0].text if structured.content else ""
             directions_data = self._parse_directions(text)
+
+            # Fallback: if the JSON structuring pass fails to parse, still try
+            # the phase-1 text in case the model already produced usable JSON.
+            if not directions_data:
+                directions_data = self._parse_directions(brainstorm_text)
 
             # Convert to ResearchDirection objects and store on brief
             directions = []
