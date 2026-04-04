@@ -274,6 +274,7 @@ EurekaClaw builds on ideas and inspiration from the broader AI-for-science commu
 - [OpenClaw](https://github.com/openclaw/openclaw) — open-source research claw
 - [ClawTeam](https://github.com/HKUDS/ClawTeam) — collaborative research agents
 - [ScienceClaw](https://github.com/beita6969/ScienceClaw) — science-focused research agent
+- [Tirith](https://github.com/sheeki03/tirith) — terminal security scanner for URL threats, homograph attacks, and command injection (integrated for pre-exec code scanning; also used by [Hermes Agent](https://github.com/NousResearch/hermes-agent))
 
 ---
 
