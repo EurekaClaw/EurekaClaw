@@ -86,45 +86,45 @@ macOS/Linux 安装程序会克隆仓库、创建虚拟环境、安装 EurekaClaw
 
 | 镜像 | 标签 | 大小 | 描述 |
 |---|---|---|---|
-| `chenggongzhang/eurekaclaw` | `latest` | ~10 GB | CPU — 内含 Python 3.11、Node.js 18、所有依赖 |
-| `chenggongzhang/eurekaclaw` | `gpu` | ~13 GB | GPU — NVIDIA CUDA 12.4 + 以上所有内容 |
+| `eurekaclaw/eurekaclaw` | `latest` | ~10 GB | CPU — 内含 Python 3.11、Node.js 18、所有依赖 |
+| `eurekaclaw/eurekaclaw` | `gpu` | ~13 GB | GPU — NVIDIA CUDA 12.4 + 以上所有内容 |
 
 ```bash
 # 拉取镜像（一次性，约 10 GB）
-docker pull chenggongzhang/eurekaclaw
+docker pull eurekaclaw/eurekaclaw
 ```
 
 **一行命令 — 启动浏览器 UI：**
 ```bash
-docker run --rm -it -p 8080:8080 -e ANTHROPIC_API_KEY=sk-ant-... chenggongzhang/eurekaclaw
+docker run --rm -it -p 8080:8080 -e ANTHROPIC_API_KEY=sk-ant-... eurekaclaw/eurekaclaw
 # 浏览器打开 http://localhost:8080
 ```
 
 **GPU 支持（NVIDIA）：**
 ```bash
 docker run --rm -it -p 8080:8080 --gpus all \
-  -e ANTHROPIC_API_KEY=sk-ant-... chenggongzhang/eurekaclaw:gpu
+  -e ANTHROPIC_API_KEY=sk-ant-... eurekaclaw/eurekaclaw:gpu
 ```
 
 **使用 `.env` 配置文件 + 数据持久化：**
 ```bash
 # 先复制并编辑 .env: cp .env.example .env
 docker run --rm -it -p 8080:8080 --env-file .env \
-  -v ~/.eurekaclaw:/root/.eurekaclaw chenggongzhang/eurekaclaw
+  -v ~/.eurekaclaw:/root/.eurekaclaw eurekaclaw/eurekaclaw
 ```
 
 **CLI 模式（prove / explore / from-papers）：**
 ```bash
 docker run --rm -it -e ANTHROPIC_API_KEY=sk-ant-... \
-  chenggongzhang/eurekaclaw prove "The sample complexity of transformers is O(L·d·log(d)/ε²)"
+  eurekaclaw/eurekaclaw prove "The sample complexity of transformers is O(L·d·log(d)/ε²)"
 
 docker run --rm -it -e ANTHROPIC_API_KEY=sk-ant-... \
-  chenggongzhang/eurekaclaw explore "multi-armed bandit theory"
+  eurekaclaw/eurekaclaw explore "multi-armed bandit theory"
 ```
 
 **交互式终端（容器内有完整环境）：**
 ```bash
-docker run --rm -it -e ANTHROPIC_API_KEY=sk-ant-... chenggongzhang/eurekaclaw bash
+docker run --rm -it -e ANTHROPIC_API_KEY=sk-ant-... eurekaclaw/eurekaclaw bash
 # 容器内：eurekaclaw、python3、node、npm、uv 全部可用
 ```
 
@@ -138,7 +138,7 @@ ssh -L 8080:localhost:8080 user@server-ip
 
 # 第二步：在服务器上用 host 网络模式启动容器
 docker run --rm -it --network host \
-  -e ANTHROPIC_API_KEY=sk-ant-... chenggongzhang/eurekaclaw
+  -e ANTHROPIC_API_KEY=sk-ant-... eurekaclaw/eurekaclaw
 
 # 第三步：在笔记本浏览器打开 http://localhost:8080
 ```
@@ -151,7 +151,7 @@ docker run --rm -it --network host \
 ```bash
 docker run --rm -it --network host \
   -e ANTHROPIC_API_KEY=sk-ant-... \
-  chenggongzhang/eurekaclaw
+  eurekaclaw/eurekaclaw
 ```
 
 *方式 B — OAuth 登录 Claude Pro/Max（无需 API Key）：*
@@ -164,7 +164,7 @@ ssh -L 8080:localhost:8080 -L 54545:localhost:54545 user@server-ip
 docker run --rm -it --network host \
   -v ~/.config/ccproxy:/root/.config/ccproxy \
   -v ~/.eurekaclaw:/root/.eurekaclaw \
-  chenggongzhang/eurekaclaw bash
+  eurekaclaw/eurekaclaw bash
 
 # 第三步：在容器内执行 OAuth 登录（仅首次需要）
 ccproxy auth login claude_api
@@ -178,7 +178,7 @@ docker run --rm -it --network host \
   -e ANTHROPIC_AUTH_MODE=oauth \
   -v ~/.config/ccproxy:/root/.config/ccproxy \
   -v ~/.eurekaclaw:/root/.eurekaclaw \
-  chenggongzhang/eurekaclaw
+  eurekaclaw/eurekaclaw
 ```
 
 **本地构建（可选）：**

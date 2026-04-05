@@ -6,15 +6,15 @@
 #
 # Usage:
 #   # Build (current platform only)
-#   docker build -t chenggongzhang/eurekaclaw .
+#   docker build -t eurekaclaw/eurekaclaw .
 #
 #   # GPU build (NVIDIA)
 #   docker build --build-arg BASE_IMAGE=nvidia/cuda:12.4.1-runtime-ubuntu22.04 \
-#     -t chenggongzhang/eurekaclaw:gpu .
+#     -t eurekaclaw/eurekaclaw:gpu .
 #
 #   # Multi-platform build + push (amd64 + arm64)
 #   docker buildx build --platform linux/amd64,linux/arm64 \
-#     -t chenggongzhang/eurekaclaw:latest --push .
+#     -t eurekaclaw/eurekaclaw:latest --push .
 #
 #   # Run UI (default)
 #   docker run --rm -it -p 8080:8080 -e ANTHROPIC_API_KEY=sk-ant-... eurekaclaw

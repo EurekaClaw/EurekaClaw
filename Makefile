@@ -58,25 +58,25 @@ uv-install:
 
 # ── Docker ────────────────────────────────────────────────────────────────────
 docker:
-	docker build -t chenggongzhang/eurekaclaw:latest .
+	docker build -t eurekaclaw/eurekaclaw:latest .
 
 docker-gpu:
 	docker build --build-arg BASE_IMAGE=nvidia/cuda:12.4.1-runtime-ubuntu22.04 \
-		-t chenggongzhang/eurekaclaw:gpu .
+		-t eurekaclaw/eurekaclaw:gpu .
 
 docker-push:
 	docker buildx build --platform linux/amd64,linux/arm64 \
-		-t chenggongzhang/eurekaclaw:latest --push .
+		-t eurekaclaw/eurekaclaw:latest --push .
 
 docker-push-gpu:
 	docker buildx build --platform linux/amd64,linux/arm64 \
 		--build-arg BASE_IMAGE=nvidia/cuda:12.4.1-runtime-ubuntu22.04 \
-		-t chenggongzhang/eurekaclaw:gpu --push .
+		-t eurekaclaw/eurekaclaw:gpu --push .
 
 docker-run:
 	docker run --rm -it -p 8080:8080 --env-file .env \
-		-v ~/.eurekaclaw:/root/.eurekaclaw chenggongzhang/eurekaclaw:latest
+		-v ~/.eurekaclaw:/root/.eurekaclaw eurekaclaw/eurekaclaw:latest
 
 docker-run-gpu:
 	docker run --rm -it -p 8080:8080 --env-file .env --gpus all \
-		-v ~/.eurekaclaw:/root/.eurekaclaw chenggongzhang/eurekaclaw:gpu
+		-v ~/.eurekaclaw:/root/.eurekaclaw eurekaclaw/eurekaclaw:gpu

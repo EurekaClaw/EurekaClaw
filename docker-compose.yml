@@ -15,7 +15,7 @@ services:
   # ── Production: serve pre-built UI ─────────────────────────────────────────
   eurekaclaw:
     build: .
-    image: chenggongzhang/eurekaclaw:latest
+    image: eurekaclaw/eurekaclaw:latest
     ports:
       - "8080:8080"
     env_file:
@@ -30,7 +30,7 @@ services:
       context: .
       args:
         BASE_IMAGE: nvidia/cuda:12.4.1-runtime-ubuntu22.04
-    image: chenggongzhang/eurekaclaw:gpu
+    image: eurekaclaw/eurekaclaw:gpu
     ports:
       - "8080:8080"
     env_file:
@@ -51,7 +51,7 @@ services:
   # ── Development: hot-reload frontend + backend ─────────────────────────────
   eurekaclaw-dev:
     build: .
-    image: chenggongzhang/eurekaclaw:latest
+    image: eurekaclaw/eurekaclaw:latest
     command: dev
     ports:
       - "5173:5173"

@@ -86,45 +86,45 @@ The macOS/Linux installer clones the repo, creates a virtual environment, instal
 
 | Image | Tag | Size | Description |
 |---|---|---|---|
-| `chenggongzhang/eurekaclaw` | `latest` | ~10 GB | CPU — Python 3.11, Node.js 18, all dependencies pre-installed |
-| `chenggongzhang/eurekaclaw` | `gpu` | ~13 GB | GPU — NVIDIA CUDA 12.4 + everything above |
+| `eurekaclaw/eurekaclaw` | `latest` | ~10 GB | CPU — Python 3.11, Node.js 18, all dependencies pre-installed |
+| `eurekaclaw/eurekaclaw` | `gpu` | ~13 GB | GPU — NVIDIA CUDA 12.4 + everything above |
 
 ```bash
 # Pull the image (one-time, ~10 GB)
-docker pull chenggongzhang/eurekaclaw
+docker pull eurekaclaw/eurekaclaw
 ```
 
 **One-line install — launch the browser UI:**
 ```bash
-docker run --rm -it -p 8080:8080 -e ANTHROPIC_API_KEY=sk-ant-... chenggongzhang/eurekaclaw
+docker run --rm -it -p 8080:8080 -e ANTHROPIC_API_KEY=sk-ant-... eurekaclaw/eurekaclaw
 # Open http://localhost:8080 in your browser
 ```
 
 **GPU support (NVIDIA):**
 ```bash
 docker run --rm -it -p 8080:8080 --gpus all \
-  -e ANTHROPIC_API_KEY=sk-ant-... chenggongzhang/eurekaclaw:gpu
+  -e ANTHROPIC_API_KEY=sk-ant-... eurekaclaw/eurekaclaw:gpu
 ```
 
 **With `.env` config file + persistent data:**
 ```bash
 # Copy and edit .env first: cp .env.example .env
 docker run --rm -it -p 8080:8080 --env-file .env \
-  -v ~/.eurekaclaw:/root/.eurekaclaw chenggongzhang/eurekaclaw
+  -v ~/.eurekaclaw:/root/.eurekaclaw eurekaclaw/eurekaclaw
 ```
 
 **CLI mode (prove / explore / from-papers):**
 ```bash
 docker run --rm -it -e ANTHROPIC_API_KEY=sk-ant-... \
-  chenggongzhang/eurekaclaw prove "The sample complexity of transformers is O(L·d·log(d)/ε²)"
+  eurekaclaw/eurekaclaw prove "The sample complexity of transformers is O(L·d·log(d)/ε²)"
 
 docker run --rm -it -e ANTHROPIC_API_KEY=sk-ant-... \
-  chenggongzhang/eurekaclaw explore "multi-armed bandit theory"
+  eurekaclaw/eurekaclaw explore "multi-armed bandit theory"
 ```
 
 **Interactive shell (full environment inside container):**
 ```bash
-docker run --rm -it -e ANTHROPIC_API_KEY=sk-ant-... chenggongzhang/eurekaclaw bash
+docker run --rm -it -e ANTHROPIC_API_KEY=sk-ant-... eurekaclaw/eurekaclaw bash
 # Inside: eurekaclaw, python3, node, npm, uv are all available
 ```
 
@@ -138,7 +138,7 @@ ssh -L 8080:localhost:8080 user@server-ip
 
 # Step 2: On the server, run the container with host networking
 docker run --rm -it --network host \
-  -e ANTHROPIC_API_KEY=sk-ant-... chenggongzhang/eurekaclaw
+  -e ANTHROPIC_API_KEY=sk-ant-... eurekaclaw/eurekaclaw
 
 # Step 3: Open http://localhost:8080 in your laptop's browser
 ```
@@ -151,7 +151,7 @@ docker run --rm -it --network host \
 ```bash
 docker run --rm -it --network host \
   -e ANTHROPIC_API_KEY=sk-ant-... \
-  chenggongzhang/eurekaclaw
+  eurekaclaw/eurekaclaw
 ```
 
 *Option B — OAuth for Claude Pro/Max (no API key needed):*
@@ -164,7 +164,7 @@ ssh -L 8080:localhost:8080 -L 54545:localhost:54545 user@server-ip
 docker run --rm -it --network host \
   -v ~/.config/ccproxy:/root/.config/ccproxy \
   -v ~/.eurekaclaw:/root/.eurekaclaw \
-  chenggongzhang/eurekaclaw bash
+  eurekaclaw/eurekaclaw bash
 
 # Step 3: Inside the container, run OAuth login (one-time)
 ccproxy auth login claude_api
@@ -178,7 +178,7 @@ docker run --rm -it --network host \
   -e ANTHROPIC_AUTH_MODE=oauth \
   -v ~/.config/ccproxy:/root/.config/ccproxy \
   -v ~/.eurekaclaw:/root/.eurekaclaw \
-  chenggongzhang/eurekaclaw
+  eurekaclaw/eurekaclaw
 ```
 
 **Build locally (optional):**
