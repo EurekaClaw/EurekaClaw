@@ -193,10 +193,11 @@ def run_onboard(non_interactive: bool, reset: bool, env_file: str) -> None:
         "  [dim]openai_compat[/dim] — Any OpenAI-compatible endpoint\n"
         "  [dim]local[/dim]         — Local vLLM / LM Studio at localhost:8000\n"
         "  [dim]minimax[/dim]       — Minimax\n"
+        "  [dim]novita[/dim]        — Novita AI (200+ models, OpenAI-compatible)\n"
     )
     backend = ask_choice(
         "LLM_BACKEND",
-        ["anthropic", "oauth", "codex", "openrouter", "openai_compat", "local", "minimax"],
+        ["anthropic", "oauth", "codex", "openrouter", "openai_compat", "local", "minimax", "novita"],
         get("LLM_BACKEND", "anthropic"),
     )
     cfg["LLM_BACKEND"] = backend
@@ -278,6 +279,17 @@ def run_onboard(non_interactive: bool, reset: bool, env_file: str) -> None:
         )
         cfg["MINIMAX_MODEL"] = ask(
             "  MINIMAX_MODEL", get("MINIMAX_MODEL", "MiniMax-Text-01")
+        )
+        cfg["ANTHROPIC_AUTH_MODE"] = get("ANTHROPIC_AUTH_MODE", "api_key")
+        cfg["CCPROXY_PORT"] = get("CCPROXY_PORT", "8765")
+        cfg["ANTHROPIC_BASE_URL"] = get("ANTHROPIC_BASE_URL", "")
+
+    elif backend == "novita":
+        cfg["NOVITA_API_KEY"] = ask(
+            "  NOVITA_API_KEY", get("NOVITA_API_KEY", ""), secret=True
+        )
+        cfg["NOVITA_MODEL"] = ask(
+            "  NOVITA_MODEL", get("NOVITA_MODEL", "moonshotai/kimi-k2.5")
         )
         cfg["ANTHROPIC_AUTH_MODE"] = get("ANTHROPIC_AUTH_MODE", "api_key")
         cfg["CCPROXY_PORT"] = get("CCPROXY_PORT", "8765")
