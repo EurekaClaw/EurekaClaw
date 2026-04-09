@@ -80,9 +80,6 @@ LeanGen/
 build_textbook_benchmark.py
 check_textbook_lean_target.py
 evaluate_textbook_statement.py
-generate_lean_from_instruction.py
-scripts/generate_lean_instruction.py
-scripts/generate_lean_pipeline.py
 scripts/generate_textbook_lean_target.py
 scripts/run_textbook_formalizer_agent.py
 scripts/run_textbook_formalizer_segment.py
