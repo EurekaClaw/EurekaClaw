@@ -29,6 +29,7 @@ dependencies = [
     "requests>=2.31",
     "readchar>=4.0",
     "docling>=2.0",
+    "pypdf>=4.0",
 ]
 
 [project.optional-dependencies]

@@ -55,25 +55,24 @@ def create_client(
     # and the standard Responses API rejects them with 401 "missing scopes".
     if original_backend == "codex" and settings.codex_auth_mode == "oauth":
         from eurekaclaw.llm.openai_responses import OpenAIResponsesAdapter
+        from eurekaclaw.codex_manager import _load_valid_tokens, maybe_setup_codex_auth
 
+        # Ensure the current process has the Codex OAuth token loaded, just as
+        # the main CLI path does. This avoids accidentally falling back to an
+        # unrelated OPENAI_COMPAT_API_KEY such as an OpenRouter key.
+        maybe_setup_codex_auth()
+
+        tokens = _load_valid_tokens() or {}
         api_key = (
             openai_api_key
+            or tokens.get("access_token", "")
             or os.environ.get("OPENAI_COMPAT_API_KEY")
-            or settings.openai_compat_api_key
         )
         model = openai_model or settings.codex_model
 
         # Read account_id from Codex CLI credentials (needed for the
         # ChatGPT-Account-Id header that the backend requires).
-        account_id = os.environ.get("CODEX_ACCOUNT_ID", "")
-        if not account_id:
-            try:
-                from eurekaclaw.codex_manager import _load_valid_tokens
-                tokens = _load_valid_tokens()
-                if tokens:
-                    account_id = tokens.get("account_id", "")
-            except Exception:
-                pass
+        account_id = os.environ.get("CODEX_ACCOUNT_ID", "") or tokens.get("account_id", "")
 
         return OpenAIResponsesAdapter(
             api_key=api_key or "EMPTY",

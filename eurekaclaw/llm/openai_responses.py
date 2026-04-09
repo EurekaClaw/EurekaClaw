@@ -34,6 +34,8 @@ from __future__ import annotations
 
 import json
 import logging
+import os
+from pathlib import Path
 from typing import Any
 
 from eurekaclaw.llm.base import LLMClient
@@ -50,6 +52,36 @@ _CHATGPT_BACKEND = "https://chatgpt.com/backend-api"
 
 # Default model for ChatGPT Codex endpoint (must be a codex-specific model)
 _DEFAULT_CODEX_MODEL = "gpt-5.1-codex-mini"
+
+
+def _safe_preview(value: Any, limit: int = 1200) -> str:
+    """Return a compact JSON-ish preview for diagnostics."""
+    try:
+        text = json.dumps(value, ensure_ascii=False, default=str)
+    except Exception:
+        text = repr(value)
+    if len(text) > limit:
+        return text[:limit] + "...<truncated>"
+    return text
+
+
+def _write_debug_response(payload: dict[str, Any]) -> str:
+    """Persist a small debug snapshot for no-content Codex responses."""
+    debug_dir = Path("/tmp/eurekaclaw_codex_debug")
+    debug_dir.mkdir(parents=True, exist_ok=True)
+    response_id = str(payload.get("id", "unknown"))
+    path = debug_dir / f"{response_id}.json"
+    snapshot = {
+        "id": payload.get("id"),
+        "status": payload.get("status"),
+        "model": payload.get("model"),
+        "keys": sorted(payload.keys()),
+        "text_type": type(payload.get("text")).__name__,
+        "text_preview": _safe_preview(payload.get("text")),
+        "output_preview": _safe_preview(payload.get("output")),
+    }
+    path.write_text(json.dumps(snapshot, ensure_ascii=False, indent=2))
+    return str(path)
 
 
 class OpenAIResponsesAdapter(LLMClient):
@@ -126,6 +158,9 @@ class OpenAIResponsesAdapter(LLMClient):
 
         try:
             full_response: dict[str, Any] | None = None
+            streamed_text_parts: list[str] = []
+            streamed_text_done: str = ""
+            saw_output_text_delta = False
 
             async with self._client.stream("POST", "/codex/responses", json=body) as resp:
                 if resp.status_code >= 400:
@@ -147,6 +182,40 @@ class OpenAIResponsesAdapter(LLMClient):
                             break
                         try:
                             event = json.loads(data_str)
+                            event_type = event.get("type", "")
+                            if event_type == "response.output_text.delta":
+                                delta = event.get("delta", "")
+                                if isinstance(delta, str) and delta:
+                                    saw_output_text_delta = True
+                                    streamed_text_parts.append(delta)
+                            elif event_type == "response.output_text.done":
+                                text = event.get("text", "")
+                                if isinstance(text, str) and text:
+                                    streamed_text_done = text
+                            elif event_type in {
+                                "response.content_part.added",
+                                "response.content_part.done",
+                            }:
+                                if not saw_output_text_delta and not streamed_text_done:
+                                    part = event.get("part", {})
+                                    if isinstance(part, dict):
+                                        part_type = part.get("type", "")
+                                        if part_type in {"output_text", "text"}:
+                                            text = part.get("text", "") or part.get("content", "")
+                                            if isinstance(text, str) and text:
+                                                streamed_text_done = text
+                            elif event_type in {
+                                "response.output_item.added",
+                                "response.output_item.done",
+                            }:
+                                if not saw_output_text_delta and not streamed_text_done:
+                                    item = event.get("item", {})
+                                    if isinstance(item, dict):
+                                        item_type = item.get("type", "")
+                                        if item_type in {"output_text", "text"}:
+                                            text = item.get("text", "") or item.get("content", "")
+                                            if isinstance(text, str) and text:
+                                                streamed_text_done = text
                             if event.get("type") == "response.completed":
                                 full_response = event.get("response", {})
                         except json.JSONDecodeError:
@@ -162,6 +231,12 @@ class OpenAIResponsesAdapter(LLMClient):
                 "ChatGPT Codex API: no response.completed event received"
             )
 
+        if not full_response.get("output_text"):
+            if saw_output_text_delta and streamed_text_parts:
+                full_response["output_text"] = "".join(streamed_text_parts)
+            elif streamed_text_done:
+                full_response["output_text"] = streamed_text_done
+
         # Check for API-level failure
         status = full_response.get("status", "completed")
         if status == "failed":
@@ -173,7 +248,25 @@ class OpenAIResponsesAdapter(LLMClient):
 
         normalized = self._normalize(full_response)
         if not normalized.content:
-            raise RuntimeError("ChatGPT Codex API returned no content blocks")
+            output_items = full_response.get("output", [])
+            output_types = [
+                item.get("type", type(item).__name__)
+                for item in output_items
+                if isinstance(item, dict)
+            ]
+            top_level_keys = sorted(full_response.keys())
+            debug_path = _write_debug_response(full_response)
+            raise RuntimeError(
+                "ChatGPT Codex API returned no content blocks "
+                f"(status={full_response.get('status', '')}, "
+                f"output_types={output_types}, "
+                f"has_output_text={bool(full_response.get('output_text'))}, "
+                f"has_text={bool(full_response.get('text'))}, "
+                f"text_type={type(full_response.get('text')).__name__}, "
+                f"text_preview={_safe_preview(full_response.get('text'))}, "
+                f"keys={top_level_keys}, "
+                f"debug_path={debug_path})"
+            )
         return normalized
 
     # ------------------------------------------------------------------
@@ -277,15 +370,49 @@ class OpenAIResponsesAdapter(LLMClient):
         content: list[NormalizedTextBlock | NormalizedToolUseBlock] = []
         has_function_calls = False
 
+        def _append_text_value(value: Any) -> None:
+            if isinstance(value, str):
+                if value:
+                    content.append(NormalizedTextBlock(text=value))
+                return
+            if isinstance(value, list):
+                for block in value:
+                    _append_text_value(block)
+                return
+            if isinstance(value, dict):
+                _append_text_from_block(value)
+                for key in ("text", "content", "value"):
+                    inner = value.get(key)
+                    if isinstance(inner, str) and inner:
+                        content.append(NormalizedTextBlock(text=inner))
+                        return
+                    if isinstance(inner, list):
+                        for block in inner:
+                            _append_text_value(block)
+                        return
+
+        def _append_text_from_block(block: dict[str, Any]) -> None:
+            block_type = block.get("type", "")
+            text = ""
+            if block_type in {"output_text", "text", "input_text"}:
+                text = block.get("text", "") or block.get("content", "")
+            elif isinstance(block.get("text"), str):
+                text = block.get("text", "")
+            elif isinstance(block.get("content"), str):
+                text = block.get("content", "")
+            if text:
+                content.append(NormalizedTextBlock(text=text))
+
         for item in data.get("output", []):
             item_type = item.get("type", "")
 
             if item_type == "message":
                 for c in item.get("content", []):
-                    if c.get("type") == "output_text":
-                        text = c.get("text", "")
-                        if text:
-                            content.append(NormalizedTextBlock(text=text))
+                    if isinstance(c, dict):
+                        _append_text_from_block(c)
+
+            elif item_type in {"output_text", "text"}:
+                _append_text_from_block(item)
 
             elif item_type == "function_call":
                 has_function_calls = True
@@ -298,6 +425,18 @@ class OpenAIResponsesAdapter(LLMClient):
                     name=item.get("name", ""),
                     input=parsed_input,
                 ))
+
+        # Some ChatGPT Codex responses surface text at the top level instead of
+        # inside output[].message.content[].
+        if not content:
+            top_level_text = data.get("output_text", "")
+            _append_text_value(top_level_text)
+
+        # Some responses appear to surface the final text in a top-level `text`
+        # field instead of `output` / `output_text`.
+        if not content:
+            top_level_text = data.get("text", "")
+            _append_text_value(top_level_text)
 
         # Determine stop_reason
         status = data.get("status", "completed")
