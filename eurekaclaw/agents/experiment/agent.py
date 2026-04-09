@@ -135,12 +135,13 @@ class ExperimentAgent(BaseAgent):
     role = AgentRole.EXPERIMENT
 
     def get_tool_names(self) -> list[str]:
-        return ["execute_python", "run_bandit_experiment", "wolfram_alpha"]
+        return ["execute_python", "run_bandit_experiment", "wolfram_alpha", "tirith_scan"]
 
     def _role_system_prompt(self, task: Task) -> str:
         return """\
 You are the Experiment Agent of EurekaClaw. Your role is to empirically validate \
 theoretical results through numerical experiments.
+If code references suspicious URLs or commands, use tirith_scan to check them.
 
 Your process:
 1. Read the proven theorems and their bounds from the theory state
