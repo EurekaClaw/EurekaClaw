@@ -33,7 +33,7 @@ _DEFAULT_LEAN_GEN = Path(
 )
 
 from eurekaclaw.config import settings
-from eurekaclaw.textbook import LeanCodeFromInstructionGenerator
+from eurekaclaw.lean import LeanCodeFromInstructionGenerator
 
 
 async def _run(instruction_path: Path, output_path: Path, max_tokens: int) -> None:

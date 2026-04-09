@@ -31,8 +31,8 @@ _DEFAULT_LEAN_GEN = Path(
 )
 
 from eurekaclaw.config import settings
-from eurekaclaw.textbook import LeanCodeFromInstructionGenerator, LeanInstructionGenerator
-from eurekaclaw.textbook.instruction_generator import (
+from eurekaclaw.lean import LeanCodeFromInstructionGenerator, LeanInstructionGenerator
+from eurekaclaw.lean.instruction_generator import (
     extract_formalized_section,
     extract_rules_section,
 )

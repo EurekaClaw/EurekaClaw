@@ -47,8 +47,8 @@ _DEFAULT_WORKSPACE = Path(
 )
 
 from eurekaclaw.config import settings
-from eurekaclaw.textbook import LeanInstructionGenerator
-from eurekaclaw.textbook.instruction_generator import (
+from eurekaclaw.lean import LeanInstructionGenerator
+from eurekaclaw.lean.instruction_generator import (
     extract_formalized_section,
     extract_rules_section,
 )
