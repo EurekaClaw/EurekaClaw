@@ -71,3 +71,11 @@ stages:
     depends_on: [theory_review_gate]
     gate_required: false
     max_retries: 3
+
+  - name: paper_qa_gate
+    agent_role: orchestrator
+    description: "Review the generated paper — optionally ask a question or request a rewrite"
+    inputs: {}
+    depends_on: [writer]
+    gate_required: false
+    max_retries: 0

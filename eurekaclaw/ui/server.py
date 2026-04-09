@@ -910,6 +910,7 @@ class UIServerState:
             _rg.register_survey(session.session_id)
             _rg.register_direction(session.session_id)
             _rg.register_theory(session.session_id)
+            _rg.register_paper_qa(session.session_id)
 
             with _temporary_auth_env(config):
                 # asyncio.run() can be unreliable in non-main threads on some
@@ -1029,6 +1030,7 @@ class UIServerState:
             _rg.register_survey(session.session_id)
             _rg.register_direction(session.session_id)
             _rg.register_theory(session.session_id)
+            _rg.register_paper_qa(session.session_id)
 
             with _temporary_auth_env(config):
                 loop = asyncio.new_event_loop()
@@ -1107,6 +1109,7 @@ class UIServerState:
             theory_state = _load_saved_theory_state(run)
         experiment_result = bus.get_experiment_result() if bus else None
         resource_analysis = bus.get("resource_analysis") if bus else None
+        paper_qa_answer = bus.get("paper_qa_answer") if bus else None
 
         # Check if a checkpoint exists for this session (enables "resume" in UI)
         has_checkpoint = False
@@ -1137,6 +1140,7 @@ class UIServerState:
                 "theory_state": _serialize_value(theory_state) if theory_state else None,
                 "experiment_result": _serialize_value(experiment_result) if experiment_result else None,
                 "resource_analysis": _serialize_value(resource_analysis) if resource_analysis else None,
+                "paper_qa_answer": paper_qa_answer if paper_qa_answer else None,
             },
             "result": _serialize_value(run.result) if run.result else None,
             "output_summary": _serialize_value(run.output_summary),
@@ -1832,6 +1836,11 @@ class UIRequestHandler(SimpleHTTPRequestHandler):
                 lemma_id = str(payload.get("lemma_id", "")).strip()
                 reason = str(payload.get("reason", "")).strip()
                 ok = _rg.submit_theory(session_id, TheoryDecision(approved=approved, lemma_id=lemma_id, reason=reason))
+            elif gate_type == "paper_qa":
+                from eurekaclaw.ui.review_gate import PaperQADecision
+                action = str(payload.get("action", "no")).strip()
+                question = str(payload.get("question", "")).strip()
+                ok = _rg.submit_paper_qa(session_id, PaperQADecision(action=action, question=question))
             else:
                 self._send_json({"error": f"Unknown gate type: {gate_type}"}, status=HTTPStatus.BAD_REQUEST)
                 return

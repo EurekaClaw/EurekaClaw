@@ -245,17 +245,104 @@ function TheoryReviewGate({ run }: Props) {
   );
 }
 
+function PaperQAGate({ run }: Props) {
+  const [wantsQA, setWantsQA] = useState(false);
+  const [action, setAction] = useState<'rebuttal' | 'rewrite'>('rebuttal');
+  const [question, setQuestion] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  async function submit(a: string, q: string) {
+    setSubmitting(true);
+    try {
+      await apiPost(`/api/runs/${run.run_id}/gate/paper_qa`, { action: a, question: q });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  if (!wantsQA) {
+    return (
+      <div className="gate-overlay-body">
+        <p className="gate-overlay-heading">📄 Paper generated</p>
+        <p className="gate-overlay-sub">
+          Your paper is ready. Download it from the artifacts panel, then decide if you'd like to ask a follow-up question.
+        </p>
+        <div className="gate-btn-row">
+          <button className="btn btn-primary" disabled={submitting} onClick={() => setWantsQA(true)}>
+            Ask a question
+          </button>
+          <button className="btn btn-secondary" disabled={submitting} onClick={() => submit('no', '')}>
+            Continue
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="gate-overlay-body">
+      <p className="gate-overlay-heading">💬 Ask about the paper</p>
+      <textarea
+        className="gate-textarea"
+        placeholder="e.g. Why is Theorem 2 tight? Can you address Reviewer 2's concern about the proof of Lemma 3?"
+        value={question}
+        onChange={(e) => setQuestion(e.target.value)}
+        rows={4}
+        disabled={submitting}
+      />
+      <div className="theory-feedback-section" style={{ marginTop: '0.75rem' }}>
+        <p className="theory-feedback-heading">What should the agent do?</p>
+        <div className="gate-btn-row" style={{ gap: '0.5rem' }}>
+          <button
+            className={`btn ${action === 'rebuttal' ? 'btn-primary' : 'btn-secondary'}`}
+            disabled={submitting}
+            onClick={() => setAction('rebuttal')}
+          >
+            Write rebuttal
+          </button>
+          <button
+            className={`btn ${action === 'rewrite' ? 'btn-primary' : 'btn-secondary'}`}
+            disabled={submitting}
+            onClick={() => setAction('rewrite')}
+          >
+            Rewrite paper
+          </button>
+        </div>
+        <p className="gate-overlay-sub" style={{ marginTop: '0.5rem' }}>
+          {action === 'rebuttal'
+            ? 'The agent will answer your question based on the paper.'
+            : 'The agent will revise the theory and rewrite the paper incorporating your feedback.'}
+        </p>
+      </div>
+      <div className="gate-btn-row" style={{ marginTop: '0.75rem' }}>
+        <button
+          className="btn btn-primary"
+          disabled={submitting || !question.trim()}
+          onClick={() => submit(action, question.trim())}
+        >
+          {action === 'rebuttal' ? 'Generate rebuttal' : 'Rewrite paper'}
+        </button>
+        <button className="btn btn-ghost" disabled={submitting} onClick={() => setWantsQA(false)}>
+          Back
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function GateOverlay({ run }: Props) {
   const pipeline = run.pipeline ?? [];
 
   const surveyTask = pipeline.find((t) => t.name === 'survey');
   const dirTask = pipeline.find((t) => t.name === 'direction_selection_gate');
   const theoryTask = pipeline.find((t) => t.name === 'theory_review_gate');
+  const paperQATask = pipeline.find((t) => t.name === 'paper_qa_gate');
 
   const activeGate =
     surveyTask?.status === 'awaiting_gate' ? 'survey' :
     dirTask?.status === 'awaiting_gate' ? 'direction' :
     theoryTask?.status === 'awaiting_gate' ? 'theory' :
+    paperQATask?.status === 'awaiting_gate' ? 'paper_qa' :
     null;
 
   if (!activeGate) return null;
@@ -266,6 +353,7 @@ export function GateOverlay({ run }: Props) {
         {activeGate === 'survey' && <SurveyGate run={run} />}
         {activeGate === 'direction' && <DirectionGate run={run} />}
         {activeGate === 'theory' && <TheoryReviewGate run={run} />}
+        {activeGate === 'paper_qa' && <PaperQAGate run={run} />}
       </div>
     </div>
   );

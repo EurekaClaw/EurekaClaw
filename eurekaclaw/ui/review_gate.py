@@ -33,6 +33,12 @@ class TheoryDecision:
     reason: str = ""
 
 
+@dataclass
+class PaperQADecision:
+    action: str = "no"       # "no" | "rebuttal" | "rewrite"
+    question: str = ""
+
+
 # ---------------------------------------------------------------------------
 # Internal
 # ---------------------------------------------------------------------------
@@ -47,6 +53,7 @@ _lock = threading.Lock()
 _survey: dict[str, _GateEntry] = {}
 _direction: dict[str, _GateEntry] = {}
 _theory: dict[str, _GateEntry] = {}
+_paper_qa: dict[str, _GateEntry] = {}
 
 
 # ── Survey ───────────────────────────────────────────────────────────────────
@@ -155,8 +162,43 @@ def reset_theory(session_id: str) -> None:
 
 # ── Cleanup ───────────────────────────────────────────────────────────────────
 
+# ── Paper Q&A ─────────────────────────────────────────────────────────────────
+
+def register_paper_qa(session_id: str) -> None:
+    with _lock:
+        _paper_qa[session_id] = _GateEntry()
+
+
+def is_paper_qa_waiting(session_id: str) -> bool:
+    with _lock:
+        return session_id in _paper_qa
+
+
+def wait_paper_qa(session_id: str, timeout: float = 3600.0) -> PaperQADecision:
+    with _lock:
+        entry = _paper_qa.get(session_id)
+    if entry is None:
+        return PaperQADecision()
+    entry.event.wait(timeout=timeout)
+    d = entry.decision
+    return d if isinstance(d, PaperQADecision) else PaperQADecision()
+
+
+def submit_paper_qa(session_id: str, decision: PaperQADecision) -> bool:
+    with _lock:
+        entry = _paper_qa.get(session_id)
+    if entry is None:
+        return False
+    entry.decision = decision
+    entry.event.set()
+    return True
+
+
+# ── Cleanup ───────────────────────────────────────────────────────────────────
+
 def unregister_all(session_id: str) -> None:
     with _lock:
         _survey.pop(session_id, None)
         _direction.pop(session_id, None)
         _theory.pop(session_id, None)
+        _paper_qa.pop(session_id, None)
