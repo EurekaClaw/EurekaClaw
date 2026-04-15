@@ -76,10 +76,69 @@ class PaperQAHandler:
         self._save_paper_version(latex)
         self.bus.put("paper_qa_latex", latex)
 
+        # In UI mode, delegate to the review_gate event system so the
+        # frontend overlay can drive the interaction instead of CLI prompts.
+        import os
+        if os.environ.get("EUREKACLAW_UI_MODE"):
+            await self._run_ui_mode(pipeline, brief, latex)
+            return
+
         if not self._should_review():
             return
 
         await self._review_loop(pipeline, brief, latex)
+
+    async def _run_ui_mode(
+        self, pipeline: TaskPipeline, brief: ResearchBrief, latex: str
+    ) -> None:
+        """UI mode: use review_gate event system instead of CLI prompts."""
+        from eurekaclaw.ui import review_gate
+
+        session_id = self.bus.session_id
+
+        # Mark gate as awaiting so frontend shows the overlay
+        qa_gate_task = next(
+            (t for t in pipeline.tasks if t.name == "paper_qa_gate"), None
+        )
+        if qa_gate_task is not None:
+            qa_gate_task.status = TaskStatus.AWAITING_GATE
+            self.bus.put_pipeline(pipeline)
+
+        decision = review_gate.wait_paper_qa(session_id)
+
+        if qa_gate_task is not None:
+            qa_gate_task.status = TaskStatus.COMPLETED
+            self.bus.put_pipeline(pipeline)
+
+        if decision.action == "no" or not decision.question.strip():
+            return
+
+        self.bus.put("paper_qa_question", decision.question)
+
+        if decision.action == "rebuttal":
+            agent = self._get_or_create_qa_agent()
+            result = await agent.ask(
+                question=decision.question, latex=latex, history=[]
+            )
+            if result.failed:
+                logger.warning("PaperQAAgent failed: %s", result.error)
+            else:
+                console.print("[green]Rebuttal answer generated[/green]")
+
+        elif decision.action == "rewrite":
+            # Inject feedback and re-run theory + writer
+            self._history.append({
+                "role": "user",
+                "content": decision.question,
+                "ts": datetime.now(timezone.utc).isoformat(),
+                "version": self._paper_version,
+            })
+            new_latex = await self._do_rewrite(
+                pipeline, brief, revision_prompt=decision.question
+            )
+            if new_latex is not None:
+                self._save_paper_version(new_latex)
+                self.bus.put("paper_qa_latex", new_latex)
 
     # ------------------------------------------------------------------
     # Review loops
@@ -102,11 +161,19 @@ class PaperQAHandler:
             if action == "rewrite":
                 new_latex = await self._do_rewrite(pipeline, brief)
                 if new_latex is None:
-                    latex = self._rollback_paper()
-                    console.print(
-                        "[yellow]Rewrite failed — rolled back to "
-                        f"v{self._paper_version}[/yellow]"
-                    )
+                    rolled_back = self._rollback_paper()
+                    if rolled_back:
+                        latex = rolled_back
+                        console.print(
+                            "[yellow]Rewrite failed — rolled back to "
+                            f"v{self._paper_version}[/yellow]"
+                        )
+                    else:
+                        # No previous version to rollback to — keep current
+                        console.print(
+                            "[yellow]Rewrite failed — keeping current "
+                            f"paper (v{self._paper_version})[/yellow]"
+                        )
                 else:
                     latex = new_latex
                     self._save_paper_version(latex)
@@ -181,10 +248,18 @@ class PaperQAHandler:
     # ------------------------------------------------------------------
 
     async def _do_rewrite(
-        self, pipeline: TaskPipeline, brief: ResearchBrief
+        self,
+        pipeline: TaskPipeline,
+        brief: ResearchBrief,
+        revision_prompt: str | None = None,
     ) -> str | None:
-        """Collect revision prompt, re-run theory + writer. Returns new LaTeX or None."""
-        revision_prompt = self._prompt_revision()
+        """Collect revision prompt, re-run theory + writer. Returns new LaTeX or None.
+
+        Args:
+            revision_prompt: If provided (UI mode), skip the CLI prompt.
+        """
+        if revision_prompt is None:
+            revision_prompt = self._prompt_revision()
         if not revision_prompt:
             console.print("[dim]No revision instructions — skipping rewrite.[/dim]")
             return None
