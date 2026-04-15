@@ -51,7 +51,7 @@ class MetaOrchestrator:
     ) -> None:
         self.bus = bus
         self.client: LLMClient = client or create_client()
-        self.tool_registry = tool_registry or build_default_registry()
+        self.tool_registry = tool_registry or build_default_registry(bus=bus)
         self.skill_registry = skill_registry or SkillRegistry()
         self.domain_plugin = domain_plugin
 

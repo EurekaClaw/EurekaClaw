@@ -52,7 +52,7 @@ class ToolRegistry:
         return len(self._tools)
 
 
-def build_default_registry() -> ToolRegistry:
+def build_default_registry(bus: "KnowledgeBus | None" = None) -> ToolRegistry:
     """Build and return the default tool registry with all built-in (domain-agnostic) tools.
 
     Domain-specific tools (e.g. run_bandit_experiment) are registered separately
@@ -77,4 +77,7 @@ def build_default_registry() -> ToolRegistry:
         CitationManagerTool(),
     ]:
         registry.register(tool)
+    if bus is not None:
+        from eurekaclaw.tools.latex_section import LatexSectionReadTool
+        registry.register(LatexSectionReadTool(bus=bus))
     return registry
