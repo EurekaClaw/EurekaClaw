@@ -313,11 +313,15 @@ class PaperQAHandler:
         pipeline: TaskPipeline,
         brief: ResearchBrief,
         revision_prompt: str | None = None,
+        writer_only: bool = False,
     ) -> str | None:
-        """Collect revision prompt, re-run theory + writer. Returns new LaTeX or None.
+        """Re-run agents with feedback. Returns new LaTeX or None.
 
         Args:
             revision_prompt: If provided (UI mode), skip the CLI prompt.
+            writer_only: If True, skip theory and only re-run the writer.
+                Used for historical session rewrites where the user wants
+                the paper polished without re-proving the theory.
         """
         if revision_prompt is None:
             revision_prompt = self._prompt_revision()
@@ -336,6 +340,9 @@ class PaperQAHandler:
             f"Revision instructions:\n{revision_prompt}"
         )
 
+        # Determine which tasks to re-run
+        rewrite_tasks = ["writer"] if writer_only else ["theory", "writer"]
+
         # Snapshot previous task outputs so we can restore on failure
         theory_task = next(
             (t for t in pipeline.tasks if t.name == "theory"), None
@@ -347,22 +354,24 @@ class PaperQAHandler:
         prev_writer_outputs = dict(writer_task.outputs) if writer_task else {}
         prev_theory_desc = theory_task.description if theory_task else ""
 
-        # Reset theory and writer tasks for re-execution
-        if theory_task is not None:
+        # Reset tasks for re-execution
+        if not writer_only and theory_task is not None:
             theory_task.description = (theory_task.description or "") + feedback
             theory_task.retries = 0
             theory_task.status = TaskStatus.PENDING
         if writer_task is not None:
+            writer_task.description = (writer_task.description or "") + feedback
             writer_task.retries = 0
             writer_task.status = TaskStatus.PENDING
 
         self.bus.put_pipeline(pipeline)
-        console.print("[blue]Re-running theory + writer with feedback...[/blue]")
+        label = "writer" if writer_only else "theory + writer"
+        console.print(f"[blue]Re-running {label} with feedback...[/blue]")
 
         rewrite_failed = False
         try:
             for task in pipeline.tasks:
-                if task.name not in ("theory", "writer"):
+                if task.name not in rewrite_tasks:
                     continue
                 if task.status != TaskStatus.PENDING:
                     continue
