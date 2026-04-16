@@ -195,9 +195,18 @@ class Config(BaseSettings):
     def memory_dir(self) -> Path:
         return self.eurekaclaw_dir / "memory"
 
+    # Backing field for runs_dir — None means "use default (eurekaclaw_dir/runs)".
+    # Tests can monkeypatch settings.runs_dir directly via the setter below.
+    _runs_dir: Path | None = None
+
     @property
     def runs_dir(self) -> Path:
-        return self.eurekaclaw_dir / "runs"
+        return self._runs_dir if self._runs_dir is not None else self.eurekaclaw_dir / "runs"
+
+    @runs_dir.setter
+    def runs_dir(self, value: Path) -> None:
+        # Allow direct assignment (e.g. in tests via monkeypatch).
+        object.__setattr__(self, "_runs_dir", value)
 
     def ensure_dirs(self) -> None:
         for d in (self.skills_dir, self.memory_dir, self.runs_dir):
