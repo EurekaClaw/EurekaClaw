@@ -138,6 +138,23 @@ export function PaperPanel({ run }: PaperPanelProps) {
     );
   }
 
+  // Review activation failed — show paper viewer without QA chat
+  if (reviewStatus === 'failed') {
+    return (
+      <div className="paper-review-panel">
+        <div style={{ flex: 1, minWidth: 0, display: 'flex' }}>
+          <PaperViewer
+            run={run}
+            paperVersion={1}
+            isRewriting={false}
+            theoryStatus="completed"
+            writerStatus="completed"
+          />
+        </div>
+      </div>
+    );
+  }
+
   // Flat split layout: PDF/LaTeX left, QA chat right
   const paperVersion = 1 + messages.filter(
     (m) => m.role === 'system' && m.content.startsWith('↻')
