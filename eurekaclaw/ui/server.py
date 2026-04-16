@@ -1974,8 +1974,16 @@ class UIRequestHandler(SimpleHTTPRequestHandler):
                     gate_controller=orchestrator.gate,
                 )
 
+                # Back up the current paper before attempting rewrite
+                import shutil as _shutil
+                session_dir = settings.runs_dir / session_id
+                backup_dir = session_dir.parent / f"{session_id}.backup"
+                if session_dir.is_dir():
+                    if backup_dir.is_dir():
+                        _shutil.rmtree(backup_dir)
+                    _shutil.copytree(session_dir, backup_dir)
+
                 # Re-run theory + writer with the user's revision feedback.
-                # Theory re-thinks the proof, writer regenerates the paper.
                 loop = _asyncio.new_event_loop()
                 new_latex = loop.run_until_complete(
                     handler._do_rewrite(
@@ -1986,11 +1994,34 @@ class UIRequestHandler(SimpleHTTPRequestHandler):
                 loop.close()
 
                 if new_latex:
-                    session_dir = settings.runs_dir / session_id
                     bus.persist(session_dir)
-                    self._send_json({"ok": True, "latex_paper": new_latex[:500]})
+                    # Write paper.tex to both session dir and output dir
+                    for target_dir in [session_dir, Path(run.output_dir) if run.output_dir else None]:
+                        if target_dir and target_dir.is_dir():
+                            tex_p = target_dir / "paper.tex"
+                            tex_p.write_text(new_latex, encoding="utf-8")
+                            # Remove stale PDF so frontend triggers recompilation
+                            pdf_p = target_dir / "paper.pdf"
+                            if pdf_p.is_file():
+                                pdf_p.unlink()
+                    # Clean up backup
+                    if backup_dir.is_dir():
+                        _shutil.rmtree(backup_dir)
+                    self._send_json({"ok": True})
                 else:
-                    self._send_json({"error": "Rewrite failed"}, status=HTTPStatus.INTERNAL_SERVER_ERROR)
+                    # Restore from backup
+                    if backup_dir.is_dir():
+                        if session_dir.is_dir():
+                            _shutil.rmtree(session_dir)
+                        backup_dir.rename(session_dir)
+                        # Reload bus from restored backup
+                        from eurekaclaw.orchestrator.session_loader import SessionLoader as _SL
+                        try:
+                            restored_bus, _, _ = _SL.load(session_id)
+                            run.eureka_session.bus = restored_bus
+                        except Exception:
+                            pass
+                    self._send_json({"error": "Rewrite failed — original paper restored"}, status=HTTPStatus.INTERNAL_SERVER_ERROR)
             except Exception as e:
                 self._send_json({"error": str(e)}, status=HTTPStatus.INTERNAL_SERVER_ERROR)
             return
