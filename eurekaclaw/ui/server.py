@@ -1081,6 +1081,22 @@ class UIServerState:
     def snapshot_run(self, run: SessionRun) -> dict[str, Any]:
         bus = run.eureka_session.bus if run.eureka_session else None
         pipeline = bus.get_pipeline() if bus else None
+        # When bus is None (e.g. server restarted after session completed),
+        # load the pipeline from the persisted pipeline.json on disk.
+        if pipeline is None and run.eureka_session_id:
+            from eurekaclaw.types.tasks import TaskPipeline as _TP
+            for _search_dir in [
+                Path(run.output_dir) if run.output_dir else None,
+                settings.runs_dir / run.eureka_session_id,
+            ]:
+                if _search_dir and (_search_dir / "pipeline.json").is_file():
+                    try:
+                        pipeline = _TP.model_validate_json(
+                            (_search_dir / "pipeline.json").read_text(encoding="utf-8")
+                        )
+                        break
+                    except Exception:
+                        pass
         tasks: list[dict[str, Any]] = []
         if pipeline:
             for task in pipeline.tasks:
