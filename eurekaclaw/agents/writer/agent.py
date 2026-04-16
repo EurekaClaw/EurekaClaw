@@ -430,6 +430,20 @@ Do NOT reference a section with \\ref{{}} or \\cref{{}} unless you are going to 
 If a section has little content, write at least two sentences rather than omitting it.
 """
 
+        # Append any revision feedback from the Paper QA Gate rewrite flow.
+        # PaperQAHandler puts this on the bus when the user requests a rewrite.
+        revision_feedback = self.bus.get("revision_feedback") or ""
+        if revision_feedback:
+            user_message += (
+                "\n\n--- REVISION INSTRUCTIONS ---\n"
+                "The user reviewed a previous draft and requested changes. "
+                "Incorporate the following feedback while rewriting the paper:\n"
+                f"{revision_feedback}\n"
+                "--- END REVISION INSTRUCTIONS ---\n"
+            )
+            # Clear so it doesn't persist into subsequent writer runs
+            self.bus.put("revision_feedback", "")
+
         try:
             text, tokens = await self.run_agent_loop(
                 task, user_message, max_turns=settings.writer_max_turns

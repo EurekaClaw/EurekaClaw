@@ -354,13 +354,17 @@ class PaperQAHandler:
         prev_writer_outputs = dict(writer_task.outputs) if writer_task else {}
         prev_theory_desc = theory_task.description if theory_task else ""
 
+        # Put revision feedback on the bus so agents can read it.
+        # WriterAgent checks bus.get("revision_feedback") and appends it
+        # to the user prompt. TheoryAgent reads from task.description.
+        self.bus.put("revision_feedback", feedback)
+
         # Reset tasks for re-execution
         if not writer_only and theory_task is not None:
             theory_task.description = (theory_task.description or "") + feedback
             theory_task.retries = 0
             theory_task.status = TaskStatus.PENDING
         if writer_task is not None:
-            writer_task.description = (writer_task.description or "") + feedback
             writer_task.retries = 0
             writer_task.status = TaskStatus.PENDING
 
