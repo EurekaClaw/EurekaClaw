@@ -21,7 +21,7 @@ interface HistoryResponse {
  */
 export function PaperPanel({ run }: PaperPanelProps) {
   const [messages, setMessages] = useState<QAMessage[]>([]);
-  const [reviewActivated, setReviewActivated] = useState(false);
+  const [reviewStatus, setReviewStatus] = useState<'idle' | 'loading' | 'ready' | 'failed'>('idle');
 
   const isCompleted = run?.status === 'completed';
   const isRunning = run?.status === 'running';
@@ -34,21 +34,21 @@ export function PaperPanel({ run }: PaperPanelProps) {
 
   // Activate review mode (load bus on backend) when completed session has a paper
   useEffect(() => {
-    if (!isCompleted || !hasPaper || !run?.run_id || reviewActivated) return;
+    if (!isCompleted || !hasPaper || !run?.run_id || reviewStatus !== 'idle') return;
+    setReviewStatus('loading');
     void (async () => {
       try {
         await apiPost(`/api/runs/${run.run_id}/review`, {});
-        setReviewActivated(true);
+        setReviewStatus('ready');
       } catch {
-        // If review activation fails (e.g. no session on disk), still show the panel
-        setReviewActivated(true);
+        setReviewStatus('failed');
       }
     })();
-  }, [isCompleted, hasPaper, run?.run_id, reviewActivated]);
+  }, [isCompleted, hasPaper, run?.run_id, reviewStatus]);
 
-  // Load QA history
+  // Load QA history only after review is activated
   useEffect(() => {
-    if (!run?.run_id || !reviewActivated) return;
+    if (!run?.run_id || reviewStatus !== 'ready') return;
     void (async () => {
       try {
         const data = await apiGet<HistoryResponse>(`/api/runs/${run.run_id}/paper-qa/history`);
@@ -57,7 +57,7 @@ export function PaperPanel({ run }: PaperPanelProps) {
         setMessages([]);
       }
     })();
-  }, [run?.run_id, reviewActivated]);
+  }, [run?.run_id, reviewStatus]);
 
   // Handle rewrite
   const handleRewrite = useCallback(async (prompt: string) => {
@@ -119,6 +119,20 @@ export function PaperPanel({ run }: PaperPanelProps) {
       <div className="paper-preview">
         <div className="paper-empty-state">
           <p>No paper generated yet.</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show loading state while activating review (loading bus on backend)
+  if (reviewStatus === 'loading') {
+    return (
+      <div className="paper-preview">
+        <div className="paper-empty-state">
+          <div className="paper-progress-dots">
+            <span /><span /><span />
+          </div>
+          <p>Loading paper review...</p>
         </div>
       </div>
     );
