@@ -8,6 +8,7 @@ interface QAChatProps {
   messages: QAMessage[];
   setMessages: React.Dispatch<React.SetStateAction<QAMessage[]>>;
   isRewriting: boolean;
+  isHistorical: boolean;
   onAccept: () => void;
   onRewrite: (prompt: string) => void;
 }
@@ -18,7 +19,7 @@ interface AskResponse {
   error?: string;
 }
 
-export function QAChat({ run, messages, setMessages, isRewriting, onAccept, onRewrite }: QAChatProps) {
+export function QAChat({ run, messages, setMessages, isRewriting, isHistorical, onAccept, onRewrite }: QAChatProps) {
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [rewriteMode, setRewriteMode] = useState(false);
@@ -144,7 +145,7 @@ export function QAChat({ run, messages, setMessages, isRewriting, onAccept, onRe
         {!rewriteMode && (
           <div className="qa-action-row">
             <button className="qa-accept-btn" onClick={onAccept} disabled={isRewriting || sending}>
-              ✓ Accept Paper
+              {isHistorical ? '✕ Close Review' : '✓ Accept Paper'}
             </button>
             <button className="qa-rewrite-btn" onClick={handleRewriteClick} disabled={isRewriting || sending}>
               ↻ Rewrite Paper

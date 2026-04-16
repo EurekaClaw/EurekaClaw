@@ -34,7 +34,9 @@ export function WorkspaceTabs({ run }: WorkspaceTabsProps) {
       theoryTask?.status === 'in_progress' || theoryTask?.status === 'running' || theoryTask?.status === 'pending' ||
       writerTask?.status === 'in_progress' || writerTask?.status === 'running' || writerTask?.status === 'pending'
     );
-  const isReviewActive = isGateActive || isRewriteRunning;
+  const reviewSessionId = useUiStore((s) => s.reviewSessionId);
+  const reviewModeActive = reviewSessionId === run?.run_id;
+  const isReviewActive = isGateActive || isRewriteRunning || reviewModeActive;
 
   if (isReviewActive && run) {
     return (

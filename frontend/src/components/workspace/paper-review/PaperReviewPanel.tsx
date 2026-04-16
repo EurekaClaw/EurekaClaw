@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { apiGet, apiPost } from '@/api/client';
+import { useUiStore } from '@/store/uiStore';
 import { PaperViewer } from './PaperViewer';
 import { QAChat } from './QAChat';
 import type { SessionRun, QAMessage } from '@/types';
@@ -43,6 +44,10 @@ export function PaperReviewPanel({ run }: PaperReviewPanelProps) {
   ).length;
   const paperVersion = 1 + rewriteCount;
 
+  const setReviewSessionId = useUiStore((s) => s.setReviewSessionId);
+  const paperQATask = run.pipeline?.find((t) => t.name === 'paper_qa_gate');
+  const isHistorical = !paperQATask || paperQATask.status !== 'awaiting_gate';
+
   // Load history on mount or run change — always reset to avoid stale state
   useEffect(() => {
     void (async () => {
@@ -57,12 +62,16 @@ export function PaperReviewPanel({ run }: PaperReviewPanelProps) {
 
   // Accept paper
   const handleAccept = useCallback(async () => {
+    if (isHistorical) {
+      setReviewSessionId(null);
+      return;
+    }
     try {
       await apiPost(`/api/runs/${run.run_id}/gate/paper_qa`, { action: 'no', question: '' });
     } catch (e) {
       console.error('Failed to accept paper:', e);
     }
-  }, [run.run_id]);
+  }, [run.run_id, isHistorical, setReviewSessionId]);
 
   // Rewrite paper
   const handleRewrite = useCallback(async (prompt: string) => {
@@ -73,14 +82,15 @@ export function PaperReviewPanel({ run }: PaperReviewPanelProps) {
     };
     setMessages((prev) => [...prev, sysMsg]);
     try {
-      await apiPost(`/api/runs/${run.run_id}/gate/paper_qa`, {
-        action: 'rewrite',
-        question: prompt,
-      });
+      if (isHistorical) {
+        await apiPost(`/api/runs/${run.run_id}/review/rewrite`, { revision_prompt: prompt });
+      } else {
+        await apiPost(`/api/runs/${run.run_id}/gate/paper_qa`, { action: 'rewrite', question: prompt });
+      }
     } catch (e) {
       console.error('Failed to trigger rewrite:', e);
     }
-  }, [run.run_id]);
+  }, [run.run_id, isHistorical]);
 
   // Resizable divider drag handling
   const handleMouseDown = useCallback(() => {
@@ -140,6 +150,7 @@ export function PaperReviewPanel({ run }: PaperReviewPanelProps) {
           messages={messages}
           setMessages={setMessages}
           isRewriting={isRewriting}
+          isHistorical={isHistorical}
           onAccept={handleAccept}
           onRewrite={handleRewrite}
         />
