@@ -149,11 +149,13 @@ export function QAChat({ run, messages, setMessages, isRewriting, isHistorical, 
         </div>
         {!rewriteMode && (
           <div className="qa-action-row">
-            <button className="qa-accept-btn" onClick={onAccept} disabled={isRewriting || sending}>
-              {isHistorical ? '✕ Close Review' : '✓ Accept Paper'}
-            </button>
+            {!isHistorical && (
+              <button className="qa-accept-btn" onClick={onAccept} disabled={isRewriting || sending}>
+                ✓ Accept Paper
+              </button>
+            )}
             <button className="qa-rewrite-btn" onClick={handleRewriteClick} disabled={isRewriting || sending}>
-              ↻ Rewrite Paper
+              ↻ Revise Paper
             </button>
           </div>
         )}

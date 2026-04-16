@@ -59,26 +59,54 @@ export function PaperPanel({ run }: PaperPanelProps) {
     })();
   }, [run?.run_id, reviewStatus]);
 
-  // Handle rewrite
+  const [isRewriting, setIsRewriting] = useState(false);
+
+  // Handle rewrite — calls theory + writer, then reloads the paper
   const handleRewrite = useCallback(async (prompt: string) => {
     if (!run?.run_id) return;
     const sysMsg: QAMessage = {
       role: 'system',
-      content: `↻ Rewrite requested: "${prompt}"`,
+      content: `↻ Revision requested: "${prompt}"`,
       ts: new Date().toISOString(),
     };
     setMessages((prev) => [...prev, sysMsg]);
+    setIsRewriting(true);
     try {
-      await apiPost(`/api/runs/${run.run_id}/review/rewrite`, { revision_prompt: prompt });
+      const res = await apiPost<{ ok?: boolean; error?: string }>(
+        `/api/runs/${run.run_id}/review/rewrite`,
+        { revision_prompt: prompt },
+      );
+      if (res.ok) {
+        const doneMsg: QAMessage = {
+          role: 'system',
+          content: 'Paper revised successfully. Refreshing...',
+          ts: new Date().toISOString(),
+        };
+        setMessages((prev) => [...prev, doneMsg]);
+        // Re-activate review to reload the bus with new artifacts
+        setReviewStatus('idle');
+      } else {
+        const errMsg: QAMessage = {
+          role: 'system',
+          content: `Revision failed: ${res.error || 'Unknown error'}`,
+          ts: new Date().toISOString(),
+        };
+        setMessages((prev) => [...prev, errMsg]);
+      }
     } catch (e) {
-      console.error('Failed to trigger rewrite:', e);
+      const errMsg: QAMessage = {
+        role: 'system',
+        content: `Revision error: ${e instanceof Error ? e.message : String(e)}`,
+        ts: new Date().toISOString(),
+      };
+      setMessages((prev) => [...prev, errMsg]);
+    } finally {
+      setIsRewriting(false);
     }
   }, [run?.run_id]);
 
-  // No-op accept for completed sessions (just a visual confirmation)
-  const handleAccept = useCallback(() => {
-    // For completed sessions, "Accept" is cosmetic — nothing to submit
-  }, []);
+  // Accept paper (only used during live gate, not historical)
+  const handleAccept = useCallback(() => {}, []);
 
   // Not ready states
   if (!run) {
@@ -166,9 +194,9 @@ export function PaperPanel({ run }: PaperPanelProps) {
         <PaperViewer
           run={run}
           paperVersion={paperVersion}
-          isRewriting={false}
-          theoryStatus={writerTask?.status || 'completed'}
-          writerStatus={writerTask?.status || 'completed'}
+          isRewriting={isRewriting}
+          theoryStatus={isRewriting ? 'in_progress' : 'completed'}
+          writerStatus={isRewriting ? 'pending' : 'completed'}
         />
       </div>
 
@@ -181,7 +209,7 @@ export function PaperPanel({ run }: PaperPanelProps) {
           run={run}
           messages={messages}
           setMessages={setMessages}
-          isRewriting={false}
+          isRewriting={isRewriting}
           isHistorical={true}
           onAccept={handleAccept}
           onRewrite={handleRewrite}

@@ -1974,14 +1974,13 @@ class UIRequestHandler(SimpleHTTPRequestHandler):
                     gate_controller=orchestrator.gate,
                 )
 
-                # Historical rewrites only re-run the writer (not theory).
-                # The user wants the paper polished, not the theorem re-proved.
+                # Re-run theory + writer with the user's revision feedback.
+                # Theory re-thinks the proof, writer regenerates the paper.
                 loop = _asyncio.new_event_loop()
                 new_latex = loop.run_until_complete(
                     handler._do_rewrite(
                         pipeline, brief,
                         revision_prompt=revision_prompt,
-                        writer_only=True,
                     )
                 )
                 loop.close()
