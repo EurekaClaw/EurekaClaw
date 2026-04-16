@@ -72,3 +72,9 @@ example.sh
 sync-from-main.sh
 frontend/node_modules/
 frontend/dist/
+
+# ── Lean 4 ───────────────────────────────────────────────────────────────────
+lean-gen/
+
+# ── Superpowers brainstorm artifacts ─────────────────────────────────────────
+.superpowers/
