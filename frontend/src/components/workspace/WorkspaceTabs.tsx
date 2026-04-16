@@ -32,9 +32,9 @@ export function WorkspaceTabs({ run }: WorkspaceTabsProps) {
       theoryTask?.status === 'in_progress' || theoryTask?.status === 'running' || theoryTask?.status === 'pending' ||
       writerTask?.status === 'in_progress' || writerTask?.status === 'running' || writerTask?.status === 'pending'
     );
-  const reviewSessionId = useUiStore((s) => s.reviewSessionId);
-  const reviewModeActive = reviewSessionId === run?.run_id;
-  const isReviewActive = isGateActive || isRewriteRunning || reviewModeActive;
+  // PaperReviewPanel takes over only during active gate or live rewrite.
+  // For completed sessions, PaperPanel embeds the review inline.
+  const isReviewActive = isGateActive || isRewriteRunning;
 
   if (isReviewActive && run) {
     return (

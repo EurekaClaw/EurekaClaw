@@ -1,269 +1,160 @@
-import { useState, useCallback } from 'react';
-import type { SessionRun } from '@/types';
-import { titleCase, humanize } from '@/lib/formatters';
-import { apiPost } from '@/api/client';
-import { useUiStore } from '@/store/uiStore';
+import { useState, useEffect, useCallback } from 'react';
+import type { SessionRun, QAMessage } from '@/types';
+import { apiGet, apiPost } from '@/api/client';
+import { PaperViewer } from './paper-review/PaperViewer';
+import { QAChat } from './paper-review/QAChat';
 
 interface PaperPanelProps {
   run: SessionRun | null;
 }
 
-interface CompileResponse {
-  ok?: boolean;
-  error?: string;
-  pdf_path?: string;
+interface HistoryResponse {
+  messages: QAMessage[];
 }
 
+/**
+ * Unified Paper panel — flat layout with PDF/LaTeX viewer and inline QA.
+ *
+ * For completed sessions: shows paper preview + QA chat side by side.
+ * For running/pending: shows progress placeholder.
+ * No separate "Review Paper" button needed — the review is always available.
+ */
 export function PaperPanel({ run }: PaperPanelProps) {
-  const theoryState = run?.artifacts?.theory_state;
-  const result = run?.result;
-  const selDir = run?.artifacts?.research_brief?.selected_direction;
-  const title = humanize(selDir?.title || selDir?.hypothesis?.slice(0, 80) || 'EurekaClaw Autonomous Research System');
-  const paperText = result?.latex_paper || '';
-  const pdfPath = result?.pdf_path;
-  const outputDir = run?.output_dir;
+  const [messages, setMessages] = useState<QAMessage[]>([]);
+  const [reviewActivated, setReviewActivated] = useState(false);
+
   const isCompleted = run?.status === 'completed';
   const isRunning = run?.status === 'running';
   const isFailed = run?.status === 'failed';
+  const writerTask = run?.pipeline?.find((t) => t.name === 'writer');
+  const hasPaper = !!(
+    (writerTask?.outputs?.latex_paper) ||
+    run?.result?.latex_paper
+  );
 
-  const setReviewSessionId = useUiStore((s) => s.setReviewSessionId);
+  // Activate review mode (load bus on backend) when completed session has a paper
+  useEffect(() => {
+    if (!isCompleted || !hasPaper || !run?.run_id || reviewActivated) return;
+    void (async () => {
+      try {
+        await apiPost(`/api/runs/${run.run_id}/review`, {});
+        setReviewActivated(true);
+      } catch {
+        // If review activation fails (e.g. no session on disk), still show the panel
+        setReviewActivated(true);
+      }
+    })();
+  }, [isCompleted, hasPaper, run?.run_id, reviewActivated]);
 
-  const handleReviewPaper = async () => {
+  // Load QA history
+  useEffect(() => {
+    if (!run?.run_id || !reviewActivated) return;
+    void (async () => {
+      try {
+        const data = await apiGet<HistoryResponse>(`/api/runs/${run.run_id}/paper-qa/history`);
+        setMessages(data.messages ?? []);
+      } catch {
+        setMessages([]);
+      }
+    })();
+  }, [run?.run_id, reviewActivated]);
+
+  // Handle rewrite
+  const handleRewrite = useCallback(async (prompt: string) => {
     if (!run?.run_id) return;
+    const sysMsg: QAMessage = {
+      role: 'system',
+      content: `↻ Rewrite requested: "${prompt}"`,
+      ts: new Date().toISOString(),
+    };
+    setMessages((prev) => [...prev, sysMsg]);
     try {
-      await apiPost(`/api/runs/${run.run_id}/review`, {});
-      setReviewSessionId(run.run_id);
+      await apiPost(`/api/runs/${run.run_id}/review/rewrite`, { revision_prompt: prompt });
     } catch (e) {
-      console.error('Failed to activate review:', e);
-    }
-  };
-
-  const qaAnswer = run?.artifacts?.paper_qa_answer as string | undefined;
-  const [latexOpen, setLatexOpen] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const [compiling, setCompiling] = useState(false);
-  const [compileMsg, setCompileMsg] = useState('');
-  const [compileMsgError, setCompileMsgError] = useState(false);
-  const [hasPdf, setHasPdf] = useState(!!pdfPath);
-
-  // Check if PDF exists on first render when output_dir is available
-  const checkPdfExists = useCallback(async () => {
-    if (!run?.run_id) return;
-    try {
-      const resp = await fetch(`/api/runs/${run.run_id}/artifacts/paper.pdf`, { method: 'HEAD' });
-      setHasPdf(resp.ok);
-    } catch {
-      // ignore
+      console.error('Failed to trigger rewrite:', e);
     }
   }, [run?.run_id]);
 
-  // Run check once when component mounts with a completed run
-  useState(() => {
-    if (isCompleted && outputDir) void checkPdfExists();
-  });
+  // No-op accept for completed sessions (just a visual confirmation)
+  const handleAccept = useCallback(() => {
+    // For completed sessions, "Accept" is cosmetic — nothing to submit
+  }, []);
 
-  const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(paperText);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // fallback
-      const ta = document.createElement('textarea');
-      ta.value = paperText;
-      document.body.appendChild(ta);
-      ta.select();
-      document.execCommand('copy');
-      document.body.removeChild(ta);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
-  };
-
-  const handleCompilePdf = async () => {
-    if (!run?.run_id) return;
-    setCompiling(true);
-    setCompileMsg('');
-    setCompileMsgError(false);
-    try {
-      const resp = await apiPost<CompileResponse>(`/api/runs/${run.run_id}/compile-pdf`, {});
-      if (resp.ok) {
-        setCompileMsg('PDF compiled successfully');
-        setHasPdf(true);
-      } else {
-        setCompileMsg(resp.error || 'Compilation failed');
-        setCompileMsgError(true);
-      }
-    } catch (err) {
-      setCompileMsg((err as Error).message || 'Compilation failed');
-      setCompileMsgError(true);
-    } finally {
-      setCompiling(false);
-    }
-  };
-
-  const handleDownloadPdf = () => {
-    if (!run?.run_id) return;
-    window.open(`/api/runs/${run.run_id}/artifacts/paper.pdf`, '_blank');
-  };
-
-  const handleDownloadTex = () => {
-    if (!run?.run_id) return;
-    window.open(`/api/runs/${run.run_id}/artifacts/paper.tex`, '_blank');
-  };
-
-  const handleDownloadBib = () => {
-    if (!run?.run_id) return;
-    window.open(`/api/runs/${run.run_id}/artifacts/references.bib`, '_blank');
-  };
-
-  // Status summary
-  let summary = 'Launch a session to produce a real paper draft and final run summary.';
-  if (isCompleted) {
-    summary = paperText
-      ? ''
-      : 'The run completed and output artifacts are available, but no paper text was returned.';
-  } else if (isRunning) {
-    summary = 'The writer surface will populate as the pipeline produces theory and experiment artifacts.';
-  } else if (isFailed) {
-    summary = run?.error || 'The run failed before a paper could be generated.';
+  // Not ready states
+  if (!run) {
+    return (
+      <div className="paper-preview">
+        <div className="paper-empty-state">
+          <p>Launch a session to produce a research paper.</p>
+        </div>
+      </div>
+    );
   }
 
-  const provenCount = Object.keys(theoryState?.proven_lemmas || {}).length;
-  const openCount = (theoryState?.open_goals || []).length;
+  if (isRunning) {
+    return (
+      <div className="paper-preview">
+        <div className="paper-empty-state">
+          <div className="paper-progress-dots">
+            <span /><span /><span />
+          </div>
+          <p>Paper will appear once the writer agent completes.</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (isFailed && !hasPaper) {
+    return (
+      <div className="paper-preview">
+        <div className="paper-empty-state">
+          <p>{run.error || 'The session failed before a paper could be generated.'}</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!hasPaper) {
+    return (
+      <div className="paper-preview">
+        <div className="paper-empty-state">
+          <p>No paper generated yet.</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Flat split layout: PDF/LaTeX left, QA chat right
+  const paperVersion = 1 + messages.filter(
+    (m) => m.role === 'system' && m.content.startsWith('↻')
+  ).length;
 
   return (
-    <div className="paper-preview" id="paper-preview">
-      <div className="paper-sheet">
-        <div className="paper-header-row">
-          <div className="paper-header-left">
-            <p className="paper-title">{title}</p>
-            <p className="paper-meta">
-              <span className={`paper-status-badge paper-status-badge--${run?.status || 'queued'}`}>
-                {titleCase(run?.status || 'not started')}
-              </span>
-              {theoryState && (
-                <span className="paper-theory-stats">
-                  <span className="paper-stat paper-stat--ok">{provenCount} proven</span>
-                  {openCount > 0 && <span className="paper-stat paper-stat--open">{openCount} open</span>}
-                </span>
-              )}
-            </p>
-          </div>
-          {isCompleted && outputDir && (
-            <p className="paper-output-dir">
-              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-              <code>{outputDir}</code>
-            </p>
-          )}
-        </div>
+    <div className="paper-review-panel">
+      <div style={{ flex: '0 0 58%', minWidth: 0, display: 'flex' }}>
+        <PaperViewer
+          run={run}
+          paperVersion={paperVersion}
+          isRewriting={false}
+          theoryStatus={writerTask?.status || 'completed'}
+          writerStatus={writerTask?.status || 'completed'}
+        />
+      </div>
 
-        {summary && <p className="paper-summary">{summary}</p>}
+      <div className="review-divider">
+        <div className="review-divider-handle" />
+      </div>
 
-        {/* Action buttons */}
-        {isCompleted && paperText && (
-          <div className="paper-actions-row">
-            {hasPdf ? (
-              <button className="paper-action-btn paper-action-btn--primary" onClick={handleDownloadPdf}>
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                Download PDF
-              </button>
-            ) : (
-              <button
-                className="paper-action-btn paper-action-btn--primary"
-                onClick={handleCompilePdf}
-                disabled={compiling}
-              >
-                {compiling ? (
-                  <>
-                    <span className="paper-spinner" />
-                    Compiling…
-                  </>
-                ) : (
-                  <>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-                    Generate PDF
-                  </>
-                )}
-              </button>
-            )}
-            <button className="paper-action-btn paper-action-btn--secondary" onClick={handleDownloadTex}>
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-              .tex
-            </button>
-            <button className="paper-action-btn paper-action-btn--secondary" onClick={handleDownloadBib}>
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-              .bib
-            </button>
-            {compileMsg && (
-              <span className={`paper-compile-msg${compileMsgError ? ' is-error' : ''}`}>
-                {compileMsg}
-              </span>
-            )}
-          </div>
-        )}
-
-        {isCompleted && paperText && (
-          <button className="btn btn-primary" onClick={handleReviewPaper} style={{ marginTop: '0.75rem' }}>
-            Review Paper
-          </button>
-        )}
-
-        {/* LaTeX source code collapsible */}
-        {paperText && (
-          <div className="paper-latex-section">
-            <button
-              className="paper-latex-toggle"
-              onClick={() => setLatexOpen(!latexOpen)}
-              aria-expanded={latexOpen}
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="12" height="12"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className={`paper-latex-chevron${latexOpen ? ' is-open' : ''}`}
-              >
-                <polyline points="9 18 15 12 9 6" />
-              </svg>
-              <span>LaTeX Source</span>
-              <span className="paper-latex-size">{(paperText.length / 1024).toFixed(1)} KB</span>
-            </button>
-            {latexOpen && (
-              <div className="paper-latex-viewer">
-                <div className="paper-latex-toolbar">
-                  <button className="paper-copy-btn" onClick={handleCopy}>
-                    {copied ? (
-                      <>
-                        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                        Copied!
-                      </>
-                    ) : (
-                      <>
-                        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-                        Copy LaTeX
-                      </>
-                    )}
-                  </button>
-                </div>
-                <pre className="paper-latex-code"><code>{paperText}</code></pre>
-              </div>
-            )}
-          </div>
-        )}
-        {/* Q&A / Rebuttal answer */}
-        {qaAnswer && (
-          <div className="paper-latex-section" style={{ marginTop: '1rem' }}>
-            <p style={{ fontWeight: 600, marginBottom: '0.5rem' }}>💬 Rebuttal / Answer</p>
-            <pre className="paper-latex-code" style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-              {qaAnswer}
-            </pre>
-          </div>
-        )}
+      <div style={{ flex: 1, minWidth: 0, display: 'flex' }}>
+        <QAChat
+          run={run}
+          messages={messages}
+          setMessages={setMessages}
+          isRewriting={false}
+          isHistorical={true}
+          onAccept={handleAccept}
+          onRewrite={handleRewrite}
+        />
       </div>
     </div>
   );

@@ -8,6 +8,36 @@
   gap: 1px;
 }
 
+.paper-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--dim);
+  font-size: 0.88rem;
+  text-align: center;
+  padding: 40px;
+  line-height: 1.6;
+}
+
+.paper-progress-dots {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.paper-progress-dots span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--primary);
+  animation: qa-pulse 1.2s ease-in-out infinite;
+}
+
+.paper-progress-dots span:nth-child(2) { animation-delay: 0.2s; }
+.paper-progress-dots span:nth-child(3) { animation-delay: 0.4s; }
+
 /* ── Paper Viewer (left) ──────────────────────────────────────────────── */
 
 .paper-viewer {

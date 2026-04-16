@@ -1,6 +1,4 @@
 import type { SessionRun, PipelineTask } from '@/types';
-import { useUiStore } from '@/store/uiStore';
-import { apiPost } from '@/api/client';
 import { getActiveOuterStage } from '@/lib/statusHelpers';
 import { AGENT_MANIFEST, STAGE_TASK_MAP } from '@/lib/agentManifest';
 import { agentNarrativeLine } from '@/lib/agentManifest';
@@ -202,19 +200,6 @@ export function LivePanel({ run }: LivePanelProps) {
     const selDir = brief.selected_direction;
     const dir = selDir ? (selDir.title || '') : '';
     const hypothesis = selDir ? (selDir.hypothesis || '') : '';
-    const setReviewSessionId = useUiStore.getState().setReviewSessionId;
-    const hasPaper = run.result?.latex_paper || pipeline.some(
-      (t) => t.name === 'writer' && t.status === 'completed'
-    );
-
-    const handleReviewPaper = async () => {
-      try {
-        await apiPost(`/api/runs/${run.run_id}/review`, {});
-        setReviewSessionId(run.run_id);
-      } catch (e) {
-        console.error('Failed to activate review:', e);
-      }
-    };
 
     return (
       <div className="live-activity-area">
@@ -222,12 +207,7 @@ export function LivePanel({ run }: LivePanelProps) {
           <p className="live-stage-label" style={{ color: 'var(--ok)' }}>Research complete</p>
           {dir && <blockquote className="drawer-direction-quote">{dir}</blockquote>}
           {hypothesis && !dir && <blockquote className="drawer-direction-quote">{hypothesis}</blockquote>}
-          <p className="drawer-muted">Switch to the <strong>Paper</strong> tab to read the draft, or <strong>Proof</strong> for the theorem sketch.</p>
-          {hasPaper && (
-            <button className="btn btn-primary" onClick={handleReviewPaper} style={{ marginTop: '12px' }}>
-              Review &amp; Revise Paper
-            </button>
-          )}
+          <p className="drawer-muted">Switch to the <strong>Paper</strong> tab to review the draft and ask questions, or <strong>Proof</strong> for the theorem sketch.</p>
           {pipelineTimeline}
           {launchHtmlLink}
         </div>
