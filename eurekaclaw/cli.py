@@ -233,6 +233,105 @@ def resume(session_id: str, output: str) -> None:
 
 
 @main.command()
+def sessions() -> None:
+    """List all past research sessions.
+
+    Example: eurekaclaw sessions
+    """
+    from eurekaclaw.orchestrator.session_loader import SessionLoader
+    from rich.table import Table
+    from datetime import datetime
+
+    all_sessions = SessionLoader.list_sessions()
+    if not all_sessions:
+        console.print("[dim]No sessions found.[/dim]")
+        return
+
+    table = Table(title="Research Sessions", show_header=True, header_style="bold cyan")
+    table.add_column("#", style="dim", width=3)
+    table.add_column("Session ID", style="cyan", width=12)
+    table.add_column("Domain", width=20)
+    table.add_column("Query", width=40)
+    table.add_column("Status", width=10)
+    table.add_column("Paper", width=5)
+
+    for i, s in enumerate(all_sessions, 1):
+        status_color = {"completed": "green", "failed": "red"}.get(s["status"], "yellow")
+        table.add_row(
+            str(i),
+            s["session_id"][:12] + "...",
+            s["domain"][:20],
+            s["query"][:40],
+            f"[{status_color}]{s['status']}[/{status_color}]",
+            "[green]yes[/green]" if s["has_paper"] else "[dim]no[/dim]",
+        )
+
+    console.print(table)
+
+
+@main.command()
+@click.argument("session_id")
+def review(session_id: str) -> None:
+    """Review and QA a paper from a completed session.
+
+    Loads the session from disk and enters the interactive QA/rewrite loop.
+    Accepts full or partial session IDs (minimum 8 characters).
+
+    Example: eurekaclaw review 0a370c0a
+    """
+    from eurekaclaw.orchestrator.session_loader import SessionLoader
+    from eurekaclaw.orchestrator.paper_qa_handler import PaperQAHandler
+    from eurekaclaw.orchestrator.gate import GateController
+    from eurekaclaw.orchestrator.router import TaskRouter
+    from eurekaclaw.skills.injector import SkillInjector
+    from eurekaclaw.skills.registry import SkillRegistry
+    from eurekaclaw.memory.manager import MemoryManager
+    from eurekaclaw.tools.registry import build_default_registry
+    from eurekaclaw.llm import create_client
+
+    try:
+        bus, brief, pipeline = SessionLoader.load(session_id)
+    except FileNotFoundError as e:
+        console.print(f"[red]{e}[/red]")
+        sys.exit(1)
+    except ValueError as e:
+        console.print(f"[red]{e}[/red]")
+        sys.exit(1)
+
+    console.print(
+        f"\n[bold green]Loading session[/bold green] [cyan]{bus.session_id[:12]}[/cyan]"
+    )
+    console.print(f"Domain: {brief.domain} | Query: {brief.query}")
+
+    theory_state = bus.get_theory_state()
+    if theory_state:
+        console.print(
+            f"Proof: {theory_state.status} — {len(theory_state.proven_lemmas)} lemmas"
+        )
+
+    client = create_client()
+    tool_registry = build_default_registry(bus=bus)
+    skill_registry = SkillRegistry()
+    skill_injector = SkillInjector(skill_registry)
+    memory = MemoryManager(session_id=bus.session_id)
+    gate = GateController(bus=bus)
+    router = TaskRouter({})
+
+    handler = PaperQAHandler(
+        bus=bus,
+        agents={},
+        router=router,
+        client=client,
+        tool_registry=tool_registry,
+        skill_injector=skill_injector,
+        memory=memory,
+        gate_controller=gate,
+    )
+
+    asyncio.run(handler.run_historical(pipeline, brief))
+
+
+@main.command()
 def skills() -> None:
     """List all available skills in the skills bank."""
     from eurekaclaw.skills.registry import SkillRegistry
