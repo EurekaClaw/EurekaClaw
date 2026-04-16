@@ -1468,7 +1468,23 @@ class UIRequestHandler(SimpleHTTPRequestHandler):
             # Security: only allow known artifact filenames
             _allowed = {"paper.tex", "paper.pdf", "paper.md", "references.bib",
                         "theory_state.json", "experiment_result.json", "research_brief.json"}
-            if _art_filename not in _allowed or not _art_path.is_file():
+            if _art_filename not in _allowed:
+                self._send_json({"error": "File not found"}, status=HTTPStatus.NOT_FOUND)
+                return
+            # At gate time paper.tex may only exist in memory — persist it
+            if not _art_path.is_file() and _art_filename == "paper.tex":
+                session = _art_run.eureka_session
+                bus = session.bus if session else None
+                if bus:
+                    pipeline = bus.get_pipeline()
+                    if pipeline:
+                        wt = next((t for t in pipeline.tasks if t.name == "writer"), None)
+                        if wt and wt.outputs:
+                            _latex = wt.outputs.get("latex_paper", "")
+                            if _latex:
+                                _art_path.parent.mkdir(parents=True, exist_ok=True)
+                                _art_path.write_text(_latex, encoding="utf-8")
+            if not _art_path.is_file():
                 self._send_json({"error": "File not found"}, status=HTTPStatus.NOT_FOUND)
                 return
             # Serve PDF inline so iframes can display it
@@ -1703,9 +1719,23 @@ class UIRequestHandler(SimpleHTTPRequestHandler):
                 self._send_json({"error": "No output directory"}, status=HTTPStatus.BAD_REQUEST)
                 return
             tex_path = Path(run.output_dir) / "paper.tex"
+            # At gate time paper.tex may not be on disk yet — write it
+            # from the writer task's in-memory output if available.
             if not tex_path.is_file():
-                self._send_json({"error": "No paper.tex found"}, status=HTTPStatus.BAD_REQUEST)
-                return
+                session = run.eureka_session
+                bus = session.bus if session else None
+                latex = ""
+                if bus:
+                    pipeline = bus.get_pipeline()
+                    if pipeline:
+                        wt = next((t for t in pipeline.tasks if t.name == "writer"), None)
+                        if wt and wt.outputs:
+                            latex = wt.outputs.get("latex_paper", "")
+                if not latex:
+                    self._send_json({"error": "No paper.tex found"}, status=HTTPStatus.BAD_REQUEST)
+                    return
+                tex_path.parent.mkdir(parents=True, exist_ok=True)
+                tex_path.write_text(latex, encoding="utf-8")
             try:
                 _compile_pdf(tex_path, settings.latex_bin)
                 pdf_path = Path(run.output_dir) / "paper.pdf"
