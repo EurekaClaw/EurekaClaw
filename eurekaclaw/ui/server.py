@@ -1877,6 +1877,103 @@ class UIRequestHandler(SimpleHTTPRequestHandler):
             self._send_json(result, status=status)
             return
 
+        # ── Historical review activation ──────────────────────────────────
+        parts_review = parsed.path.strip("/").split("/")
+        if (len(parts_review) == 4 and parts_review[0] == "api" and parts_review[1] == "runs"
+                and parts_review[3] == "review"):
+            run_id = parts_review[2]
+            run = self.state.get_run(run_id)
+            if run is None:
+                self._send_json({"error": "Run not found"}, status=HTTPStatus.NOT_FOUND)
+                return
+            session_id = run.eureka_session_id
+            if not session_id:
+                self._send_json({"error": "No session ID"}, status=HTTPStatus.BAD_REQUEST)
+                return
+
+            from eurekaclaw.orchestrator.session_loader import SessionLoader
+            try:
+                bus, brief, pipeline = SessionLoader.load(session_id)
+            except (FileNotFoundError, ValueError) as e:
+                self._send_json({"error": str(e)}, status=HTTPStatus.BAD_REQUEST)
+                return
+
+            # Attach loaded bus to the run so /paper-qa/ask can access it
+            from eurekaclaw.main import EurekaSession
+            if run.eureka_session is None:
+                run.eureka_session = EurekaSession.__new__(EurekaSession)
+                run.eureka_session.bus = bus
+                run.eureka_session.session_id = session_id
+            else:
+                run.eureka_session.bus = bus
+
+            self._send_json({"ok": True, "session_id": session_id})
+            return
+
+        # POST /api/runs/<run_id>/review/rewrite
+        if (len(parts_review) == 5 and parts_review[0] == "api" and parts_review[1] == "runs"
+                and parts_review[3] == "review" and parts_review[4] == "rewrite"):
+            run_id = parts_review[2]
+            run = self.state.get_run(run_id)
+            if run is None:
+                self._send_json({"error": "Run not found"}, status=HTTPStatus.NOT_FOUND)
+                return
+            session_id = run.eureka_session_id
+            if not session_id:
+                self._send_json({"error": "No session ID"}, status=HTTPStatus.BAD_REQUEST)
+                return
+
+            session = run.eureka_session
+            bus = session.bus if session else None
+            if not bus:
+                self._send_json({"error": "Review not activated. Call POST /review first."}, status=HTTPStatus.BAD_REQUEST)
+                return
+
+            payload = self._read_json()
+            revision_prompt = str(payload.get("revision_prompt", "")).strip()
+            if not revision_prompt:
+                self._send_json({"error": "No revision_prompt provided"}, status=HTTPStatus.BAD_REQUEST)
+                return
+
+            import asyncio as _asyncio
+            from eurekaclaw.orchestrator.meta_orchestrator import MetaOrchestrator
+            from eurekaclaw.orchestrator.paper_qa_handler import PaperQAHandler
+
+            try:
+                orchestrator = MetaOrchestrator(bus=bus, client=create_client())
+                pipeline = bus.get_pipeline()
+                brief = bus.get_research_brief()
+                if not pipeline or not brief:
+                    self._send_json({"error": "Missing pipeline or brief"}, status=HTTPStatus.BAD_REQUEST)
+                    return
+
+                handler = PaperQAHandler(
+                    bus=bus,
+                    agents=orchestrator.agents,
+                    router=orchestrator.router,
+                    client=orchestrator.client,
+                    tool_registry=orchestrator.tool_registry,
+                    skill_injector=orchestrator.skill_injector,
+                    memory=orchestrator.memory,
+                    gate_controller=orchestrator.gate,
+                )
+
+                loop = _asyncio.new_event_loop()
+                new_latex = loop.run_until_complete(
+                    handler._do_rewrite(pipeline, brief, revision_prompt=revision_prompt)
+                )
+                loop.close()
+
+                if new_latex:
+                    session_dir = settings.runs_dir / session_id
+                    bus.persist(session_dir)
+                    self._send_json({"ok": True, "latex_paper": new_latex[:500]})
+                else:
+                    self._send_json({"error": "Rewrite failed"}, status=HTTPStatus.INTERNAL_SERVER_ERROR)
+            except Exception as e:
+                self._send_json({"error": str(e)}, status=HTTPStatus.INTERNAL_SERVER_ERROR)
+            return
+
         # ── Paper QA endpoints ────────────────────────────────────────────
         parts_pqa = parsed.path.strip("/").split("/")
         if (len(parts_pqa) == 5 and parts_pqa[0] == "api" and parts_pqa[1] == "runs"
