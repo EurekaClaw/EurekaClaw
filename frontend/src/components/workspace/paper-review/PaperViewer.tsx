@@ -22,11 +22,32 @@ export function PaperViewer({ run, paperVersion, isRewriting, theoryStatus, writ
   const [compiling, setCompiling] = useState(false);
   const [compileError, setCompileError] = useState('');
   const [compiledPdfPath, setCompiledPdfPath] = useState<string | null>(null);
+  const [prevVersion, setPrevVersion] = useState(paperVersion);
+
+  // Reset compiled PDF state when paper version changes (after rewrite)
+  // so the iframe doesn't show a stale/deleted PDF.
+  if (paperVersion !== prevVersion) {
+    setPrevVersion(paperVersion);
+    setCompiledPdfPath(null);
+    setCompileError('');
+  }
+
+  // Also clear when a rewrite starts so the overlay replaces the iframe
+  const [wasRewriting, setWasRewriting] = useState(isRewriting);
+  if (isRewriting && !wasRewriting) {
+    setCompiledPdfPath(null);
+    setCompileError('');
+  }
+  if (isRewriting !== wasRewriting) {
+    setWasRewriting(isRewriting);
+  }
 
   // Source LaTeX from writer task outputs (available during gate) or fallback to run.result
   const writerTask = run.pipeline?.find((t) => t.name === 'writer');
   const latexSource = (writerTask?.outputs?.latex_paper as string) || run.result?.latex_paper || '';
-  const pdfPath = compiledPdfPath || run.result?.pdf_path;
+  // Only trust compiledPdfPath (set after explicit compile action).
+  // run.result?.pdf_path may point to a stale file deleted after rewrite.
+  const pdfPath = compiledPdfPath;
   const lineCount = latexSource ? latexSource.split('\n').length : 0;
 
   const compilePdf = useCallback(async () => {
