@@ -5950,3 +5950,5 @@ textarea {
   color: var(--primary);
   margin-top: 2px;
 }
+
+@import './paper-review.css';
