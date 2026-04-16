@@ -17,6 +17,8 @@ import sys
 import threading
 import time
 
+import pytest
+
 sys.path.insert(0, ".")
 
 # ── 1. Unit tests for review_gate threading ───────────────────────────────────
@@ -141,6 +143,17 @@ def test_timeout():
 
 # ── 2. Server API integration tests ──────────────────────────────────────────
 
+def _server_reachable(port: int = 8099) -> bool:
+    """Check if the UI server is running on the given port."""
+    import urllib.request, urllib.error
+    try:
+        urllib.request.urlopen(f"http://127.0.0.1:{port}/api/runs", timeout=2)
+        return True
+    except (urllib.error.URLError, OSError):
+        return False
+
+
+@pytest.mark.skipif(not _server_reachable(), reason="UI server not running on port 8099")
 def test_server(port=8099):
     import json, urllib.request, urllib.error
 

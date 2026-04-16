@@ -1471,7 +1471,9 @@ class UIRequestHandler(SimpleHTTPRequestHandler):
             if _art_filename not in _allowed or not _art_path.is_file():
                 self._send_json({"error": "File not found"}, status=HTTPStatus.NOT_FOUND)
                 return
-            self._send_file(_art_path)
+            # Serve PDF inline so iframes can display it
+            inline = _art_filename.endswith(".pdf")
+            self._send_file(_art_path, as_attachment=not inline)
             return
 
         # GET /api/runs/<run_id>/paper-qa/history

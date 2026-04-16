@@ -14,15 +14,19 @@ interface PaperViewerProps {
 interface CompileResponse {
   ok?: boolean;
   error?: string;
+  pdf_path?: string;
 }
 
 export function PaperViewer({ run, paperVersion, isRewriting, theoryStatus, writerStatus }: PaperViewerProps) {
   const [activeTab, setActiveTab] = useState<'pdf' | 'latex'>('pdf');
   const [compiling, setCompiling] = useState(false);
   const [compileError, setCompileError] = useState('');
+  const [compiledPdfPath, setCompiledPdfPath] = useState<string | null>(null);
 
-  const latexSource = run.result?.latex_paper || '';
-  const pdfPath = run.result?.pdf_path;
+  // Source LaTeX from writer task outputs (available during gate) or fallback to run.result
+  const writerTask = run.pipeline?.find((t) => t.name === 'writer');
+  const latexSource = (writerTask?.outputs?.latex_paper as string) || run.result?.latex_paper || '';
+  const pdfPath = compiledPdfPath || run.result?.pdf_path;
   const lineCount = latexSource ? latexSource.split('\n').length : 0;
 
   const compilePdf = useCallback(async () => {
@@ -30,7 +34,11 @@ export function PaperViewer({ run, paperVersion, isRewriting, theoryStatus, writ
     setCompileError('');
     try {
       const res = await apiPost<CompileResponse>(`/api/runs/${run.run_id}/compile-pdf`, {});
-      if (!res.ok) setCompileError(res.error || 'Compilation failed');
+      if (res.ok) {
+        setCompiledPdfPath(res.pdf_path || 'compiled');
+      } else {
+        setCompileError(res.error || 'Compilation failed');
+      }
     } catch (e) {
       setCompileError(String(e));
     } finally {

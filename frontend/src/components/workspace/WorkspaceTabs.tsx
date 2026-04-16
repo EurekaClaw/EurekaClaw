@@ -23,9 +23,18 @@ export function WorkspaceTabs({ run }: WorkspaceTabsProps) {
   const activeWsTab = useUiStore((s) => s.activeWsTab);
   const setActiveWsTab = useUiStore((s) => s.setActiveWsTab);
 
-  // Full-panel takeover when paper_qa_gate is active
+  // Full-panel takeover when paper_qa_gate is active or rewrite is in progress.
+  // Keep panel mounted through rewrite so the user can see progress + chat history.
   const paperQATask = run?.pipeline?.find((t) => t.name === 'paper_qa_gate');
-  const isReviewActive = paperQATask?.status === 'awaiting_gate';
+  const theoryTask = run?.pipeline?.find((t) => t.name === 'theory');
+  const writerTask = run?.pipeline?.find((t) => t.name === 'writer');
+  const isGateActive = paperQATask?.status === 'awaiting_gate';
+  const isRewriteRunning =
+    paperQATask?.status === 'completed' && (
+      theoryTask?.status === 'in_progress' || theoryTask?.status === 'running' || theoryTask?.status === 'pending' ||
+      writerTask?.status === 'in_progress' || writerTask?.status === 'running' || writerTask?.status === 'pending'
+    );
+  const isReviewActive = isGateActive || isRewriteRunning;
 
   if (isReviewActive && run) {
     return (

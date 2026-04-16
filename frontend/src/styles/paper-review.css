@@ -15,6 +15,8 @@
   background: var(--surface-strong);
   min-width: 0;
   overflow: hidden;
+  flex: 1;
+  width: 100%;
 }
 
 .pv-tab-bar {
@@ -158,6 +160,8 @@
   background: #faf8f5;
   min-width: 0;
   overflow: hidden;
+  flex: 1;
+  width: 100%;
 }
 
 .qa-chat-header {
@@ -293,6 +297,10 @@
 
 .tool-step-dot--pending {
   background: var(--line);
+}
+
+.tool-step-dot--failed {
+  background: var(--warn);
 }
 
 @keyframes qa-pulse {

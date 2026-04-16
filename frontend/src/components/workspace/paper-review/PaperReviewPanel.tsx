@@ -37,17 +37,20 @@ export function PaperReviewPanel({ run }: PaperReviewPanelProps) {
     writerTask?.status === 'pending' ||
     false;
 
-  // Paper version = count of completed writer runs (from outputs)
-  const paperVersion = writerTask?.outputs?.text_summary ? 1 : 1;
+  // Derive paper version from rewrite system messages in history
+  const rewriteCount = messages.filter(
+    (m) => m.role === 'system' && m.content.startsWith('↻')
+  ).length;
+  const paperVersion = 1 + rewriteCount;
 
-  // Load history on mount
+  // Load history on mount or run change — always reset to avoid stale state
   useEffect(() => {
     void (async () => {
       try {
         const data = await apiGet<HistoryResponse>(`/api/runs/${run.run_id}/paper-qa/history`);
-        if (data.messages?.length) setMessages(data.messages);
+        setMessages(data.messages ?? []);
       } catch {
-        // No history yet
+        setMessages([]);
       }
     })();
   }, [run.run_id]);
