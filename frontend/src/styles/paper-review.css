@@ -235,13 +235,11 @@
   min-height: 0;
 }
 
-/* Empty state */
-.qa-messages:empty::after {
-  content: 'Ask questions about the paper, request changes, or start a rewrite.';
+.qa-empty-state {
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 100%;
+  flex: 1;
   color: var(--dim);
   font-size: 0.82rem;
   text-align: center;

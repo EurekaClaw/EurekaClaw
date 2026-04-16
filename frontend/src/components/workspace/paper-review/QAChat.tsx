@@ -107,6 +107,11 @@ export function QAChat({ run, messages, setMessages, isRewriting, isHistorical, 
       </div>
 
       <div className="qa-messages">
+        {messages.length === 0 && !sending && (
+          <div className="qa-empty-state">
+            Ask questions about the paper, request changes, or start a rewrite.
+          </div>
+        )}
         {messages.map((msg, i) => (
           <ChatMessage key={i} message={msg} />
         ))}
