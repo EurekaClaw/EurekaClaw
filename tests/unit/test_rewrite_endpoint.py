@@ -107,6 +107,63 @@ def test_mark_rewrite_tasks_failed_sets_theory_and_writer_to_failed(run_with_bus
     assert next(t for t in pipeline.tasks if t.name == "writer").status == TaskStatus.FAILED
 
 
+def test_mark_rewrite_tasks_pending_flips_theory_experiment_writer(run_with_bus):
+    """Handler-side PENDING flip BEFORE the bg thread spawns.
+
+    Needed so the client's pipeline poll immediately sees pipelineRewriting
+    (mode='rewriting') — otherwise there's a window between the 202 response
+    and _do_rewrite's first mutation where the UI's isRewriting drops to
+    false while the bg thread is still spinning up. That window is what
+    allows a double-click to fire a second /rewrite and what hides an
+    early bg failure (construction crash, etc) from the frontend.
+    """
+    from eurekaclaw.ui.server import _mark_rewrite_tasks_pending
+
+    _run, bus, _runs_dir = run_with_bus
+    pipeline = bus.get_pipeline()
+    # Add an experiment task since the fixture doesn't include one.
+    experiment = Task(
+        task_id="e1", name="experiment", agent_role="experiment",
+        description="Run", status=TaskStatus.COMPLETED,
+    )
+    pipeline.tasks.append(experiment)
+    bus.put_pipeline(pipeline)
+
+    _mark_rewrite_tasks_pending(pipeline, bus)
+
+    refreshed = bus.get_pipeline()
+    for name in ("theory", "experiment", "writer"):
+        task = next(t for t in refreshed.tasks if t.name == name)
+        assert task.status == TaskStatus.PENDING, (
+            f"{name} should be PENDING so pipelineRewriting reports True"
+        )
+
+
+def test_mark_rewrite_tasks_failed_also_flips_pending_to_failed(run_with_bus):
+    """If the handler flipped tasks to PENDING but the bg thread then
+    crashed at orchestrator construction (before any task transitioned
+    to IN_PROGRESS), the exception-recovery helper must still produce
+    a visible terminal state. Otherwise tasks are left PENDING forever,
+    pipelineRewriting stays true, and the UI shows phantom rewriting.
+    """
+    from eurekaclaw.ui.server import _mark_rewrite_tasks_failed
+
+    _run, bus, _runs_dir = run_with_bus
+    pipeline = bus.get_pipeline()
+    theory = next(t for t in pipeline.tasks if t.name == "theory")
+    writer = next(t for t in pipeline.tasks if t.name == "writer")
+    # Simulate handler-side PENDING flip with no IN_PROGRESS transition.
+    theory.status = TaskStatus.PENDING
+    writer.status = TaskStatus.PENDING
+    bus.put_pipeline(pipeline)
+
+    _mark_rewrite_tasks_failed(pipeline, bus)
+
+    refreshed = bus.get_pipeline()
+    assert next(t for t in refreshed.tasks if t.name == "theory").status == TaskStatus.FAILED
+    assert next(t for t in refreshed.tasks if t.name == "writer").status == TaskStatus.FAILED
+
+
 def test_mark_rewrite_tasks_failed_also_covers_experiment(run_with_bus):
     """experiment is in the rewrite replay set (Task 1) and must be reset too.
 

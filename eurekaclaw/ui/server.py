@@ -1366,17 +1366,43 @@ def _unlink_stale_pdf(run) -> None:
 
 
 def _mark_rewrite_tasks_failed(pipeline, bus) -> None:
-    """Flip theory/experiment/writer to FAILED if they were left IN_PROGRESS.
+    """Flip theory/experiment/writer to FAILED if they were left mid-rewrite.
 
     Called from the background-rewrite exception handler so the pipeline
     settles in a visible terminal state — the frontend polls pipeline and
     can otherwise see a phantom "in progress" forever.
+
+    Catches both IN_PROGRESS (task was actively running) and PENDING (task
+    was marked pending by the handler's pre-spawn flip but the bg thread
+    died before the agent executor ran, e.g. create_client crash).
+    """
+    mid_rewrite = (TaskStatus.IN_PROGRESS, TaskStatus.PENDING)
+    changed = False
+    for name in ("theory", "experiment", "writer"):
+        task = next((t for t in pipeline.tasks if t.name == name), None)
+        if task is not None and task.status in mid_rewrite:
+            task.status = TaskStatus.FAILED
+            changed = True
+    if changed:
+        bus.put_pipeline(pipeline)
+
+
+def _mark_rewrite_tasks_pending(pipeline, bus) -> None:
+    """Flip theory/experiment/writer to PENDING before the bg thread starts.
+
+    Called from the /rewrite handler synchronously before thread.start() so
+    the client's next pipeline poll immediately sees pipelineRewriting=True.
+    Without this, the 202 response drops the frontend's local isRewriting
+    flag in a window where pipelineRewriting is still false — a fast
+    double-click slips through to a second POST, and an early bg crash
+    (orchestrator construction, etc) is invisible because the UI never
+    refetches /paper-qa/history (mode stays 'completed').
     """
     changed = False
     for name in ("theory", "experiment", "writer"):
         task = next((t for t in pipeline.tasks if t.name == name), None)
-        if task is not None and task.status == TaskStatus.IN_PROGRESS:
-            task.status = TaskStatus.FAILED
+        if task is not None and task.status != TaskStatus.PENDING:
+            task.status = TaskStatus.PENDING
             changed = True
     if changed:
         bus.put_pipeline(pipeline)
@@ -2366,6 +2392,11 @@ class UIRequestHandler(SimpleHTTPRequestHandler):
                     status=HTTPStatus.CONFLICT,
                 )
                 return
+            # Flip rewrite tasks to PENDING synchronously so the client's
+            # next pipeline poll sees pipelineRewriting=True before the 202
+            # lands — closes the "invisible early failure" and
+            # "double-click slips a second POST" gaps.
+            _mark_rewrite_tasks_pending(pipeline, bus)
             rewrite_id = str(uuid.uuid4())
             thread = threading.Thread(
                 target=_run_rewrite_bg,
@@ -2375,8 +2406,10 @@ class UIRequestHandler(SimpleHTTPRequestHandler):
             try:
                 thread.start()
             except Exception:
-                # Release the slot if we failed to start the thread at all —
-                # otherwise the session is permanently blocked.
+                # Release the slot AND restore task statuses if we failed to
+                # start the thread at all — otherwise the session is
+                # permanently blocked with phantom PENDING tasks.
+                _mark_rewrite_tasks_failed(pipeline, bus)
                 _release_rewrite_slot(run.eureka_session_id)
                 raise
             self._send_json(
