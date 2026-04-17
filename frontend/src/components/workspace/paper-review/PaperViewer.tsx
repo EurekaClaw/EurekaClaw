@@ -49,51 +49,37 @@ export function PaperViewer({ run, paperVersion, isRewriting, theoryStatus, writ
     setWasRewriting(isRewriting);
   }
 
-  // On mount and when version changes, probe for PDF. If missing,
-  // auto-compile once. The autoCompileAttempted flag prevents loops.
+  // On mount, auto-compile the PDF. The compile-pdf endpoint is
+  // idempotent — if the PDF already exists and LaTeX hasn't changed,
+  // it returns immediately. No separate probe needed (probing the
+  // artifact endpoint has side effects that can delete valid PDFs).
   const pdfUrl = `/api/runs/${run.run_id}/artifacts/paper.pdf`;
   useEffect(() => {
-    if (pdfAvailable || isRewriting) return;
+    if (pdfAvailable || isRewriting || autoCompileAttempted) return;
+    setAutoCompileAttempted(true);
+    setCompiling(true);
     let cancelled = false;
     void (async () => {
       try {
-        // Probe with a range request to avoid downloading the full PDF.
-        // Check status code to determine if the file exists.
-        const res = await fetch(pdfUrl, { headers: { Range: 'bytes=0-0' } });
-        if (cancelled) return;
-        if (res.ok || res.status === 206) {
-          setPdfAvailable(true);
-          setPdfCacheBuster(Date.now());
-          return;
-        }
-        // PDF not found — auto-compile once
-        if (autoCompileAttempted) return;
-        setAutoCompileAttempted(true);
-        setCompiling(true);
-        try {
-          const compileRes = await apiPost<CompileResponse>(
-            `/api/runs/${run.run_id}/compile-pdf`, {}
-          );
-          if (!cancelled) {
-            if (compileRes.ok) {
-              setPdfAvailable(true);
-              setPdfCacheBuster(Date.now());
-            } else {
-              setCompileError(compileRes.error || 'Compilation failed');
-            }
+        const res = await apiPost<CompileResponse>(
+          `/api/runs/${run.run_id}/compile-pdf`, {}
+        );
+        if (!cancelled) {
+          if (res.ok) {
+            setPdfAvailable(true);
+            setPdfCacheBuster(Date.now());
+          } else {
+            setCompileError(res.error || 'Compilation failed');
           }
-        } catch (e) {
-          if (!cancelled) setCompileError(String(e));
-        } finally {
-          if (!cancelled) setCompiling(false);
         }
-      } catch {
-        // Network error — ignore
+      } catch (e) {
+        if (!cancelled) setCompileError(String(e));
+      } finally {
+        if (!cancelled) setCompiling(false);
       }
     })();
     return () => { cancelled = true; };
-  // Stable deps only — no run.pipeline/run.result objects
-  }, [pdfUrl, paperVersion, isRewriting, pdfAvailable, autoCompileAttempted, run.run_id]);
+  }, [pdfAvailable, isRewriting, autoCompileAttempted, run.run_id]);
 
   // Source LaTeX from writer task outputs (available during gate) or fallback to run.result
   const writerTask = run.pipeline?.find((t) => t.name === 'writer');
