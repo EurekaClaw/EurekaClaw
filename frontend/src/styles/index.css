@@ -322,7 +322,8 @@ img {
 .session-item:hover .session-item-name,
 .session-item:hover .session-item-prompt {
   -webkit-line-clamp: unset;
-  max-height: 14em;
+  max-height: 40em;
+  word-break: break-word;
 }
 
 /* Session item actions group (rename + restart + delete) */
@@ -4203,19 +4204,23 @@ textarea {
   letter-spacing: -0.025em;
   line-height: 1.35;
   cursor: default;
+  /* Collapsed default: single line with ellipsis */
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-height: 1.5em;
-  transition: max-height 0.28s cubic-bezier(0.22, 1, 0.36, 1), white-space 0s linear 0s;
+  max-height: 1.6em;
+  transition: max-height 0.28s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
+/* Hover / focus: reveal the full question in place, no ellipsis */
 .session-topbar-identity:hover .session-topbar-name,
+.session-topbar-name:hover,
 .session-topbar-name:focus-visible {
   white-space: normal;
   text-overflow: clip;
-  max-height: 9em;
-  overflow: hidden;
+  overflow: visible;
+  max-height: 40em;
+  word-break: break-word;
 }
 
 .session-topbar-rename-btn {

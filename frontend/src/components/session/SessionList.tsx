@@ -88,8 +88,7 @@ export function SessionList() {
   return (
     <div className="session-list">
       {sessions.map((s) => {
-        const rawName = s.name || s.input_spec?.query || s.input_spec?.domain || 'Untitled session';
-        const displayName = rawName.length > 52 ? rawName.slice(0, 49) + '…' : rawName;
+        const displayName = s.name || s.input_spec?.query || s.input_spec?.domain || 'Untitled session';
         const status = s.status || 'queued';
         const time = formatRelativeTime(s.created_at);
         const isActive = s.run_id === currentRunId;

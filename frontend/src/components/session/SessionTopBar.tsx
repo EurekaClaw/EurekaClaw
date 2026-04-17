@@ -1,10 +1,14 @@
 import { useState, useMemo } from 'react';
 import { useSessionStore } from '@/store/sessionStore';
-import { truncateSessionName, parseServerTimestamp } from '@/lib/formatters';
+import { parseServerTimestamp } from '@/lib/formatters';
 import { compactRunMeta } from '@/lib/statusHelpers';
 import { useElapsedTimer } from '@/hooks/useElapsedTimer';
 import { apiPost } from '@/api/client';
 import type { SessionRun, PipelineTask } from '@/types';
+
+function fullSessionName(run: SessionRun): string {
+  return run.name || run.input_spec?.query || run.input_spec?.domain || 'Untitled session';
+}
 
 interface SessionTopBarProps {
   run: SessionRun;
@@ -34,7 +38,7 @@ export function SessionTopBar({ run }: SessionTopBarProps) {
   const [isRenaming, setIsRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState('');
 
-  const name = run.name || truncateSessionName(run);
+  const name = fullSessionName(run);
   const tasks = run.pipeline ?? [];
   const totals = computeTokenUsage(tasks);
   const total = totals.input + totals.output;
@@ -51,7 +55,7 @@ export function SessionTopBar({ run }: SessionTopBarProps) {
   const statusDotClass = statusDot(run.status);
 
   const startRename = () => {
-    setRenameValue(run.name || truncateSessionName(run));
+    setRenameValue(fullSessionName(run));
     setIsRenaming(true);
   };
 
