@@ -1317,6 +1317,29 @@ def _sync_latex_to_disk(run) -> tuple[bool, str]:
     return False, latex
 
 
+def _ensure_bus_activated(run) -> tuple["KnowledgeBus", "TaskPipeline", "ResearchBrief"]:
+    """Return the run's live bus/pipeline/brief, hydrating from disk if needed.
+
+    Raises ValueError / FileNotFoundError on corrupt or missing state.
+    Callers typically map those to HTTP 400.
+    """
+    session = getattr(run, "eureka_session", None)
+    bus = getattr(session, "bus", None) if session else None
+    if bus is None:
+        from eurekaclaw.orchestrator.session_loader import SessionLoader
+        bus, _brief, _pipeline = SessionLoader.load(run.eureka_session_id)
+        from eurekaclaw.main import EurekaSession
+        if session is None:
+            run.eureka_session = EurekaSession.__new__(EurekaSession)
+            run.eureka_session.session_id = run.eureka_session_id
+        run.eureka_session.bus = bus
+    pipeline = bus.get_pipeline()
+    brief = bus.get_research_brief()
+    if pipeline is None or brief is None:
+        raise ValueError("Session pipeline or brief missing from bus")
+    return bus, pipeline, brief
+
+
 def _extract_latex_error(log_path: Path, max_chars: int = 1200) -> str:
     """Pull the relevant pdflatex error excerpt out of paper.log.
 
