@@ -16,8 +16,11 @@ from functools import partial
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
+
+if TYPE_CHECKING:
+    from eurekaclaw.knowledge_bus.bus import KnowledgeBus
 
 import subprocess as _subprocess
 import sys as _sys
@@ -1257,7 +1260,7 @@ class UIServerState:
         }
 
 
-def _bump_writer_paper_version(bus) -> int:
+def _bump_writer_paper_version(bus: "KnowledgeBus") -> int:
     """Increment writer.outputs['paper_version'] on the bus pipeline.
 
     Treats a missing field as version 1 (the frontend shows v1 for

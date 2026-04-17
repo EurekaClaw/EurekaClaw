@@ -95,7 +95,7 @@ async def test_review_rewrite_endpoint_bumps_paper_version(tmp_path, monkeypatch
 
 
 @pytest.mark.asyncio
-async def test_bump_writer_paper_version_missing_field_defaults_to_one(tmp_path):
+async def test_bump_writer_paper_version_missing_field_bumps_to_two(tmp_path):
     """If the writer task predates this change (no paper_version), treat
     it as 1 and bump to 2."""
     from eurekaclaw.knowledge_bus.bus import KnowledgeBus

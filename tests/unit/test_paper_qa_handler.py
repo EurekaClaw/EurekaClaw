@@ -140,7 +140,6 @@ async def test_gate_rewrite_success_bumps_paper_version(handler_setup, monkeypat
     )
 
     # Stand in for the review_gate flow: invoke the rewrite branch directly.
-    import os
     monkeypatch.setenv("EUREKACLAW_UI_MODE", "1")
     from eurekaclaw.ui import review_gate
 
