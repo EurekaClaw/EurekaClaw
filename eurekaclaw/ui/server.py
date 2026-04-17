@@ -1288,8 +1288,10 @@ def _sync_latex_to_disk(run) -> tuple[bool, str]:
     """Sync writer bus latex → <run.output_dir>/paper.tex.
 
     Returns (changed, latex). Writes paper.tex only if bus latex differs
-    from the on-disk copy. Never touches paper.pdf — callers that care
-    about stale PDFs are responsible for unlinking them.
+    from the on-disk copy. An empty `latex_paper` is treated as "nothing
+    to sync" — the on-disk copy is not overwritten. Never touches
+    paper.pdf; callers that care about stale PDFs are responsible for
+    unlinking them.
     """
     if not getattr(run, "output_dir", None):
         return False, ""

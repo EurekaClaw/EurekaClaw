@@ -1,9 +1,7 @@
 """Tests for the _sync_latex_to_disk(run) helper."""
 
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Any
-from unittest.mock import MagicMock
 
 import pytest
 

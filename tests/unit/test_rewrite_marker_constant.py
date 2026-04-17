@@ -1,4 +1,15 @@
-"""Tests for the shared REWRITE_MARKER_PREFIX constant."""
+"""Tests for the shared REWRITE_MARKER_PREFIX constant.
+
+The `..._used_in_*` tests grep the imported module source for quoted
+occurrences of the literal "↻ Rewrite requested:" (colon-anchored, so
+prose that mentions "↻ Rewrite requested" without the trailing colon
+does not trip the regex). Using `inspect.getsource(module)` keeps the
+tests cwd-independent — they read the module as imported, not a file
+at a hard-coded relative path.
+"""
+
+import inspect
+import re
 
 
 def test_rewrite_marker_prefix_exact_value():
@@ -10,10 +21,9 @@ def test_rewrite_marker_prefix_exact_value():
 def test_rewrite_marker_prefix_used_in_server():
     """server.py._append_paper_qa_rewrite_marker writes entries whose
     content starts with REWRITE_MARKER_PREFIX — enforced by grep."""
-    import pathlib, re
-    src = pathlib.Path("eurekaclaw/ui/server.py").read_text(encoding="utf-8")
-    # The literal "↻ Rewrite requested: " must appear only via the
-    # constant — no more open-coded f-strings in this file.
+    import eurekaclaw.ui.server as server
+
+    src = inspect.getsource(server)
     open_coded = re.findall(r'["\']↻ Rewrite requested:', src)
     assert open_coded == [], (
         f"server.py still contains open-coded rewrite markers: {open_coded}"
@@ -22,8 +32,9 @@ def test_rewrite_marker_prefix_used_in_server():
 
 
 def test_rewrite_marker_prefix_used_in_paper_qa_handler():
-    import pathlib, re
-    src = pathlib.Path("eurekaclaw/orchestrator/paper_qa_handler.py").read_text(encoding="utf-8")
+    import eurekaclaw.orchestrator.paper_qa_handler as handler
+
+    src = inspect.getsource(handler)
     open_coded = re.findall(r'["\']↻ Rewrite requested:', src)
     assert open_coded == [], (
         f"paper_qa_handler.py still contains open-coded rewrite markers: {open_coded}"
