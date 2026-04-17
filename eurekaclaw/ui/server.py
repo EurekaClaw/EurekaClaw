@@ -26,7 +26,13 @@ from eurekaclaw.ccproxy_manager import maybe_start_ccproxy, stop_ccproxy, is_ccp
 from eurekaclaw.config import settings
 from eurekaclaw.console import close_ui_html_sink, register_ui_html_sink
 from eurekaclaw.llm import create_client
-from eurekaclaw.main import EurekaSession, save_artifacts, save_console_html_artifact, _compile_pdf
+from eurekaclaw.main import (
+    EurekaSession,
+    save_artifacts,
+    save_console_html_artifact,
+    _compile_pdf,
+    _copy_template_assets,
+)
 from eurekaclaw.skills.registry import SkillRegistry
 from eurekaclaw.types.tasks import InputSpec, ResearchOutput, TaskStatus
 
@@ -1251,6 +1257,26 @@ class UIServerState:
         }
 
 
+def _extract_latex_error(log_path: Path, max_chars: int = 1200) -> str:
+    """Pull the relevant pdflatex error excerpt out of paper.log.
+
+    pdflatex logs are noisy; the useful bit is the block starting at the
+    first line that begins with '!'. We return that block (plus a few
+    lines of context) trimmed to max_chars so the UI can show it.
+    """
+    try:
+        text = log_path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return ""
+    lines = text.splitlines()
+    first_err = next((i for i, ln in enumerate(lines) if ln.startswith("!")), None)
+    if first_err is None:
+        return "\n".join(lines[-30:])[-max_chars:]
+    start = max(0, first_err - 2)
+    end = min(len(lines), first_err + 20)
+    return "\n".join(lines[start:end])[-max_chars:]
+
+
 def _install_lean4() -> dict[str, Any]:
     """Install Lean4 via elan and wire LEAN4_BIN to the installed binary."""
     if _sys.platform.startswith("win"):
@@ -1860,13 +1886,25 @@ class UIRequestHandler(SimpleHTTPRequestHandler):
             if not tex_path.is_file():
                 self._send_json({"error": "No paper.tex found"}, status=HTTPStatus.BAD_REQUEST)
                 return
+            # Ensure eureka.cls, smile.sty, logo-claw.png, fonts/ sit next to
+            # paper.tex. save_artifacts() only runs at full pipeline
+            # completion, so during the Paper QA gate or a rewrite the
+            # template assets may not have been copied yet.
+            try:
+                _copy_template_assets(Path(run.output_dir))
+            except Exception:
+                logger.warning("Could not copy template assets to %s", run.output_dir, exc_info=True)
             try:
                 _compile_pdf(tex_path, settings.latex_bin)
                 pdf_path = Path(run.output_dir) / "paper.pdf"
                 if pdf_path.is_file():
                     self._send_json({"ok": True, "pdf_path": str(pdf_path)})
                 else:
-                    self._send_json({"error": "pdflatex ran but produced no PDF — check paper.log"}, status=HTTPStatus.INTERNAL_SERVER_ERROR)
+                    log_tail = _extract_latex_error(Path(run.output_dir) / "paper.log")
+                    msg = "pdflatex ran but produced no PDF"
+                    if log_tail:
+                        msg = f"{msg}:\n{log_tail}"
+                    self._send_json({"error": msg}, status=HTTPStatus.INTERNAL_SERVER_ERROR)
             except FileNotFoundError:
                 self._send_json({"error": "pdflatex binary not found. Install TeX (e.g. brew install --cask basictex)"}, status=HTTPStatus.BAD_REQUEST)
             except Exception as exc:
