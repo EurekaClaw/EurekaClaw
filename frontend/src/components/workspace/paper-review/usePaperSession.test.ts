@@ -143,7 +143,7 @@ describe('usePaperSession', () => {
     expect(result.current?.paperVersion).toBe(3);
   });
 
-  it('paperVersion falls back to 1 + rewrite-marker count when writer lacks the field', () => {
+  it('paperVersion falls back to 1 + rewrite-marker count when writer lacks the field', async () => {
     const run = makeRun({
       pipeline: [
         {
@@ -161,7 +161,7 @@ describe('usePaperSession', () => {
       ],
     });
     const { result } = renderHook(() => usePaperSession(run));
-    return waitFor(() => {
+    await waitFor(() => {
       expect(result.current?.paperVersion).toBe(3);
     });
   });
@@ -182,5 +182,29 @@ describe('usePaperSession', () => {
       '/api/runs/run-1/gate/paper_qa',
       { action: 'rewrite', question: 'retry proof' },
     );
+  });
+
+  it('history-load failure preserves optimistic rewrite markers', async () => {
+    // Gate mode so Effect 2 fires and hits the catch branch.
+    const run = makeRun({
+      pipeline: [writerTask(1), paperQATask('awaiting_gate')],
+    });
+    // Sequence: onRewrite appends an optimistic marker, then the
+    // subsequent history GET rejects. The catch branch must preserve
+    // the marker instead of wiping messages to [].
+    apiPostMock.mockResolvedValue({ ok: true });
+    apiGetMock.mockRejectedValue(new Error('network down'));
+    const { result } = renderHook(() => usePaperSession(run));
+
+    await act(async () => {
+      await result.current!.onRewrite('keep me alive');
+    });
+
+    await waitFor(() => {
+      const marker = result.current!.messages.find(
+        (m) => m.role === 'system' && m.content.includes('keep me alive'),
+      );
+      expect(marker).toBeDefined();
+    });
   });
 });

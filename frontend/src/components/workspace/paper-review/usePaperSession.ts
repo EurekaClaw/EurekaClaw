@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { apiGet, apiPost } from '@/api/client';
 import { REWRITE_MARKER_PREFIX } from '@/constants/paper';
-import type { SessionRun, QAMessage, PipelineTask } from '@/types';
+import type { SessionRun, QAMessage } from '@/types';
 
 export type PaperMode =
   | 'no-paper'
@@ -128,7 +128,14 @@ export function usePaperSession(run: SessionRun | null): PaperSession | null {
           return [...serverMsgs, ...optimistic];
         });
       } catch {
-        setMessages([]);
+        setMessages((prev) =>
+          prev.filter(
+            (m) =>
+              m.role === 'system' &&
+              typeof m.content === 'string' &&
+              m.content.startsWith(REWRITE_MARKER_PREFIX),
+          ),
+        );
       }
     })();
   }, [run?.run_id, reviewStatus, mode]);
