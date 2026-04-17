@@ -562,15 +562,22 @@ class PaperQAHandler:
     def _clean_history_for_agent(self) -> list[dict[str, str]]:
         """Return history as role/content pairs the LLM API accepts.
 
-        Strips metadata (ts, version) and drops any non user/assistant
-        entries — the Anthropic messages API rejects role="system" in
-        the message list, and our rewrite markers use that role.
+        Strips metadata (ts, version) and folds rewrite markers
+        (role="system") into user turns. Anthropic's messages API
+        rejects role="system" in the message list, but the marker
+        text ("↻ Rewrite requested: …") is real context the QA agent
+        needs when the user asks follow-ups like "did you address
+        the issue from my earlier rewrite request?". This mirrors
+        what the frontend QAChat does when posting to /paper-qa/ask.
         """
-        return [
-            {"role": h["role"], "content": h["content"]}
-            for h in self._history
-            if h["role"] in ("user", "assistant")
-        ]
+        out: list[dict[str, str]] = []
+        for h in self._history:
+            role = h["role"]
+            if role == "user" or role == "assistant":
+                out.append({"role": role, "content": h["content"]})
+            elif role == "system":
+                out.append({"role": "user", "content": h["content"]})
+        return out
 
     def _summarize_qa_history(self) -> str:
         """Build a concise text summary of the QA conversation for feedback injection."""
