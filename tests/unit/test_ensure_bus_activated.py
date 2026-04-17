@@ -82,3 +82,20 @@ def test_raises_value_error_when_pipeline_missing(monkeypatch):
 
     with pytest.raises(ValueError, match="pipeline or brief"):
         _ensure_bus_activated(run)
+
+
+def test_propagates_file_not_found_from_loader(monkeypatch):
+    from eurekaclaw.ui import server as srv
+
+    class _StubLoader:
+        @staticmethod
+        def load(session_id):
+            raise FileNotFoundError(f"Session '{session_id}' not found")
+
+    monkeypatch.setattr(
+        "eurekaclaw.orchestrator.session_loader.SessionLoader", _StubLoader
+    )
+
+    run = _FakeRun(eureka_session=None, eureka_session_id="missing")
+    with pytest.raises(FileNotFoundError, match="not found"):
+        srv._ensure_bus_activated(run)
