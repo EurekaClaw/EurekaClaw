@@ -10,7 +10,7 @@ from pathlib import Path
 
 
 def _read_history(history_file: Path) -> list[dict]:
-    """Mirrors the parser in server.py:1692-1700. Keep in sync."""
+    """Mirrors the JSONL parser in the GET /api/runs/<id>/paper-qa/history handler in server.py. Keep in sync."""
     messages: list[dict] = []
     if not history_file.exists():
         return messages
