@@ -1257,6 +1257,29 @@ class UIServerState:
         }
 
 
+def _bump_writer_paper_version(bus) -> int:
+    """Increment writer.outputs['paper_version'] on the bus pipeline.
+
+    Treats a missing field as version 1 (the frontend shows v1 for
+    first writer output). Returns the new version. No-op (returns 0) if
+    no writer task is found.
+    """
+    pipeline = bus.get_pipeline()
+    if not pipeline:
+        return 0
+    writer_task = next(
+        (t for t in pipeline.tasks if t.name == "writer"), None
+    )
+    if writer_task is None:
+        return 0
+    outputs = writer_task.outputs or {}
+    new_version = int(outputs.get("paper_version", 1)) + 1
+    outputs["paper_version"] = new_version
+    writer_task.outputs = outputs
+    bus.put_pipeline(pipeline)
+    return new_version
+
+
 def _extract_latex_error(log_path: Path, max_chars: int = 1200) -> str:
     """Pull the relevant pdflatex error excerpt out of paper.log.
 
@@ -2124,6 +2147,9 @@ class UIRequestHandler(SimpleHTTPRequestHandler):
 
                 if new_latex:
                     bus.persist(session_dir)
+                    # Bump writer.outputs.paper_version so the polling
+                    # frontend picks up the new version.
+                    _bump_writer_paper_version(bus)
                     # Write paper.tex to both session dir and output dir
                     for target_dir in [session_dir, Path(run.output_dir) if run.output_dir else None]:
                         if target_dir and target_dir.is_dir():

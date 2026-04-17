@@ -196,6 +196,17 @@ class PaperQAHandler:
                     with marker_path.open("a", encoding="utf-8") as f:
                         f.write(json.dumps(marker, ensure_ascii=False) + "\n")
                     self._save_paper_version(new_latex)
+                    # Bump writer.outputs.paper_version so the polling
+                    # frontend sees the new version without having to
+                    # derive it from chat markers.
+                    writer_task = next(
+                        (t for t in pipeline.tasks if t.name == "writer"), None
+                    )
+                    if writer_task is not None:
+                        outputs = writer_task.outputs or {}
+                        outputs["paper_version"] = int(outputs.get("paper_version", 1)) + 1
+                        writer_task.outputs = outputs
+                        self.bus.put_pipeline(pipeline)
                     latex = new_latex
                     self.bus.put("paper_qa_latex", latex)
                 else:

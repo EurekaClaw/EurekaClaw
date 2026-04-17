@@ -120,3 +120,64 @@ async def test_no_latex_skips_gracefully(handler_setup):
     with patch.object(handler, "_should_review", return_value=True):
         await handler.run(pipeline, brief)
     assert handler._paper_version == 0
+
+
+@pytest.mark.asyncio
+async def test_gate_rewrite_success_bumps_paper_version(handler_setup, monkeypatch):
+    """After _do_rewrite returns non-None, writer.outputs.paper_version
+    increments by 1 (or starts at 1 if the writer didn't stamp it)."""
+    handler, pipeline, brief = handler_setup
+
+    # Seed: writer already has paper_version=1 from a prior successful run.
+    writer_task = next(t for t in pipeline.tasks if t.name == "writer")
+    writer_task.outputs["paper_version"] = 1
+
+    # Stub _do_rewrite to return a fresh latex string (simulating success).
+    monkeypatch.setattr(
+        handler,
+        "_do_rewrite",
+        AsyncMock(return_value=r"\section{Intro v2}"),
+    )
+
+    # Stand in for the review_gate flow: invoke the rewrite branch directly.
+    import os
+    monkeypatch.setenv("EUREKACLAW_UI_MODE", "1")
+    from eurekaclaw.ui import review_gate
+
+    decisions = iter([
+        type("D", (), {"action": "rewrite", "question": "fix Section 3"})(),
+        type("D", (), {"action": "no", "question": ""})(),
+    ])
+    monkeypatch.setattr(review_gate, "wait_paper_qa", lambda _sid: next(decisions))
+    monkeypatch.setattr(review_gate, "reset_paper_qa", lambda _sid: None)
+
+    await handler.run(pipeline, brief)
+
+    assert writer_task.outputs["paper_version"] == 2
+
+
+@pytest.mark.asyncio
+async def test_gate_rewrite_failure_does_not_bump_paper_version(
+    handler_setup, monkeypatch
+):
+    """If _do_rewrite returns None (failure), paper_version stays put."""
+    handler, pipeline, brief = handler_setup
+
+    writer_task = next(t for t in pipeline.tasks if t.name == "writer")
+    writer_task.outputs["paper_version"] = 3
+
+    monkeypatch.setattr(handler, "_do_rewrite", AsyncMock(return_value=None))
+
+    monkeypatch.setenv("EUREKACLAW_UI_MODE", "1")
+    from eurekaclaw.ui import review_gate
+
+    decisions = iter([
+        type("D", (), {"action": "rewrite", "question": "fix X"})(),
+        type("D", (), {"action": "no", "question": ""})(),
+    ])
+    monkeypatch.setattr(review_gate, "wait_paper_qa", lambda _sid: next(decisions))
+    monkeypatch.setattr(review_gate, "reset_paper_qa", lambda _sid: None)
+
+    await handler.run(pipeline, brief)
+
+    assert writer_task.outputs["paper_version"] == 3

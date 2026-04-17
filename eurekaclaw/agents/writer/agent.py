@@ -506,7 +506,12 @@ If a section has little content, write at least two sentences rather than omitti
             return self._make_result(
                 task,
                 success=True,
-                output={output_key: paper_content, "word_count": len(text.split()), "output_format": fmt},
+                output={
+                    output_key: paper_content,
+                    "word_count": len(text.split()),
+                    "output_format": fmt,
+                    "paper_version": 1,
+                },
                 text_summary=f"Paper generated ({fmt}): {len(text.split())} words",
                 token_usage=tokens,
             )
