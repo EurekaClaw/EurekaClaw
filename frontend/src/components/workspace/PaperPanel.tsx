@@ -14,11 +14,15 @@ const MAX_SPLIT = 70;
 const DEFAULT_SPLIT = 55;
 
 function loadInitialSplit(): number {
-  const saved = localStorage.getItem(SPLIT_KEY);
-  if (!saved) return DEFAULT_SPLIT;
-  const parsed = parseFloat(saved);
-  if (!Number.isFinite(parsed)) return DEFAULT_SPLIT;
-  return Math.min(MAX_SPLIT, Math.max(MIN_SPLIT, parsed));
+  try {
+    const saved = localStorage.getItem(SPLIT_KEY);
+    if (!saved) return DEFAULT_SPLIT;
+    const parsed = parseFloat(saved);
+    if (!Number.isFinite(parsed)) return DEFAULT_SPLIT;
+    return Math.min(MAX_SPLIT, Math.max(MIN_SPLIT, parsed));
+  } catch {
+    return DEFAULT_SPLIT;
+  }
 }
 
 export function PaperPanel({ run }: PaperPanelProps) {
@@ -32,8 +36,16 @@ function PaperPanelInner({ run }: PaperPanelProps) {
   const [splitPct, setSplitPct] = useState(loadInitialSplit);
   const [isDragging, setIsDragging] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
-  const splitPctRef = useRef(splitPct);
-  splitPctRef.current = splitPct;
+
+  // Persist split on every change. Covers the mid-drag-unmount edge case
+  // that a mouseup-only save would miss; drag-time writes are cheap.
+  useEffect(() => {
+    try {
+      localStorage.setItem(SPLIT_KEY, String(splitPct));
+    } catch {
+      /* quota / private-mode — preference is ephemeral, no-op */
+    }
+  }, [splitPct]);
 
   const handleMouseDown = useCallback(() => setIsDragging(true), []);
 
@@ -48,7 +60,6 @@ function PaperPanelInner({ run }: PaperPanelProps) {
     }
     function onMouseUp() {
       setIsDragging(false);
-      localStorage.setItem(SPLIT_KEY, String(splitPctRef.current));
     }
     document.addEventListener('mousemove', onMouseMove);
     document.addEventListener('mouseup', onMouseUp);
