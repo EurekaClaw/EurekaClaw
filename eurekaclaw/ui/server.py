@@ -1444,13 +1444,15 @@ def _snapshot_rewrite_bus_artifacts(bus) -> dict[str, Any]:
 def _restore_rewrite_bus_artifacts(bus, snapshot: dict[str, Any]) -> None:
     """Restore bus artifacts from a snapshot taken before _do_rewrite.
 
-    Keys that were unset before are not re-deleted (the bus API has no
-    uniform delete); callers accept that a new rewrite-introduced key
-    may linger after rollback. In practice the rewrite agents overwrite
-    existing keys, so this is rare.
+    For keys with a prior value: put the prior value back.
+    For keys that were unset before: remove them from the bus store so
+    a failed rewrite's newly-created artifact doesn't linger into the
+    next attempt. KnowledgeBus has no public delete, so we reach into
+    ._store.pop — bus is a thin dict wrapper.
     """
     for key, prior in snapshot.items():
         if prior is _REWRITE_ARTIFACT_UNSET:
+            bus._store.pop(key, None)
             continue
         bus.put(key, prior)
 
