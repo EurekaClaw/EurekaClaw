@@ -2042,8 +2042,6 @@ class UIRequestHandler(SimpleHTTPRequestHandler):
                 self._send_json({"error": "No revision_prompt provided"}, status=HTTPStatus.BAD_REQUEST)
                 return
 
-            self._append_paper_qa_rewrite_marker(session_id, revision_prompt)
-
             import asyncio as _asyncio
             from eurekaclaw.orchestrator.meta_orchestrator import MetaOrchestrator
             from eurekaclaw.orchestrator.paper_qa_handler import PaperQAHandler
@@ -2100,6 +2098,10 @@ class UIRequestHandler(SimpleHTTPRequestHandler):
                     # Clean up backup
                     if backup_dir.is_dir():
                         _shutil.rmtree(backup_dir)
+                    # Only persist the marker once the rewrite actually
+                    # produced a new paper, so rejected or failed-and-
+                    # restored attempts don't pollute the history.
+                    self._append_paper_qa_rewrite_marker(session_id, revision_prompt)
                     self._send_json({"ok": True})
                 else:
                     # Restore from backup
@@ -2258,9 +2260,12 @@ class UIRequestHandler(SimpleHTTPRequestHandler):
                 from eurekaclaw.ui.review_gate import PaperQADecision
                 action = str(payload.get("action", "no")).strip()
                 question = str(payload.get("question", "")).strip()
-                if action == "rewrite":
-                    self._append_paper_qa_rewrite_marker(session_id, question)
                 ok = _rg.submit_paper_qa(session_id, PaperQADecision(action=action, question=question))
+                # Persist only after submit succeeded — a rejected gate
+                # (stale / not active) shouldn't leave a rewrite marker
+                # in history for a rewrite that will never happen.
+                if ok and action == "rewrite":
+                    self._append_paper_qa_rewrite_marker(session_id, question)
             else:
                 self._send_json({"error": f"Unknown gate type: {gate_type}"}, status=HTTPStatus.BAD_REQUEST)
                 return
