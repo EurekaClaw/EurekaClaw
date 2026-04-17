@@ -220,6 +220,79 @@ describe('usePaperSession', () => {
     );
   });
 
+  it('onRewrite appends an error marker when the POST rejects', async () => {
+    const run = makeRun({
+      pipeline: [writerTask(1), paperQATask('completed')],
+    });
+    apiPostMock.mockRejectedValue(new Error('server 500'));
+    const { result } = renderHook(() => usePaperSession(run));
+
+    await act(async () => {
+      await result.current!.onRewrite('attempt that fails');
+    });
+
+    const errMsg = result.current!.messages.find(
+      (m) => m.role === 'system' && m.content.startsWith('Revision error:'),
+    );
+    expect(errMsg).toBeDefined();
+    expect(errMsg!.content).toContain('server 500');
+  });
+
+  it('onRewrite clears isRewriting even when the POST rejects', async () => {
+    const run = makeRun({
+      pipeline: [writerTask(1), paperQATask('completed')],
+    });
+    apiPostMock.mockRejectedValue(new Error('network down'));
+    const { result } = renderHook(() => usePaperSession(run));
+
+    await act(async () => {
+      await result.current!.onRewrite('boom');
+    });
+
+    // Hook's local isRewriting must reset; pipelineRewriting is false because
+    // theory/writer are completed in this pipeline, so the exposed
+    // isRewriting should be false.
+    expect(result.current!.isRewriting).toBe(false);
+  });
+
+  it('onAccept is a no-op when mode is not gate', async () => {
+    const run = makeRun({
+      // completed mode — paper_qa_gate is completed, not awaiting_gate
+      pipeline: [writerTask(1), paperQATask('completed')],
+    });
+    const { result } = renderHook(() => usePaperSession(run));
+    expect(result.current?.mode).toBe('completed');
+
+    await act(async () => {
+      await result.current!.onAccept();
+    });
+
+    // Must NOT have posted to /gate/paper_qa. Still ok if history fetch ran.
+    expect(apiPostMock).not.toHaveBeenCalled();
+  });
+
+  it('mode is "failed" when run status is failed and there is no paper', () => {
+    const run = makeRun({
+      status: 'failed',
+      error: 'writer crashed',
+      pipeline: [],
+    });
+    const { result } = renderHook(() => usePaperSession(run));
+    expect(result.current?.mode).toBe('failed');
+    expect(result.current?.hasPaper).toBe(false);
+  });
+
+  it('mode is "completed" when run status is failed but paper already exists', () => {
+    // Writer produced output before the failure — user can still review/rewrite.
+    const run = makeRun({
+      status: 'failed',
+      pipeline: [writerTask(1), paperQATask('completed')],
+    });
+    const { result } = renderHook(() => usePaperSession(run));
+    expect(result.current?.mode).toBe('completed');
+    expect(result.current?.hasPaper).toBe(true);
+  });
+
   it('history-load failure preserves optimistic rewrite markers', async () => {
     const run = makeRun({
       pipeline: [writerTask(1), paperQATask('awaiting_gate')],
