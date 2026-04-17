@@ -8,7 +8,9 @@
     "dev:all": "concurrently -n backend,frontend -c cyan,magenta \"eurekaclaw ui --port 7860\" \"vite\"",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "react": "^18.3.1",
@@ -16,13 +18,18 @@
     "zustand": "^5.0.3"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
     "@types/node": "^25.5.0",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
+    "@types/react-test-renderer": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.4",
     "concurrently": "^9.2.1",
+    "jsdom": "^25.0.1",
     "playwright": "^1.58.2",
     "typescript": "^5.6.3",
-    "vite": "^5.4.11"
+    "vite": "^5.4.11",
+    "vitest": "^2.1.9"
   }
 }
