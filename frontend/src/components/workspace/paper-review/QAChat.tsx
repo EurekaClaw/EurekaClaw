@@ -50,12 +50,21 @@ export function QAChat({ run, messages, setMessages, isRewriting, isHistorical, 
     setSending(true);
 
     try {
-      // Only forward user/assistant turns — system markers (rewrite
-      // notifications) aren't valid roles for the LLM API and would
-      // fail the request on the first rewrite round-trip.
-      const history = messages
-        .filter((m) => m.role === 'user' || m.role === 'assistant')
-        .map((m) => ({ role: m.role, content: m.content }));
+      // Fold system markers (rewrite requests) into user turns instead
+      // of dropping them. Anthropic's messages API rejects role:"system"
+      // in the message list, but the rewrite-request text is real
+      // context the agent needs to answer follow-ups like "did you
+      // address my earlier feedback?" — so we preserve it as a user
+      // turn rather than filtering it out.
+      const history = messages.flatMap((m) => {
+        if (m.role === 'user' || m.role === 'assistant') {
+          return [{ role: m.role, content: m.content }];
+        }
+        if (m.role === 'system') {
+          return [{ role: 'user' as const, content: m.content }];
+        }
+        return [];
+      });
       const res = await apiPost<AskResponse>(`/api/runs/${run.run_id}/paper-qa/ask`, {
         question: text,
         history,
