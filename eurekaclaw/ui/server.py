@@ -2446,6 +2446,21 @@ class UIRequestHandler(SimpleHTTPRequestHandler):
                 # submit only queues the decision. PaperQAHandler persists
                 # the "↻ Rewrite requested" entry itself, but only after
                 # the rewrite actually produces a new paper version.
+                if not ok:
+                    # Stale gate: disk shows AWAITING_GATE but the in-memory
+                    # entry is gone (orchestrator died, server restart).
+                    # Without cleanup the pipeline stays AWAITING_GATE forever
+                    # and every Accept click hits the same 400, stranding the
+                    # user. Flip the task to FAILED + persist so the pipeline
+                    # poll resolves the UI into completed mode.
+                    try:
+                        bus, pipeline, _brief = _ensure_bus_activated(run)
+                        _handle_stale_paper_qa_gate(pipeline, bus, session_id)
+                        self._send_json({"ok": True, "stale_gate_cleaned": True})
+                        return
+                    except (ValueError, FileNotFoundError):
+                        # Fall through to the generic error below.
+                        pass
             else:
                 self._send_json({"error": f"Unknown gate type: {gate_type}"}, status=HTTPStatus.BAD_REQUEST)
                 return
