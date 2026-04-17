@@ -2459,13 +2459,12 @@ class UIRequestHandler(SimpleHTTPRequestHandler):
                 self._send_json({"error": "No question provided"}, status=HTTPStatus.BAD_REQUEST)
                 return
 
-            session = run.eureka_session
-            bus = session.bus if session else None
-            latex = (bus.get("paper_qa_latex") or "") if bus else ""
-
-            if not bus:
-                self._send_json({"error": "No active bus for this session"}, status=HTTPStatus.BAD_REQUEST)
+            try:
+                bus, _pipeline, _brief = _ensure_bus_activated(run)
+            except (ValueError, FileNotFoundError) as e:
+                self._send_json({"error": str(e)}, status=HTTPStatus.BAD_REQUEST)
                 return
+            latex = bus.get("paper_qa_latex") or ""
 
             import asyncio as _asyncio
             from eurekaclaw.agents.paper_qa.agent import PaperQAAgent
