@@ -22,8 +22,8 @@ export function PaperViewer({ run, paperVersion, isRewriting, theoryStatus, writ
   const [compiling, setCompiling] = useState(false);
   const [compileError, setCompileError] = useState('');
   // Whether a PDF is available to display in the iframe.
-  // Set true after successful compile or after HEAD-probing the artifact.
   const [pdfAvailable, setPdfAvailable] = useState(false);
+  const [pdfCacheBuster, setPdfCacheBuster] = useState(0);
   const [autoCompileAttempted, setAutoCompileAttempted] = useState(false);
   const [prevVersion, setPrevVersion] = useState(paperVersion);
 
@@ -57,12 +57,13 @@ export function PaperViewer({ run, paperVersion, isRewriting, theoryStatus, writ
     let cancelled = false;
     void (async () => {
       try {
-        const ctrl = new AbortController();
-        const res = await fetch(pdfUrl, { signal: ctrl.signal });
-        ctrl.abort();
+        // Probe with a range request to avoid downloading the full PDF.
+        // Check status code to determine if the file exists.
+        const res = await fetch(pdfUrl, { headers: { Range: 'bytes=0-0' } });
         if (cancelled) return;
-        if (res.ok) {
+        if (res.ok || res.status === 206) {
           setPdfAvailable(true);
+          setPdfCacheBuster(Date.now());
           return;
         }
         // PDF not found — auto-compile once
@@ -76,6 +77,7 @@ export function PaperViewer({ run, paperVersion, isRewriting, theoryStatus, writ
           if (!cancelled) {
             if (compileRes.ok) {
               setPdfAvailable(true);
+              setPdfCacheBuster(Date.now());
             } else {
               setCompileError(compileRes.error || 'Compilation failed');
             }
@@ -105,6 +107,7 @@ export function PaperViewer({ run, paperVersion, isRewriting, theoryStatus, writ
       const res = await apiPost<CompileResponse>(`/api/runs/${run.run_id}/compile-pdf`, {});
       if (res.ok) {
         setPdfAvailable(true);
+        setPdfCacheBuster(Date.now());
       } else {
         setCompileError(res.error || 'Compilation failed');
       }
@@ -155,7 +158,7 @@ export function PaperViewer({ run, paperVersion, isRewriting, theoryStatus, writ
           pdfAvailable ? (
             <iframe
               className="pv-pdf-frame"
-              src={pdfUrl}
+              src={`${pdfUrl}?v=${pdfCacheBuster}`}
               title="Paper PDF"
             />
           ) : (
