@@ -397,7 +397,7 @@ class PaperQAHandler:
             writer_task.status = TaskStatus.PENDING
 
         self.bus.put_pipeline(pipeline)
-        label = "writer" if writer_only else "theory + writer"
+        label = "writer" if writer_only else "theory + experiment + writer"
         console.print(f"[blue]Re-running {label} with feedback...[/blue]")
 
         rewrite_failed = False
