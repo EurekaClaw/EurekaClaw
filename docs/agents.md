@@ -34,6 +34,7 @@ All agents inherit from `eurekaclaw/agents/base.py`:
 - `semantic_scholar_search` — Search Semantic Scholar for citation counts and metadata
 - `web_search` — Supplement with general web search
 - `citation_manager` — Format and store references
+- `tirith_scan` — Check suspicious or unfamiliar URLs for security threats
 
 **Inputs (from KnowledgeBus):**
 - `ResearchBrief.domain`
@@ -83,6 +84,7 @@ Direction *selection* does **not** happen inside IdeationAgent. After IdeationAg
 - `wolfram_alpha` — Symbolic computation and bound verification
 - `lean4_verify` — Formal proof verification in Lean4
 - `execute_python` — Numerical checks and sanity tests
+- `tirith_scan` — Check suspicious or untrusted URLs for security threats
 
 **Inputs (from KnowledgeBus):**
 - `ResearchBrief.selected_direction`
@@ -145,6 +147,7 @@ If the LLM does not return a severity field, it is inferred heuristically: failu
 **Tools:**
 - `execute_python` — Run numerical simulations *(future work — see note above)*
 - `wolfram_alpha` — Symbolic bound checking
+- `tirith_scan` — Check suspicious URLs or commands in code for security threats
 - Domain-specific tools (e.g., `run_bandit_experiment` for MAB domain)
 
 **Auto-skip logic:** The agent checks `TheoryState.formal_statement` for quantitative signals before running:
