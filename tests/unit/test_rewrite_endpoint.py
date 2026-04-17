@@ -185,6 +185,41 @@ def test_handle_stale_paper_qa_gate_flips_to_failed_and_persists(run_with_bus):
     assert qa_on_disk["status"] == "failed"
 
 
+def test_stale_paper_qa_response_accept_returns_ok():
+    """Accept ('no') on a stale gate: cleanup closes the stranded UI and
+    that IS what the user asked for. Success is honest."""
+    from http import HTTPStatus
+    from eurekaclaw.ui.server import _stale_paper_qa_response
+
+    body, status = _stale_paper_qa_response("no")
+    assert status == HTTPStatus.OK
+    assert body.get("ok") is True
+    assert body.get("stale_gate_cleaned") is True
+
+
+def test_stale_paper_qa_response_rewrite_returns_conflict():
+    """A stale-gate 'rewrite' submit did NOT queue a rewrite. Returning
+    {ok:true} would lie to the client. Must return 409 so the client
+    retries via the /rewrite endpoint."""
+    from http import HTTPStatus
+    from eurekaclaw.ui.server import _stale_paper_qa_response
+
+    body, status = _stale_paper_qa_response("rewrite")
+    assert status == HTTPStatus.CONFLICT
+    assert "error" in body
+    assert body.get("ok") is not True
+
+
+def test_stale_paper_qa_response_unknown_action_returns_conflict():
+    """Unknown / future actions: default to CONFLICT rather than silent ok."""
+    from http import HTTPStatus
+    from eurekaclaw.ui.server import _stale_paper_qa_response
+
+    body, status = _stale_paper_qa_response("rebuttal")
+    assert status == HTTPStatus.CONFLICT
+    assert "error" in body
+
+
 def test_append_rewrite_marker_writes_jsonl_line(run_with_bus):
     from eurekaclaw.ui.server import _append_paper_qa_rewrite_marker_file
 

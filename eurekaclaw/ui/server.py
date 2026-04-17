@@ -1412,6 +1412,29 @@ def _release_rewrite_slot(session_id: str) -> None:
         _REWRITE_CLAIM_SESSIONS.discard(session_id)
 
 
+def _stale_paper_qa_response(action: str) -> tuple[dict[str, Any], HTTPStatus]:
+    """Response body + status for a /gate/paper_qa submit on a stale gate.
+
+    For action='no' (Accept), the stale-gate cleanup closes the stranded
+    UI state — which IS what the user asked for. Returning {ok:true} is
+    honest.
+
+    For action='rewrite' (or any other non-'no' action), the cleanup
+    only de-strands the UI; it does NOT honor the rewrite. Returning
+    {ok:true} would silently drop the user's intent. Return 409 so the
+    client knows to retry via /rewrite.
+    """
+    if action == "no":
+        return {"ok": True, "stale_gate_cleaned": True}, HTTPStatus.OK
+    return (
+        {
+            "error": "Gate no longer active; use /rewrite for rewrite actions.",
+            "stale_gate_cleaned": True,
+        },
+        HTTPStatus.CONFLICT,
+    )
+
+
 def _handle_stale_paper_qa_gate(pipeline, bus, session_id: str) -> None:
     """Flip a stale AWAITING_GATE paper_qa_gate task to FAILED and persist.
 
@@ -2498,13 +2521,17 @@ class UIRequestHandler(SimpleHTTPRequestHandler):
                     # Stale gate: disk shows AWAITING_GATE but the in-memory
                     # entry is gone (orchestrator died, server restart).
                     # Without cleanup the pipeline stays AWAITING_GATE forever
-                    # and every Accept click hits the same 400, stranding the
-                    # user. Flip the task to FAILED + persist so the pipeline
-                    # poll resolves the UI into completed mode.
+                    # and every click hits the same 400, stranding the user.
+                    # Flip the task to FAILED + persist so the pipeline poll
+                    # resolves the UI. For Accept that's the whole story; for
+                    # rewrite the action was NOT honored (see
+                    # _stale_paper_qa_response) and the client must retry via
+                    # /rewrite.
                     try:
                         bus, pipeline, _brief = _ensure_bus_activated(run)
                         _handle_stale_paper_qa_gate(pipeline, bus, session_id)
-                        self._send_json({"ok": True, "stale_gate_cleaned": True})
+                        body, status = _stale_paper_qa_response(action)
+                        self._send_json(body, status=status)
                         return
                     except (ValueError, FileNotFoundError):
                         # Fall through to the generic error below.
