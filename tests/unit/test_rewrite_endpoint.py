@@ -7,10 +7,10 @@ an HTTP server. The endpoint route itself is exercised via a parsed
 path shape test below.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -105,6 +105,30 @@ def test_mark_rewrite_tasks_failed_sets_theory_and_writer_to_failed(run_with_bus
     pipeline = bus.get_pipeline()
     assert next(t for t in pipeline.tasks if t.name == "theory").status == TaskStatus.FAILED
     assert next(t for t in pipeline.tasks if t.name == "writer").status == TaskStatus.FAILED
+
+
+def test_mark_rewrite_tasks_failed_also_covers_experiment(run_with_bus):
+    """experiment is in the rewrite replay set (Task 1) and must be reset too.
+
+    If this test fails because someone shrank the helper's loop back to
+    theory+writer, the /rewrite concurrency guard in do_POST has the same
+    scope bug — they must stay aligned.
+    """
+    from eurekaclaw.ui.server import _mark_rewrite_tasks_failed
+
+    _run, bus, _runs_dir = run_with_bus
+    pipeline = bus.get_pipeline()
+    experiment = Task(
+        task_id="e1", name="experiment", agent_role="experiment",
+        description="Run experiment", status=TaskStatus.IN_PROGRESS,
+    )
+    pipeline.tasks.append(experiment)
+    bus.put_pipeline(pipeline)
+
+    _mark_rewrite_tasks_failed(pipeline, bus)
+
+    pipeline = bus.get_pipeline()
+    assert next(t for t in pipeline.tasks if t.name == "experiment").status == TaskStatus.FAILED
 
 
 def test_append_rewrite_marker_writes_jsonl_line(run_with_bus):

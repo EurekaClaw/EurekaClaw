@@ -1466,6 +1466,12 @@ def _run_rewrite_bg(run, bus, pipeline, brief, prompt: str, rewrite_id: str) -> 
     except Exception as e:
         logger.exception("Rewrite background task %s failed: %s", rewrite_id, e)
         _mark_rewrite_tasks_failed(pipeline, bus)
+        try:
+            bus.persist(settings.runs_dir / session_id)
+        except Exception:
+            logger.exception(
+                "Could not persist bus after rewrite failure for %s", session_id
+            )
         _append_paper_qa_error_marker(session_id, f"Rewrite failed: {e}")
 
 
@@ -2231,10 +2237,17 @@ class UIRequestHandler(SimpleHTTPRequestHandler):
                 return
 
             # Concurrency guard — refuse if a rewrite is already in flight.
-            theory_task = next((t for t in pipeline.tasks if t.name == "theory"), None)
-            writer_task = next((t for t in pipeline.tasks if t.name == "writer"), None)
+            # Scope mirrors _mark_rewrite_tasks_failed and _do_rewrite's replay
+            # set: theory → experiment → writer. Missing experiment here would
+            # let a second request slip through while the experiment task was
+            # IN_PROGRESS.
+            rewrite_task_names = ("theory", "experiment", "writer")
+            rewrite_tasks = [
+                next((t for t in pipeline.tasks if t.name == name), None)
+                for name in rewrite_task_names
+            ]
             if any(t is not None and t.status == TaskStatus.IN_PROGRESS
-                   for t in (theory_task, writer_task)):
+                   for t in rewrite_tasks):
                 self._send_json(
                     {"error": "A rewrite is already in progress"},
                     status=HTTPStatus.CONFLICT,
