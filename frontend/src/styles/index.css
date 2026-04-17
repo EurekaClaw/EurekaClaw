@@ -3853,51 +3853,116 @@ textarea {
 /* ── Failed session immutable note — Claude Code style ──────────────────── */
 
 .failed-session-note {
-  margin-top: 12px;
-  border-radius: var(--radius-md);
-  background: rgba(255, 253, 252, 0.9);
-  border: 1px solid rgba(159, 47, 47, 0.18);
-  border-left: 3px solid #c0392b;
+  margin-top: 14px;
+  border-radius: 14px;
   overflow: hidden;
+  border: 1px solid rgba(230, 160, 50, 0.18);
+  background: linear-gradient(180deg, rgba(255, 247, 233, 0.55) 0%, rgba(255, 253, 252, 0.95) 100%);
+  box-shadow: 0 1px 2px rgba(120, 75, 20, 0.04);
+}
+
+.failed-session-note.is-fatal {
+  border-color: rgba(192, 57, 43, 0.16);
+  background: linear-gradient(180deg, rgba(255, 240, 238, 0.55) 0%, rgba(255, 253, 252, 0.95) 100%);
 }
 
 .failed-session-note-header {
   display: flex;
-  align-items: center;
-  gap: 7px;
-  padding: 10px 14px 8px;
-  border-bottom: 1px solid rgba(159, 47, 47, 0.1);
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px 10px;
 }
 
-.failed-session-note-header > svg {
+.failed-session-note-icon {
   flex-shrink: 0;
-  color: #c0392b;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: rgba(230, 160, 50, 0.14);
+  color: #b17820;
+}
+
+.failed-session-note.is-fatal .failed-session-note-icon {
+  background: rgba(192, 57, 43, 0.10);
+  color: #a43425;
+}
+
+.failed-session-note-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
 }
 
 .failed-session-note-title {
-  font-size: 0.80rem;
+  font-size: 0.86rem;
   font-weight: 600;
-  color: #8b2020;
-  flex: 1;
+  color: #4b2f10;
+  letter-spacing: -0.005em;
 }
 
+.failed-session-note.is-fatal .failed-session-note-title {
+  color: #6d1f14;
+}
 
-.failed-session-note-body {
-  margin: 0;
-  padding: 9px 14px;
-  font-size: 0.78rem;
+.failed-session-note-subtitle {
+  font-size: 0.77rem;
   color: var(--muted);
-  line-height: 1.55;
+  line-height: 1.45;
 }
 
-.failed-session-note-error {
+.failed-session-note-error-details {
+  margin: 2px 16px 10px;
+  border-radius: 9px;
+  background: rgba(86, 102, 125, 0.05);
+  border: 1px solid rgba(86, 102, 125, 0.12);
+  overflow: hidden;
+}
+
+.failed-session-note-error-summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  font-size: 0.73rem;
+  color: var(--muted);
+  transition: background 0.12s, color 0.12s;
+  user-select: none;
+}
+
+.failed-session-note-error-summary::-webkit-details-marker { display: none; }
+
+.failed-session-note-error-summary:hover {
+  color: var(--text);
+  background: rgba(86, 102, 125, 0.06);
+}
+
+.failed-session-note-error-summary svg {
+  flex-shrink: 0;
+  transition: transform 0.18s ease;
+}
+
+.failed-session-note-error-details[open] .failed-session-note-error-summary svg {
+  transform: rotate(180deg);
+}
+
+.failed-session-note-error-text {
   margin: 0;
-  padding: 0 14px 10px;
+  padding: 8px 12px 10px;
   font-family: var(--mono);
   font-size: 0.72rem;
-  color: #9f2f2f;
+  color: #8b2d26;
   line-height: 1.5;
   word-break: break-word;
+  white-space: pre-wrap;
+  border-top: 1px solid rgba(86, 102, 125, 0.10);
+  background: rgba(255, 255, 255, 0.6);
 }
 
 /* ── Wizard skip row ────────────────────────────────────────────────────── */
@@ -4385,120 +4450,191 @@ textarea {
   grid-column: span 12;
 }
 
-/* ── Failed session restart button ── */
+/* ── Failed session actions ── */
 
 .failed-session-actions {
-  padding: 10px 14px 12px;
-  border-top: 1px solid rgba(159, 47, 47, 0.1);
+  padding: 4px 16px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
-.failed-restart-btn {
+.failed-session-actions-primary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.failed-action-btn {
   display: inline-flex;
   align-items: center;
   gap: 7px;
   padding: 8px 16px;
-  border-radius: 9px;
-  background: var(--surface-strong);
-  border: 1.5px solid rgba(159, 47, 47, 0.25);
-  color: #8b2020;
-  font-size: 0.8rem;
+  border-radius: 10px;
+  font-size: 0.80rem;
   font-weight: 600;
+  letter-spacing: -0.005em;
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s, transform 0.1s, box-shadow 0.1s;
+  transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.1s, box-shadow 0.15s;
+  border: 1.2px solid transparent;
 }
 
-.failed-restart-btn:hover {
-  background: rgba(192, 57, 43, 0.05);
-  border-color: rgba(159, 47, 47, 0.50);
-  transform: translateY(-1px);
-  box-shadow: 0 3px 10px rgba(159, 47, 47, 0.12);
-}
-
-.failed-restart-btn:active {
+.failed-action-btn:active {
   transform: translateY(0);
 }
 
-.failed-restart-btn:disabled {
+.failed-action-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
   transform: none;
 }
 
-.failed-resume-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  padding: 6px 14px;
-  border-radius: var(--radius-md);
-  border: 1.2px solid rgba(39, 120, 80, 0.40);
-  background: rgba(39, 120, 80, 0.04);
-  color: #1a6b42;
-  font-size: 0.77rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background 0.15s, border-color 0.15s, transform 0.1s;
+.failed-action-btn--primary {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+  box-shadow: 0 1px 2px rgba(10, 109, 196, 0.22);
 }
 
-.failed-resume-btn:hover {
-  background: rgba(39, 120, 80, 0.08);
-  border-color: rgba(39, 120, 80, 0.55);
+.failed-action-btn--primary:hover {
+  background: var(--primary-strong);
+  border-color: var(--primary-strong);
+  transform: translateY(-1px);
+  box-shadow: 0 3px 10px rgba(10, 109, 196, 0.24);
+}
+
+.failed-action-btn--ghost {
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--primary-strong);
+  border-color: rgba(10, 109, 196, 0.28);
+}
+
+.failed-action-btn--ghost:hover {
+  background: var(--primary-soft);
+  border-color: var(--primary);
   transform: translateY(-1px);
 }
 
-.failed-resume-btn:active {
-  transform: translateY(0);
+/* ── Advanced restart options ── */
+
+.failed-session-advanced {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
-.failed-ideation-btn {
+.failed-advanced-toggle {
+  align-self: flex-start;
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  padding: 6px 14px;
-  border-radius: var(--radius-md);
-  border: 1.2px solid rgba(55, 95, 170, 0.38);
-  background: rgba(55, 95, 170, 0.05);
-  color: #244f99;
-  font-size: 0.77rem;
+  gap: 6px;
+  padding: 5px 10px 5px 8px;
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-size: 0.73rem;
   font-weight: 500;
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s, transform 0.1s;
+  border-radius: 7px;
+  transition: color 0.12s, background 0.12s;
 }
 
-.failed-ideation-btn:hover {
-  background: rgba(55, 95, 170, 0.09);
-  border-color: rgba(55, 95, 170, 0.52);
+.failed-advanced-toggle:hover {
+  color: var(--text);
+  background: rgba(86, 102, 125, 0.06);
+}
+
+.failed-advanced-toggle svg {
+  flex-shrink: 0;
+  transition: transform 0.18s ease;
+}
+
+.failed-advanced-toggle.is-open svg {
+  transform: rotate(180deg);
+}
+
+.failed-advanced-options {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 2px 0;
+}
+
+.failed-stage-option {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: flex-start;
+  text-align: left;
+  padding: 9px 12px;
+  border-radius: 9px;
+  border: 1px solid rgba(86, 102, 125, 0.16);
+  background: rgba(255, 255, 255, 0.6);
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, transform 0.1s, box-shadow 0.15s;
+}
+
+.failed-stage-option:hover {
+  background: #fff;
+  border-color: rgba(10, 109, 196, 0.28);
   transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(10, 109, 196, 0.08);
 }
 
-.failed-ideation-btn:active {
-  transform: translateY(0);
+.failed-stage-option-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--primary-strong);
+}
+
+.failed-stage-option-sub {
+  font-size: 0.71rem;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.failed-stage-option--expander .failed-stage-option-label svg {
+  transition: transform 0.18s ease;
+}
+
+.failed-stage-option--expander.is-open .failed-stage-option-label svg {
+  transform: rotate(180deg);
 }
 
 .failed-theory-stage-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 10px;
+  gap: 6px;
+  margin-top: 2px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(86, 102, 125, 0.04);
+  border: 1px dashed rgba(86, 102, 125, 0.18);
 }
 
 .failed-stage-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 6px 10px;
-  border-radius: 8px;
-  border: 1px solid rgba(86, 102, 125, 0.22);
-  background: rgba(86, 102, 125, 0.05);
+  padding: 5px 10px;
+  border-radius: 7px;
+  border: 1px solid rgba(86, 102, 125, 0.18);
+  background: rgba(255, 255, 255, 0.7);
   color: #4a5668;
-  font-size: 0.74rem;
+  font-size: 0.73rem;
   font-weight: 500;
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s, transform 0.1s;
+  transition: background 0.12s, border-color 0.12s, color 0.12s, transform 0.1s;
 }
 
 .failed-stage-btn:hover:not(:disabled) {
-  background: rgba(86, 102, 125, 0.10);
-  border-color: rgba(86, 102, 125, 0.38);
+  background: var(--primary-soft);
+  border-color: var(--primary);
+  color: var(--primary-strong);
   transform: translateY(-1px);
 }
 
@@ -4508,15 +4644,17 @@ textarea {
 }
 
 .failed-session-note-badge.retryable {
-  display: inline-block;
-  margin-left: auto;
-  padding: 1px 8px;
+  flex-shrink: 0;
+  padding: 2px 9px;
   border-radius: 10px;
-  background: rgba(230, 160, 50, 0.12);
-  color: #996b1a;
-  font-size: 0.68rem;
+  background: rgba(230, 160, 50, 0.14);
+  color: #916112;
+  font-size: 0.64rem;
   font-weight: 600;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  line-height: 1.6;
+  margin-top: 3px;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
