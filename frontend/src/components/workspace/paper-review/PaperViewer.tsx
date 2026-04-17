@@ -26,6 +26,16 @@ export function PaperViewer({ run, paperVersion, isRewriting, theoryStatus, writ
   const [pdfAvailable, setPdfAvailable] = useState(false);
   const [autoCompileAttempted, setAutoCompileAttempted] = useState(false);
   const [prevVersion, setPrevVersion] = useState(paperVersion);
+  const [prevRunId, setPrevRunId] = useState(run.run_id);
+
+  // Reset all PDF state when switching to a different session.
+  if (run.run_id !== prevRunId) {
+    setPrevRunId(run.run_id);
+    setPdfAvailable(false);
+    setAutoCompileAttempted(false);
+    setCompileError('');
+    setCompiling(false);
+  }
 
   // Reset PDF state when paper version changes (after rewrite).
   if (paperVersion !== prevVersion) {
