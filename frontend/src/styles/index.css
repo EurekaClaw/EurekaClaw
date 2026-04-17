@@ -3419,7 +3419,7 @@ textarea {
   margin-top: 0;
   border-radius: 14px;
   border: 1px solid var(--line);
-  background: rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.72);
   backdrop-filter: blur(8px);
   box-shadow: 0 2px 12px rgba(18, 37, 66, 0.06);
   overflow: hidden;
@@ -3430,16 +3430,25 @@ textarea {
   padding: 14px 16px;
 }
 
+/* ── Top band: stage icons + pause pill, same row ──────────────────────────── */
+
+.proof-ctrl-top {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 16px;
+  background: rgba(248, 250, 252, 0.55);
+}
+
 /* ── Pipeline stage track ──────────────────────────────────────────────────── */
 
 .proof-ctrl-track {
+  flex: 1;
+  min-width: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 0;
-  padding: 12px 16px 10px;
-  border-bottom: 1px solid var(--line);
-  background: rgba(248, 250, 252, 0.6);
 }
 
 .proof-ctrl-track-stage {
@@ -3559,25 +3568,20 @@ textarea {
   border-top-color: #009650;
 }
 
-/* ── Running state ───────────────────────────────────────────────────────────  */
+/* ── Running state: single inline footer, no separate card ─────────────────── */
 
-.proof-ctrl-running-body {
+.proof-ctrl-running-footer {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.proof-ctrl-running-left {
-  display: flex;
-  align-items: center;
-  gap: 10px;
+  gap: 7px;
+  padding: 9px 16px 11px;
+  line-height: 1.4;
+  min-width: 0;
 }
 
 .proof-ctrl-live-dot {
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   background: var(--accent);
   flex-shrink: 0;
@@ -3585,38 +3589,56 @@ textarea {
 }
 
 @keyframes live-pulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(0, 113, 227, 0.5); opacity: 1; }
-  50%       { box-shadow: 0 0 0 5px rgba(0, 113, 227, 0); opacity: 0.85; }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(0, 113, 227, 0.45); opacity: 1; }
+  50%       { box-shadow: 0 0 0 4px rgba(0, 113, 227, 0); opacity: 0.85; }
 }
 
 .proof-ctrl-live-label {
-  font-size: 0.82rem;
+  font-size: 0.8rem;
   font-weight: 600;
   color: var(--text);
-  letter-spacing: -0.005em;
+  letter-spacing: -0.003em;
+  white-space: nowrap;
 }
 
-/* Pause button — calm, reassuring amber-warm pill */
+.proof-ctrl-live-sep {
+  color: var(--line-strong);
+  font-weight: 400;
+  flex-shrink: 0;
+}
+
+.proof-ctrl-live-hint {
+  font-size: 0.76rem;
+  color: var(--muted);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Pause pill — sits on the stage row, calm amber warmth */
 .proof-ctrl-pause-btn {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  padding: 9px 18px;
+  gap: 6px;
+  padding: 6px 13px;
   border-radius: 999px;
-  font-size: 0.81rem;
+  font-size: 0.76rem;
   font-weight: 600;
-  letter-spacing: 0.01em;
+  letter-spacing: 0.005em;
   color: #7a4e00;
-  background: rgba(181, 100, 0, 0.09);
-  border: 1.5px solid rgba(181, 100, 0, 0.22);
-  transition: background 160ms ease, box-shadow 160ms ease, transform 120ms ease;
+  background: rgba(181, 100, 0, 0.07);
+  border: 1px solid rgba(181, 100, 0, 0.18);
+  cursor: pointer;
+  transition: background 160ms ease, border-color 160ms ease, box-shadow 160ms ease, transform 120ms ease;
   white-space: nowrap;
   flex-shrink: 0;
 }
 
 .proof-ctrl-pause-btn:hover:not(:disabled) {
-  background: rgba(181, 100, 0, 0.15);
-  box-shadow: 0 4px 14px rgba(181, 100, 0, 0.16);
+  background: rgba(181, 100, 0, 0.13);
+  border-color: rgba(181, 100, 0, 0.3);
+  box-shadow: 0 3px 10px rgba(181, 100, 0, 0.14);
   transform: translateY(-1px);
 }
 
@@ -3628,13 +3650,6 @@ textarea {
 .proof-ctrl-pause-btn:disabled {
   opacity: 0.38;
   cursor: not-allowed;
-}
-
-.proof-ctrl-running-hint {
-  font-size: 0.73rem;
-  color: var(--muted);
-  margin: 6px 0 0 0;
-  line-height: 1.45;
 }
 
 /* ── Transition bars (pausing / resuming) ──────────────────────────────────── */
