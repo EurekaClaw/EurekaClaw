@@ -1,5 +1,35 @@
 @import './paper-review.css';
 
+/* ============================================
+   Bundled fonts — Inter (UI) + JetBrains Mono (code/terminal)
+   Files live in frontend/public/fonts/ and are served at /fonts/*
+   Both under SIL OFL 1.1 — see fonts/Inter-OFL.txt and fonts/JetBrainsMono-OFL.txt
+   ============================================ */
+
+@font-face {
+  font-family: 'Inter';
+  src: url('/fonts/InterVariable.woff2') format('woff2-variations');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'JetBrains Mono';
+  src: url('/fonts/JetBrainsMono-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'JetBrains Mono';
+  src: url('/fonts/JetBrainsMono-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   --bg: #f5f7fa;
   --bg-soft: #fafbfd;
@@ -19,7 +49,7 @@
   --ok: #2d8659;
   --warn: #c47f17;
   --idle: #7d8694;
-  --mono: "SF Mono", "IBM Plex Mono", ui-monospace, monospace;
+  --mono: 'JetBrains Mono', ui-monospace, "SF Mono", "IBM Plex Mono", Menlo, Consolas, monospace;
   --shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
   --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.10);
   --radius-xl: 20px;
@@ -39,12 +69,14 @@ html {
 
 body {
   margin: 0;
-  font-family: -apple-system, "SF Pro Text", "Helvetica Neue", "Space Grotesk", sans-serif;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
   color: var(--text);
   background: var(--bg);
   min-height: 100vh;
+  font-feature-settings: 'cv11', 'ss01', 'ss03';
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
   letter-spacing: -0.01em;
 }
 

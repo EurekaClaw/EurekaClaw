@@ -467,6 +467,15 @@ Apache 2.0 License. See [LICENSE](LICENSE) for details.
 
 ---
 
+## Fonts
+
+This software bundles the following open-source fonts:
+
+- [Inter](https://rsms.me/inter/) by Rasmus Andersson — licensed under [SIL Open Font License 1.1](./frontend/public/fonts/Inter-OFL.txt)
+- [JetBrains Mono](https://www.jetbrains.com/lp/mono/) by JetBrains — licensed under [SIL Open Font License 1.1](./frontend/public/fonts/JetBrainsMono-OFL.txt)
+
+---
+
 <p align="center">
   Built for researchers who believe the next breakthrough is one Eureka moment away. 🦞
 </p>
