@@ -215,6 +215,7 @@
   flex-direction: column;
   background: var(--surface-strong);
   min-width: 0;
+  min-height: 0;
   overflow: hidden;
   flex: 1;
   width: 100%;
@@ -308,6 +309,7 @@
   padding: 10px 16px;
   border-radius: 18px 18px 4px 18px;
   max-width: 80%;
+  word-break: break-word;
   font-size: 0.82rem;
   line-height: 1.55;
   box-shadow: 0 1px 3px rgba(10, 109, 196, 0.15);
@@ -319,6 +321,7 @@
   padding: 12px 16px;
   border-radius: 18px 18px 18px 4px;
   max-width: 85%;
+  word-break: break-word;
   font-size: 0.82rem;
   line-height: 1.6;
   color: var(--text);
