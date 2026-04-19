@@ -127,7 +127,7 @@ export function SessionList() {
                   onClick={(e) => e.stopPropagation()}
                 />
               ) : (
-                <div className="session-item-name">{escapeHtml(humanize(displayName))}</div>
+                <div className="session-item-name" title={displayName}>{escapeHtml(humanize(displayName))}</div>
               )}
               <div className="session-item-meta">
                 <span className={`session-status-dot ${status}`} aria-label={statusLabel} />

@@ -348,14 +348,6 @@ img {
   -webkit-box-orient: vertical;
   line-height: 1.4;
   max-height: 2.8em;
-  transition: max-height 0.28s cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.session-item:hover .session-item-name,
-.session-item:hover .session-item-prompt {
-  -webkit-line-clamp: unset;
-  max-height: 40em;
-  word-break: break-word;
 }
 
 /* Session item actions group (rename + restart + delete) */
