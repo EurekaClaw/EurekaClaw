@@ -265,6 +265,12 @@ function TheoryReviewGate({ run }: Props) {
 }
 
 export function GateOverlay({ run }: Props) {
+  // If the orchestrator is gone, the gate has no-one to submit to — don't
+  // trap the user behind a modal they can't clear. Pipeline state may still
+  // show `awaiting_gate` on disk; run.status is the source of truth about
+  // whether a live submitter exists.
+  if (run.status === 'failed' || run.status === 'completed') return null;
+
   const pipeline = run.pipeline ?? [];
 
   const surveyTask = pipeline.find((t) => t.name === 'survey');
