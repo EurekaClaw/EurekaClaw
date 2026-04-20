@@ -1080,6 +1080,19 @@ img {
   overflow-x: hidden;
 }
 
+/* Workspace view has its own internal scroll containers (ws-panel for
+   Live/Proof, .qa-messages for Paper Q&A). Without a hard viewport cap
+   on main-shell, a tall Q&A message pushes the whole app down the page
+   because body/app-shell/main-shell all only use min-height: 100vh.
+   Pin main-shell to the viewport when workspace is the active view so
+   the inner scroll containers actually receive the overflow. Other
+   views (onboarding, skills, config) keep the relaxed default height. */
+.main-shell:has(.view.is-visible[data-view="workspace"]) {
+  height: 100vh;
+  min-height: 100vh;
+  overflow: hidden;
+}
+
 .conn-error-banner {
   display: flex;
   align-items: center;
@@ -1105,6 +1118,7 @@ img {
   flex: 1;
   display: flex;
   flex-direction: column;
+  min-height: 0;
 }
 
 /* ── Tutorial / Guide button — bottom-right of main content area ── */
@@ -4762,6 +4776,7 @@ textarea {
 .workspace-split {
   display: grid;
   grid-template-columns: 250px 1fr;
+  grid-template-rows: minmax(0, 1fr);
   gap: 0;
   flex: 1;
   min-height: 0;
