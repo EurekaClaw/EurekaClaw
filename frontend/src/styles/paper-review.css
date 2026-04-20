@@ -126,8 +126,10 @@
 /* LaTeX variant: the raw source is just a <pre>, so .pv-content has to
    be the scroll container. Force `scroll` (not `auto`) so the track is
    visible even when the source happens to fit — matches the persistent
-   affordance the user asked for on the Q&A side. */
-.pv-content:has(.pv-latex-source) {
+   affordance the user asked for on the Q&A side. The modifier class is
+   toggled by PaperViewer based on activeTab (explicit class, not :has(),
+   to stay within the repo's browser baseline). */
+.pv-content--latex {
   overflow-y: scroll;
   overflow-x: hidden;
 }

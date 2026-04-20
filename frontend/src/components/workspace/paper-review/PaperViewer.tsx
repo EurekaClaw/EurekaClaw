@@ -141,7 +141,7 @@ export function PaperViewer({ run, paperVersion, isRewriting, theoryStatus, writ
         </div>
       </div>
 
-      <div className="pv-content">
+      <div className={`pv-content${activeTab === 'latex' ? ' pv-content--latex' : ''}`}>
         {activeTab === 'pdf' ? (
           pdfAvailable ? (
             <iframe

@@ -1085,10 +1085,13 @@ img {
    the LaTeX view). Without a hard viewport cap on main-shell, a tall
    Q&A message or long LaTeX source pushes the whole app down the page
    because body/app-shell/main-shell all only use min-height: 100vh.
-   Scope the cap to :has(.session-detail-pane) so the launch form (shown
-   when no run is selected) keeps page-scroll — a clamped main-shell
-   would otherwise clip the NewSessionForm below the fold. */
-.main-shell:has(.session-detail-pane) {
+   Scope the cap to the `main-shell--session` modifier, which App.tsx
+   attaches only when the workspace view is showing SessionDetailPane.
+   This preserves page-scroll for the launch form (NewSessionForm) and
+   for onboarding/skills/config, while still capping the chain when
+   internal scroll containers are actually mounted. (Explicit modifier
+   instead of `:has()` to stay within the repo's browser baseline.) */
+.main-shell--session {
   height: 100vh;
   min-height: 100vh;
   overflow: hidden;
