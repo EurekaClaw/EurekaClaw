@@ -114,7 +114,10 @@
 
 .pv-content {
   flex: 1;
-  overflow-y: auto;
+  /* `scroll` (not `auto`) keeps the scrollbar track visible even when
+     the LaTeX source fits the pane, matching the user's ask for a
+     persistent scroll affordance on each sub-panel. */
+  overflow-y: scroll;
   overflow-x: hidden;
   min-height: 0;
   background: var(--surface-strong);
@@ -283,7 +286,10 @@
 .qa-messages {
   flex: 1;
   padding: 20px;
-  overflow-y: auto;
+  /* `scroll` (not `auto`) keeps the track visible even at zero messages
+     so the affordance is discoverable — user explicitly wants each
+     sub-panel to expose a scrollbar. */
+  overflow-y: scroll;
   overflow-x: hidden;
   display: flex;
   flex-direction: column;

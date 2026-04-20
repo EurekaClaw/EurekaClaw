@@ -1080,14 +1080,15 @@ img {
   overflow-x: hidden;
 }
 
-/* Workspace view has its own internal scroll containers (ws-panel for
-   Live/Proof, .qa-messages for Paper Q&A). Without a hard viewport cap
-   on main-shell, a tall Q&A message pushes the whole app down the page
+/* A mounted session detail pane has its own internal scroll containers
+   (ws-panel for Live/Proof, .qa-messages for Paper Q&A, .pv-content for
+   the LaTeX view). Without a hard viewport cap on main-shell, a tall
+   Q&A message or long LaTeX source pushes the whole app down the page
    because body/app-shell/main-shell all only use min-height: 100vh.
-   Pin main-shell to the viewport when workspace is the active view so
-   the inner scroll containers actually receive the overflow. Other
-   views (onboarding, skills, config) keep the relaxed default height. */
-.main-shell:has(.view.is-visible[data-view="workspace"]) {
+   Scope the cap to :has(.session-detail-pane) so the launch form (shown
+   when no run is selected) keeps page-scroll — a clamped main-shell
+   would otherwise clip the NewSessionForm below the fold. */
+.main-shell:has(.session-detail-pane) {
   height: 100vh;
   min-height: 100vh;
   overflow: hidden;
