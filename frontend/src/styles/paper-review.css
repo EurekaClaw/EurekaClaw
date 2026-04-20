@@ -114,15 +114,22 @@
 
 .pv-content {
   flex: 1;
-  /* `scroll` (not `auto`) keeps the scrollbar track visible even when
-     the LaTeX source fits the pane, matching the user's ask for a
-     persistent scroll affordance on each sub-panel. */
-  overflow-y: scroll;
-  overflow-x: hidden;
+  /* Default: the PDF iframe owns its own scrollbar, so the outer
+     container must not add a second (dead) track. */
+  overflow: hidden;
   min-height: 0;
   background: var(--surface-strong);
   scrollbar-width: thin;
   scrollbar-color: var(--line-strong, var(--line)) transparent;
+}
+
+/* LaTeX variant: the raw source is just a <pre>, so .pv-content has to
+   be the scroll container. Force `scroll` (not `auto`) so the track is
+   visible even when the source happens to fit — matches the persistent
+   affordance the user asked for on the Q&A side. */
+.pv-content:has(.pv-latex-source) {
+  overflow-y: scroll;
+  overflow-x: hidden;
 }
 
 .pv-content::-webkit-scrollbar {
