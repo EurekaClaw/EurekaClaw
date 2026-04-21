@@ -26,6 +26,14 @@
   <a href="README.md">English</a> | <strong>中文</strong>
 </p>
 
+> **🚀 更新公告 — 2026年4月20日（v0.2.0）**
+>
+> 两项新功能现已上线：
+> - **论文问答 / Rebuttal 助手** — 针对任意生成的论文 PDF 进行多轮问答，为审稿人意见起草带引用的精准回复。
+> - **论文重写** — 通过自由输入的修改指令或问答对话中积累的反馈，一键重写论文，支持版本保存与自动回滚。
+>
+> 详见 [论文问答、Rebuttal 与重写](https://eurekaclaw.github.io/zh/user-guide/browser-ui.html#q-a-v0-2-0) 章节。
+
 ```
 $ eurekaclaw prove "Find recent papers on sparse attention + prove efficiency bound"
 

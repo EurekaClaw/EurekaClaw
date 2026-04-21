@@ -26,6 +26,14 @@
   <strong>English</strong> | <a href="README_zh.md">中文</a>
 </p>
 
+> **🚀 Update — April 20, 2026 (v0.2.0)**
+>
+> Two new features are now available:
+> - **Paper Q&A / Rebuttal Helper** — Ask multi-turn questions about any generated paper PDF. Ideal for drafting precise, citation-backed responses to reviewer comments.
+> - **Paper Rewrite** — Revise the paper in one step using a free-form prompt or accumulated Q&A feedback. Versioned saves and automatic rollback included.
+>
+> See [Paper Q&A, Rebuttal & Rewrite](https://eurekaclaw.github.io/user-guide/browser-ui.html#paper-q-a-and-rewrite-v0-2-0) for details.
+
 ```
 $ eurekaclaw prove "Find recent papers on sparse attention + prove efficiency bound"
 
