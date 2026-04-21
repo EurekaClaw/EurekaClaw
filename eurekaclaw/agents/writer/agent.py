@@ -703,8 +703,46 @@ If a section has little content, write at least two sentences rather than omitti
         pt = re.sub(r"(?m)^\s*[-*]\s+", "\n\n", pt)
 
         # ── Step 5: convert remaining **bold** / *italic* ─────────────────────
+        # Protect math regions first — otherwise asterisks used as multiplication
+        # or convolution (e.g. `\(\mu*\nu\)`) get paired across spans and turned
+        # into `\textit{...}`, producing malformed LaTeX that crashes pdflatex.
+        _math_saved: list[str] = []
+
+        def _save_math(m: "re.Match[str]") -> str:
+            _math_saved.append(m.group(0))
+            return f"\x00MATH{len(_math_saved) - 1}\x00"
+
+        _MATH_ENVS = (
+            "equation", "align", "gather", "multline",
+            "eqnarray", "flalign", "alignat", "displaymath", "math",
+        )
+        _env_alt = "|".join(_MATH_ENVS)
+        for _pat in (
+            # \begin{env}...\end{env}, starred or not — must come before \[…\]
+            # since these environments can contain \[ internally? No, but
+            # ordering by specificity first is still safer.
+            rf"\\begin\{{(?:{_env_alt})\*?\}}.*?\\end\{{(?:{_env_alt})\*?\}}",
+            r"\\\[.*?\\\]",                    # display \[ ... \]
+            r"\\\(.*?\\\)",                    # inline  \( ... \)
+            # Display $$...$$ — opening $$ must not be preceded by a backslash
+            # (so `\$\$` stays as two literal dollar signs).
+            r"(?<!\\)\$\$(?:\\.|[^$])*?(?<!\\)\$\$",
+            # Inline $...$ — same backslash guard on both ends, disallow
+            # a second $ adjacent to either delimiter, and require the
+            # opening $ to be followed by a non-digit/non-space so prose
+            # dollar amounts like `$5` do not pair across prose (which
+            # would engulf any `*italic*` sitting between them).
+            r"(?<!\\)(?<!\$)\$(?!\$)(?![\s\d])(?:\\.|[^\n$])+?(?<!\\)(?<!\$)\$(?!\$)",
+        ):
+            pt = re.sub(_pat, _save_math, pt, flags=re.DOTALL)
+
         pt = re.sub(r"\*\*([^*\n]+)\*\*", r"\\textit{\1}", pt)
         pt = re.sub(r"\*([^*\n]+)\*",     r"\\textit{\1}", pt)
+
+        if _math_saved:
+            def _restore_math(m: "re.Match[str]") -> str:
+                return _math_saved[int(m.group(1))]
+            pt = re.sub(r"\x00MATH(\d+)\x00", _restore_math, pt)
 
         # ── Step 6: "Cited from: <arxiv_id>." → \cite{key} ───────────────────
         def _cited_repl(m: re.Match) -> str:  # type: ignore[type-arg]
