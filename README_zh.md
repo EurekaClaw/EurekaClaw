@@ -52,6 +52,8 @@ $ eurekaclaw prove "Find recent papers on sparse attention + prove efficiency bo
 | 💡 | **想法生成器** | 通过综合数千篇论文的规律，产生新颖假设 |
 | 🔢 | **定理证明器** | 通过 7 阶段自底向上流水线生成、验证并形式化证明 |
 | 📄 | **论文撰写器** | 起草包含定理环境和引用的相机就绪 LaTeX 论文 |
+| 💬 | **论文问答 / Rebuttal 助手** | 针对任意论文 PDF 进行多轮问答，理解证明、定位证据、并为审稿人意见起草精准回复 |
+| ✏️ | **论文重写** | 根据自由输入的修改指令或问答对话中的反馈，一键重写生成的论文 |
 | 🖥️ | **本地运行** | 兼容所有主流模型 API — 隐私设计 |
 | 🧠 | **持续学习** | 每次会话后将证明策略提炼为技能，持续改进 |
 | 🧪 | **实验运行器** *（开发中）* | 数值验证理论界限；标记低置信度引理 |
@@ -276,6 +278,12 @@ eurekaclaw explore "multi-armed bandit theory"
 # CLI — 从 arXiv 论文出发
 eurekaclaw from-papers 1706.03762 2005.14165 --domain "attention mechanisms"
 
+# CLI — 对已完成的会话进行问答和修改
+eurekaclaw review <session-id>
+
+# CLI — 列出所有历史会话
+eurekaclaw sessions
+
 # UI界面 — 推荐
 eurekaclaw ui --open-browser
 ```
@@ -299,6 +307,55 @@ eurekaclaw ui --open-browser
 | `eurekaclaw prove "<conjecture>"` | 1 | 你有一个精确的数学命题需要证明 |
 | `eurekaclaw from-papers <ids>` | 2 | 你想扩展或发现特定论文中的研究空白 |
 | `eurekaclaw explore "<domain>"` | 3 | 你有一个宽泛的研究领域但尚无具体猜想 |
+
+---
+
+## 论文问答、Rebuttal 与重写
+
+论文生成完成后，EurekaClaw 提供 CLI 和 UI 两种交互式审阅体验。
+
+### 论文问答与 Rebuttal 助手
+
+加载任意生成的论文（或任意历史会话），对其提问。问答智能体拥有完整的 LaTeX 源码上下文，并可搜索 arXiv、Semantic Scholar 和网络来支撑每一个回答 —— 非常适合准备审稿人 rebuttal。
+
+**浏览器 UI** — 论文标签页左侧显示 PDF/LaTeX 双栏预览，右侧为问答聊天框。PDF 自动编译。直接输入问题，包括审稿人的原话，智能体会给出带引用的精准回复。
+
+**CLI** — 论文生成后会自动提示进入审阅流程：
+
+```bash
+Review the paper? [y/N]: y
+
+Question (Enter to accept): Reviewer 2: the bound in Theorem 2 seems loose compared to prior work
+⏳ QA Agent thinking...
+  ✓ tool: arxiv_search("spectral gap tight bound k-regular graphs")
+  ✓ tool: latex_section_read(section="Theorem 2")
+
+Our O(n²) bound follows from Weyl's inequality applied to the normalized Laplacian...
+Compared to [Smith et al. 2023] (arXiv:2301.xxxxx), our setting is more general because...
+
+What next?  [a]ccept  [q]uestion  [r]ewrite
+```
+
+**历史会话** — 使用 `eurekaclaw review <session-id>` 或在 UI 中点击任意已完成会话，即可对任何历史工作进行问答和修改。
+
+### 论文重写
+
+根据自由输入的修改指令，或基于问答对话中积累的反馈，重写论文。EurekaClaw 将反馈注入理论和写作智能体后重新运行，将新版本与原版并排保存，失败时自动回滚。
+
+```bash
+What next?  [a]ccept  [q]uestion  [r]ewrite
+→ r
+
+Describe what to fix:
+→ 用 k-正则图的 Cauchy 交错定理收紧 Theorem 2 的界，
+  并添加一段与 Smith et al. 2023 的对比分析
+
+Re-running theory + writer with feedback...
+✓ Done: theory  (paper_v2.tex saved)
+✓ Done: writer
+```
+
+在浏览器 UI 中，点击 **Revise Paper**，在弹出框中输入修改说明，更新后的 PDF 将自动出现在预览窗格。
 
 ---
 

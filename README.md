@@ -52,7 +52,8 @@ $ eurekaclaw prove "Find recent papers on sparse attention + prove efficiency bo
 | 💡 | **Idea Generator** | Brainstorm novel hypotheses by synthesizing patterns across thousands of papers |
 | 🔢 | **Theorem Prover** | Generate, verify, and formalize proofs via a 7-stage bottom-up pipeline |
 | 📄 | **Paper Writer** | Draft camera-ready LaTeX papers with theorem environments and citations |
-| 💬 | **Paper QA Gate** | Review generated papers, ask multi-turn questions, and request revisions with inline PDF preview |
+| 💬 | **Paper Q&A / Rebuttal** | Ask multi-turn questions about any paper PDF — understand proofs, locate evidence, and draft precise answers to reviewer comments |
+| ✏️ | **Paper Rewrite** | Rewrite the generated paper based on a free-form prompt or accumulated Q&A chat feedback in one click |
 | 🖥️ | **Runs Locally** | Compatible with Every Major Model API — Privacy by Design |
 | 🧠 | **Continual Learning** | Distills proof strategies into skills after every session, improving over time |
 | 🧪 | **Experiment Runner** | Numerically validates theoretical bounds; flags low-confidence lemmas |
@@ -307,36 +308,52 @@ eurekaclaw sessions
 
 ---
 
-## Paper Review & QA
+## Paper Q&A, Rebuttal & Rewrite
 
-After the pipeline generates a paper, EurekaClaw provides an interactive review experience in both CLI and UI:
+After the pipeline generates a paper, EurekaClaw provides an interactive review experience in both CLI and UI.
 
-**Browser UI** — The Paper tab shows a split-view with PDF/LaTeX preview on the left and a QA chat on the right. PDFs are auto-compiled. Ask questions about any section, and the QA agent answers using arXiv search, web search, and targeted LaTeX section reading. Click **Revise Paper** to re-run the theory and writer agents with your feedback.
+### Paper Q&A and Rebuttal Helper
+
+Load any generated paper (or any past session) and ask questions about it. The QA agent has full access to the LaTeX source and can search arXiv, Semantic Scholar, and the web to support each answer — ideal for preparing reviewer rebuttals.
+
+**Browser UI** — The Paper tab shows a split-view with PDF/LaTeX preview on the left and a QA chat on the right. PDFs are auto-compiled. Type any question, including exact reviewer comments, and the agent produces a precise, citation-backed response.
 
 **CLI** — After paper generation, you're prompted to review:
 
 ```bash
 Review the paper? [y/N]: y
 
-Question (Enter to accept): The bound in Theorem 2 seems loose
+Question (Enter to accept): Reviewer 2 asks: the bound in Theorem 2 seems loose compared to prior work
 ⏳ QA Agent thinking...
-  ✓ tool: arxiv_search("spectral gap tight bound")
+  ✓ tool: arxiv_search("spectral gap tight bound k-regular graphs")
   ✓ tool: latex_section_read(section="Theorem 2")
 
-The bound O(n²) follows from Weyl's inequality...
+Our O(n²) bound follows from Weyl's inequality applied to the normalized Laplacian...
+Compared to [Smith et al. 2023] (arXiv:2301.xxxxx), our setting is more general because...
 
+What next?  [a]ccept  [q]uestion  [r]ewrite
+```
+
+**Historical sessions** — Review any past session with `eurekaclaw review <session-id>` or click any completed session in the UI.
+
+### Paper Rewrite
+
+Revise the paper based on either a free-form instruction prompt or the accumulated Q&A conversation. EurekaClaw re-runs the theory and writer agents with the feedback injected, saves the new version alongside the original, and rolls back automatically on failure.
+
+```bash
 What next?  [a]ccept  [q]uestion  [r]ewrite
 → r
 
 Describe what to fix:
-→ Tighten bound using Cauchy interlacing for k-regular graphs
+→ Tighten the bound in Theorem 2 using Cauchy interlacing for k-regular graphs,
+  and add a comparison paragraph against Smith et al. 2023
 
 Re-running theory + writer with feedback...
-✓ Done: theory
+✓ Done: theory  (paper_v2.tex saved)
 ✓ Done: writer
 ```
 
-**Historical sessions** — Review any past session with `eurekaclaw review <session-id>` or click any completed session in the UI. The same QA and revision capabilities are available.
+In the browser UI, click **Revise Paper**, type your instructions in the overlay, and the updated PDF appears in the preview pane when done.
 
 ---
 
