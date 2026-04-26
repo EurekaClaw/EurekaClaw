@@ -63,6 +63,7 @@ def build_default_registry(bus: "KnowledgeBus | None" = None) -> ToolRegistry:
     from eurekaclaw.tools.code_exec import CodeExecutionTool
     from eurekaclaw.tools.lean4 import Lean4Tool
     from eurekaclaw.tools.semantic_scholar import SemanticScholarTool
+    from eurekaclaw.tools.tirith_security import TirithScanTool
     from eurekaclaw.tools.web_search import WebSearchTool
     from eurekaclaw.tools.wolfram import WolframAlphaTool
 
@@ -75,6 +76,7 @@ def build_default_registry(bus: "KnowledgeBus | None" = None) -> ToolRegistry:
         Lean4Tool(),
         WolframAlphaTool(),
         CitationManagerTool(),
+        TirithScanTool(),
     ]:
         registry.register(tool)
     if bus is not None:
