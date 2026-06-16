@@ -14,7 +14,7 @@ class BaseTool(ABC):
     def to_anthropic_tool_def(self) -> dict: ... # format for API
 ```
 
-Tools are stored in a `ToolRegistry`. The default registry (`build_default_registry()`) includes the 7 built-in tools. Domain plugins can add extra tools via `DomainPlugin.register_tools()`.
+Tools are stored in a `ToolRegistry`. The default registry (`build_default_registry()`) includes the 8 built-in tools. Domain plugins can add extra tools via `DomainPlugin.register_tools()`.
 
 ---
 
@@ -157,7 +157,12 @@ Or on failure:
 
 **Output:**
 ```json
-{"output": "stdout + stderr from execution"}
+{
+  "returncode": 0,
+  "stdout": "...",
+  "stderr": "...",
+  "success": true
+}
 ```
 Or on error:
 ```json
@@ -165,6 +170,24 @@ Or on error:
 ```
 
 **Sandbox:** Subprocess with 30-second timeout. Set `USE_DOCKER_SANDBOX=true` to run in a Docker container (`python:3.11-slim`, 512 MB RAM limit, network disabled) instead of the host. Package installation uses `uv pip` (falls back to `pip`). If Docker is unavailable, falls back to host subprocess.
+
+**Security — Tirith pre-exec gate:** When [Tirith](https://github.com/sheeki03/tirith) is installed (auto-installed on first use), all three execution surfaces are scanned before running:
+
+1. **Python code** — scanned for suspicious URLs, pipe-to-shell patterns, terminal injection
+2. **pip requirements** — scanned for typosquatted packages, URL-based installs
+3. **Docker command** — the composed `bash -c` shell command is scanned in Docker mode
+
+If Tirith detects a HIGH/CRITICAL threat, execution is blocked and the agent receives an error with findings. MEDIUM/LOW findings are logged as warnings but execution proceeds. If Tirith is not installed or errors, execution proceeds (fail-open by default, configurable via `TIRITH_FAIL_OPEN`).
+
+| Setting | Default | Description |
+|---|---|---|
+| `TIRITH_ENABLED` | `true` | Enable/disable all Tirith scanning |
+| `TIRITH_GATE` | `true` | Enable/disable the `execute_python` pre-exec gate |
+| `TIRITH_BIN` | `tirith` | Path to the Tirith binary |
+| `TIRITH_TIMEOUT` | `5` | Scan timeout in seconds |
+| `TIRITH_FAIL_OPEN` | `true` | Allow execution when Tirith is unavailable or errors |
+
+> **Residual risk:** In Docker mode, the command is still composed via `bash -c` with string interpolation. If Tirith is disabled (`TIRITH_ENABLED=false`), fails open, or the scan itself fails, the shell composition path remains. Refactoring `_docker_exec()` to avoid `bash -c` is planned for a future release.
 
 ---
 
@@ -223,8 +246,48 @@ class ToolRegistry:
     def __contains__(name: str) -> bool
     def __len__() -> int
 
-def build_default_registry() -> ToolRegistry   # create with all 7 built-in tools
+def build_default_registry() -> ToolRegistry   # create with all 8 built-in tools
 ```
+
+---
+
+### `tirith_scan`
+
+**File:** `eurekaclaw/tools/tirith_security.py`
+
+**Purpose:** Scan text for security threats using [Tirith](https://github.com/sheeki03/tirith). Detects suspicious URLs, homograph attacks, terminal injection, pipe-to-shell patterns, typosquatted packages, and more.
+
+**Inputs:**
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `text` | string | required | Text to scan (URL, command, pasted content) |
+| `context` | string | `"paste"` | `"exec"` for commands, `"paste"` for untrusted text |
+
+**Output:**
+```json
+{
+  "safe": true,
+  "action": "allow",
+  "findings": [],
+  "summary": ""
+}
+```
+Or when threats are found:
+```json
+{
+  "safe": false,
+  "action": "block",
+  "findings": [
+    {"rule": "pipe_to_interpreter", "severity": "HIGH", "title": "Pipe to shell", "description": "..."}
+  ],
+  "summary": "pipe to shell detected"
+}
+```
+
+**Available to agents:** SurveyAgent, TheoryAgent, ExperimentAgent. Use when a URL or command looks suspicious or unfamiliar — not for routine scanning of every result.
+
+**External dependency:** Tirith binary (auto-installed from GitHub releases if not found).
 
 ---
 

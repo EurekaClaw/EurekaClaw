@@ -27,7 +27,7 @@ class TheoryAgent(BaseAgent):
     role = AgentRole.THEORY
 
     def get_tool_names(self) -> list[str]:
-        return ["arxiv_search", "wolfram_alpha", "lean4_verify", "execute_python"]
+        return ["arxiv_search", "wolfram_alpha", "lean4_verify", "execute_python", "tirith_scan"]
 
     def _role_system_prompt(self, task: Task) -> str:
         return """\
@@ -35,6 +35,7 @@ You are the Theory Agent of EurekaClaw. You specialize in rigorous mathematical 
 for theoretical computer science, machine learning theory, and pure mathematics.
 
 The proof pipeline is specified by the YAML file loaded by TheoryInnerLoopYaml.
+If you encounter a suspicious or untrusted URL, use tirith_scan to verify it.
 """
 
     async def execute(self, task: Task) -> AgentResult:
