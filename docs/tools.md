@@ -157,7 +157,12 @@ Or on failure:
 
 **Output:**
 ```json
-{"output": "stdout + stderr from execution"}
+{
+  "returncode": 0,
+  "stdout": "...",
+  "stderr": "...",
+  "success": true
+}
 ```
 Or on error:
 ```json
@@ -165,6 +170,24 @@ Or on error:
 ```
 
 **Sandbox:** Subprocess with 30-second timeout. Set `USE_DOCKER_SANDBOX=true` to run in a Docker container (`python:3.11-slim`, 512 MB RAM limit, network disabled) instead of the host. Package installation uses `uv pip` (falls back to `pip`). If Docker is unavailable, falls back to host subprocess.
+
+**Security — Tirith pre-exec gate:** When [Tirith](https://github.com/sheeki03/tirith) is installed (auto-installed on first use), all three execution surfaces are scanned before running:
+
+1. **Python code** — scanned for suspicious URLs, pipe-to-shell patterns, terminal injection
+2. **pip requirements** — scanned for typosquatted packages, URL-based installs
+3. **Docker command** — the composed `bash -c` shell command is scanned in Docker mode
+
+If Tirith detects a HIGH/CRITICAL threat, execution is blocked and the agent receives an error with findings. MEDIUM/LOW findings are logged as warnings but execution proceeds. If Tirith is not installed or errors, execution proceeds (fail-open by default, configurable via `TIRITH_FAIL_OPEN`).
+
+| Setting | Default | Description |
+|---|---|---|
+| `TIRITH_ENABLED` | `true` | Enable/disable all Tirith scanning |
+| `TIRITH_GATE` | `true` | Enable/disable the `execute_python` pre-exec gate |
+| `TIRITH_BIN` | `tirith` | Path to the Tirith binary |
+| `TIRITH_TIMEOUT` | `5` | Scan timeout in seconds |
+| `TIRITH_FAIL_OPEN` | `true` | Allow execution when Tirith is unavailable or errors |
+
+> **Residual risk:** In Docker mode, the command is still composed via `bash -c` with string interpolation. If Tirith is disabled (`TIRITH_ENABLED=false`), fails open, or the scan itself fails, the shell composition path remains. Refactoring `_docker_exec()` to avoid `bash -c` is planned for a future release.
 
 ---
 
